@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "my_level",
+    "displayName": "My Level",
+    "backgroundTextureId": "bg_area01",
+    "width": 1280,
+    "height": 720,
+    "entities": [
+      {
+        "instanceId": "basic_tree_mqgy4g89_1",
+        "definitionId": "basic_tree",
+        "x": 298.94968516791045,
+        "y": 299.11500103705754
+      },
+      {
+        "instanceId": "basic_tree_mqgy4g8a_2",
+        "definitionId": "basic_tree",
+        "x": 978.220000259121,
+        "y": 358.5840275857301
+      },
+      {
+        "instanceId": "small_rock_mqgy4g8a_3",
+        "definitionId": "small_rock",
+        "x": 519.7125375725539,
+        "y": 458.4070364352876,
+        "overrides": {
+          "maxHp": 30
+        }
+      }
+    ]
+  }
+}

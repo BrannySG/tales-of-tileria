@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Vite / Vitest
+.vite/
+coverage/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor (local / machine-specific)
+.idea/
+*.swp
+*.swo
