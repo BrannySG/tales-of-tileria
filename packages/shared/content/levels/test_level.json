@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "test_level",
+    "displayName": "Grasslands",
+    "backgroundTextureId": "bg_area01",
+    "width": 1920,
+    "height": 1080,
+    "entities": [
+      {
+        "instanceId": "small_rock_mqh0j3lc_1",
+        "definitionId": "small_rock",
+        "x": 332,
+        "y": 278
+      },
+      {
+        "instanceId": "small_rock_mqh0j5o2_2",
+        "definitionId": "small_rock",
+        "x": 264,
+        "y": 377
+      },
+      {
+        "instanceId": "small_rock_mqh0j6yr_3",
+        "definitionId": "small_rock",
+        "x": 377,
+        "y": 372
+      },
+      {
+        "instanceId": "basic_tree_mqh0j8az_4",
+        "definitionId": "basic_tree",
+        "x": 1478,
+        "y": 287
+      },
+      {
+        "instanceId": "small_rock_mqh0j9x6_5",
+        "definitionId": "small_rock",
+        "x": 1334,
+        "y": 343
+      },
+      {
+        "instanceId": "small_rock_mqh0jeu5_6",
+        "definitionId": "small_rock",
+        "x": 1617,
+        "y": 341
+      },
+      {
+        "instanceId": "basic_tree_mqh0jgwd_7",
+        "definitionId": "basic_tree",
+        "x": 1377,
+        "y": 880
+      },
+      {
+        "instanceId": "small_rock_mqh0jk78_8",
+        "definitionId": "small_rock",
+        "x": 1466,
+        "y": 400
+      },
+      {
+        "instanceId": "basic_tree_mqh0jmo4_9",
+        "definitionId": "basic_tree",
+        "x": 431,
+        "y": 703
+      },
+      {
+        "instanceId": "small_rock_mqh0johm_10",
+        "definitionId": "small_rock",
+        "x": 344,
+        "y": 825
+      },
+      {
+        "instanceId": "small_rock_mqh0jpvc_11",
+        "definitionId": "small_rock",
+        "x": 475,
+        "y": 826
+      }
+    ]
+  }
+}

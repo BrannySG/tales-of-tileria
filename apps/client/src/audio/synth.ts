@@ -68,11 +68,12 @@ export function generatePlaceholderSounds(): Record<SoundName, string> {
     make(0.36, (t) => sine(t, 420 - 300 * (t / 0.36)) * decay(t, 7) * 0.7),
   );
 
-  // Respawn: quick ascending two-note chime.
+  // Respawn: soft, subtle pop — short downward blip with a gentle attack.
   const respawn = encodeWav(
-    make(0.34, (t) => {
-      const f = t < 0.16 ? 520 : 780;
-      return sine(t, f) * decay(t % 0.16, 9) * 0.5;
+    make(0.12, (t) => {
+      const f = 340 - 200 * (t / 0.12);
+      const attack = Math.min(1, t / 0.006);
+      return sine(t, f) * attack * decay(t, 40) * 0.18;
     }),
   );
 

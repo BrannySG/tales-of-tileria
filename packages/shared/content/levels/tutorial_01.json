@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "tutorial_01",
+    "displayName": "Mr Smith's",
+    "backgroundTextureId": "bg_area01",
+    "width": 1920,
+    "height": 1080,
+    "entities": [
+      {
+        "instanceId": "mr_smith_mqhadpwx_1",
+        "definitionId": "mr_smith",
+        "x": 1222,
+        "y": 694
+      },
+      {
+        "instanceId": "basic_tree_mqhadrgd_2",
+        "definitionId": "basic_tree",
+        "x": 388,
+        "y": 268
+      },
+      {
+        "instanceId": "small_rock_mqhae0ar_3",
+        "definitionId": "small_rock",
+        "x": 254,
+        "y": 348
+      },
+      {
+        "instanceId": "small_rock_mqhae1w4_4",
+        "definitionId": "small_rock",
+        "x": 357,
+        "y": 377
+      },
+      {
+        "instanceId": "wood_shack_mqhae3y3_5",
+        "definitionId": "wood_shack",
+        "x": 1551,
+        "y": 678
+      },
+      {
+        "instanceId": "basic_tree_mqhaeeie_6",
+        "definitionId": "basic_tree",
+        "x": 355,
+        "y": 732
+      },
+      {
+        "instanceId": "small_rock_mqhaegba_7",
+        "definitionId": "small_rock",
+        "x": 1529,
+        "y": 275
+      },
+      {
+        "instanceId": "small_rock_mqhaehn7_8",
+        "definitionId": "small_rock",
+        "x": 1440,
+        "y": 911
+      },
+      {
+        "instanceId": "small_rock_mqhaejgn_9",
+        "definitionId": "small_rock",
+        "x": 1310,
+        "y": 1023
+      },
+      {
+        "instanceId": "basic_tree_mqhaghaa_10",
+        "definitionId": "basic_tree",
+        "x": 656,
+        "y": 480
+      },
+      {
+        "instanceId": "small_rock_mqhagkd4_11",
+        "definitionId": "small_rock",
+        "x": 346,
+        "y": 840
+      },
+      {
+        "instanceId": "small_rock_mqhagm63_12",
+        "definitionId": "small_rock",
+        "x": 1315,
+        "y": 918
+      },
+      {
+        "instanceId": "small_rock_mqhagq4i_13",
+        "definitionId": "small_rock",
+        "x": 1437,
+        "y": 205
+      }
+    ]
+  }
+}

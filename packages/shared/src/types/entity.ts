@@ -8,6 +8,8 @@ export interface EntityArt {
   textureId: string;
   /** Uniform scale multiplier applied to the base sprite. Default 1. */
   scale?: number;
+  /** Clockwise rotation of the sprite in radians. Default 0. */
+  rotation?: number;
   /** Anchor (origin) of the sprite. Default 0.5 / 0.9 (bottom-ish center). */
   anchorX?: number;
   anchorY?: number;
@@ -25,6 +27,18 @@ export interface DamageableComponent {
 /** Entity disappears when depleted and returns after a timer. */
 export interface RespawnComponent {
   respawnSeconds: number;
+}
+
+/**
+ * When depleted, the entity swaps to a 'broken' look and stays in the world
+ * (inert) instead of vanishing/respawning. Used for one-time tutorial breaks.
+ */
+export interface BreakableComponent {
+  brokenTextureId: string;
+  /** Scale for the broken sprite. Defaults to the entity's art scale. */
+  brokenScale?: number;
+  /** Anchor Y for the broken sprite. Defaults to the entity's art anchorY. */
+  brokenAnchorY?: number;
 }
 
 /** Entity rolls a loot table when depleted. */
@@ -58,6 +72,7 @@ export interface EntityDefinition {
   art: EntityArt;
   damageable?: DamageableComponent;
   respawns?: RespawnComponent;
+  breakable?: BreakableComponent;
   loot?: LootComponent;
   requirements?: RequirementsComponent;
   xp?: XpRewardComponent;

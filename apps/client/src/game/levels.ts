@@ -9,10 +9,12 @@ export const ZOO_LEVEL: LevelDefinition = {
   width: VIRTUAL_WIDTH,
   height: VIRTUAL_HEIGHT,
   entities: [
-    { instanceId: 'tree-1', definitionId: 'basic_tree', x: 320, y: 300 },
-    { instanceId: 'tree-2', definitionId: 'basic_tree', x: 980, y: 360 },
-    { instanceId: 'rock-1', definitionId: 'small_rock', x: 470, y: 470 },
-    { instanceId: 'rock-2', definitionId: 'small_rock', x: 720, y: 560 },
+    { instanceId: 'tree-1', definitionId: 'basic_tree', x: 480, y: 450 },
+    { instanceId: 'tree-2', definitionId: 'basic_tree', x: 1470, y: 540 },
+    { instanceId: 'rock-1', definitionId: 'small_rock', x: 705, y: 705 },
+    { instanceId: 'rock-2', definitionId: 'small_rock', x: 1080, y: 840 },
+    { instanceId: 'shack-1', definitionId: 'wood_shack', x: 1400, y: 800 },
+    { instanceId: 'npc-1', definitionId: 'mr_smith', x: 760, y: 900 },
   ],
 };
 

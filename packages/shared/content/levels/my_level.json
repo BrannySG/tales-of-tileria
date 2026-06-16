@@ -4,26 +4,26 @@
     "id": "my_level",
     "displayName": "My Level",
     "backgroundTextureId": "bg_area01",
-    "width": 1280,
-    "height": 720,
+    "width": 1920,
+    "height": 1080,
     "entities": [
       {
         "instanceId": "basic_tree_mqgy4g89_1",
         "definitionId": "basic_tree",
-        "x": 298.94968516791045,
-        "y": 299.11500103705754
+        "x": 448,
+        "y": 449
       },
       {
         "instanceId": "basic_tree_mqgy4g8a_2",
         "definitionId": "basic_tree",
-        "x": 978.220000259121,
-        "y": 358.5840275857301
+        "x": 1467,
+        "y": 538
       },
       {
         "instanceId": "small_rock_mqgy4g8a_3",
         "definitionId": "small_rock",
-        "x": 519.7125375725539,
-        "y": 458.4070364352876,
+        "x": 780,
+        "y": 688,
         "overrides": {
           "maxHp": 30
         }

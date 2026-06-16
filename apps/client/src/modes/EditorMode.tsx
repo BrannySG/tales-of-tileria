@@ -11,6 +11,8 @@ import { loadTextures } from '../render/assets';
 import { ASSET_URL } from '../assets/manifest';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import { listLevels, loadLevel, saveLevel, type LevelSummary } from '../game/levelApi';
+import { loadGameFonts } from '../assets/fonts';
+import { loadEntityArtOverlay } from '../content/entityArt';
 
 const DEF_DRAG_TYPE = 'text/plain';
 const BACKGROUND_TEXTURE_ID = 'bg_area01';
@@ -33,7 +35,11 @@ export function EditorMode() {
     let cancelled = false;
     let scene: EditorScene | undefined;
     void (async () => {
-      const textures = await loadTextures();
+      const [textures] = await Promise.all([
+        loadTextures(),
+        loadGameFonts(),
+        loadEntityArtOverlay(),
+      ]);
       if (cancelled || !hostRef.current) return;
       scene = await EditorScene.create({
         host: hostRef.current,

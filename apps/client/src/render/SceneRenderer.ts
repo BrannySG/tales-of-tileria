@@ -21,6 +21,26 @@ import { ParticleSystem } from './particles';
 import { DamageNumbers } from './damageNumbers';
 import type { TextureMap } from './assets';
 import type { SoundSystem } from '../audio/SoundSystem';
+import { pickLine, type ReactionTrigger } from '../content/npcLines';
+
+/** Seconds an NPC stays quiet after speaking, so reactions don't spam. */
+const NPC_REACTION_COOLDOWN = 4;
+
+interface NpcEntry {
+  view: EntityView;
+  x: number;
+  y: number;
+  cooldown: number;
+}
+
+/** Maps a depleted entity to a reaction trigger (or null = no reaction). */
+function reactionTriggerFor(def: EntityDefinition): ReactionTrigger | null {
+  const tags = def.tags ?? [];
+  if (tags.includes('shack')) return 'shack_broken';
+  if (tags.includes('tree')) return 'tree_depleted';
+  if (tags.includes('rock')) return 'rock_depleted';
+  return null;
+}
 
 export interface SceneRendererOptions {
   host: HTMLElement;
@@ -34,6 +54,8 @@ export interface SceneRendererOptions {
   showCursor?: boolean;
   /** Enable entity pointer interactions (hover/tap). Default true. */
   interactive?: boolean;
+  /** Called when hovering an entity auto-equips its required tool (HUD sync). */
+  onAutoEquip?: (tool: ToolType) => void;
   /** Drives the sim clock each frame (e.g. LocalTransport.tick bound). */
   tick?: (dt: number) => void;
 }
@@ -47,6 +69,7 @@ export class SceneRenderer {
   private app!: Application;
   private readonly views = new Map<string, EntityView>();
   private readonly defs = new Map<string, EntityDefinition>();
+  private readonly npcs: NpcEntry[] = [];
   private readonly entityLayer = new Container();
   private readonly fxLayer = new Container();
   private readonly cursorLayer = new Container();
@@ -54,6 +77,7 @@ export class SceneRenderer {
   private damageNumbers!: DamageNumbers;
   private cursorView?: CursorView;
   private currentTargetId: string | undefined;
+  private locked = false;
   private unsubscribe?: () => void;
   private resizeObserver?: ResizeObserver;
 
@@ -78,6 +102,13 @@ export class SceneRenderer {
     this.app = app;
     this.opts.host.appendChild(app.canvas);
     app.canvas.style.cursor = this.opts.showCursor === false ? 'default' : 'none';
+    if (this.opts.showCursor !== false) {
+      // Pixi rewrites the canvas cursor per hovered object via cursorStyles; the
+      // default mode is 'inherit', which lets the DOM CSS cursor leak back over
+      // the world. Force every mode to 'none' so only the Pixi cursor shows.
+      app.renderer.events.cursorStyles.default = 'none';
+      app.renderer.events.cursorStyles.pointer = 'none';
+    }
 
     app.stage.eventMode = 'static';
     app.stage.hitArea = new Rectangle(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
@@ -107,13 +138,17 @@ export class SceneRenderer {
       view.container.zIndex = inst.y;
       this.views.set(inst.instanceId, view);
       this.entityLayer.addChild(view.container);
-      if (this.opts.interactive !== false) this.wireEntity(view, inst.instanceId);
+      if (def.kind === 'npc') {
+        // NPCs are non-combat: no hover/tap wiring; they only speak (for now).
+        this.npcs.push({ view, x: inst.x, y: inst.y, cooldown: 0 });
+      } else if (this.opts.interactive !== false) {
+        this.wireEntity(view, inst.instanceId);
+      }
     }
 
     if (this.opts.showCursor !== false) {
       this.cursorView = new CursorView(
         this.opts.textures,
-        this.opts.playerName ?? 'Cursor',
         this.opts.equippedTool ?? 'pickaxe',
       );
       this.cursorLayer.addChild(this.cursorView.container);
@@ -138,12 +173,30 @@ export class SceneRenderer {
 
   private wireEntity(view: EntityView, instanceId: string): void {
     const target = view.hitTarget;
-    target.on('pointerover', () => this.opts.transport.send({ type: 'entity.hoverStart', instanceId }));
-    target.on('pointerout', () => this.opts.transport.send({ type: 'entity.hoverEnd', instanceId }));
+    target.on('pointerover', () => {
+      this.cursorView?.setTargeting(true);
+      const toolType = this.defs.get(instanceId)?.requirements?.toolType;
+      if (toolType) {
+        this.cursorView?.setTool(toolType);
+        this.opts.onAutoEquip?.(toolType);
+      }
+      this.opts.transport.send({ type: 'entity.hoverStart', instanceId });
+    });
+    target.on('pointerout', () => {
+      this.cursorView?.setTargeting(false);
+      this.opts.transport.send({ type: 'entity.hoverEnd', instanceId });
+    });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       this.opts.transport.send({ type: 'entity.tap', instanceId });
     });
+    view.onLockToggle = () => {
+      if (this.locked && this.currentTargetId === instanceId) {
+        this.opts.transport.send({ type: 'entity.unlock' });
+      } else {
+        this.opts.transport.send({ type: 'entity.lock', instanceId });
+      }
+    };
   }
 
   /** Locks the current target (used by the HUD lock button / hotkey). */
@@ -170,9 +223,16 @@ export class SceneRenderer {
       }
       case 'entity.depleted': {
         const view = this.views.get(event.instanceId);
-        if (view) view.onDepleted('respawning');
+        const def = this.defs.get(event.instanceId);
+        if (view) {
+          // Breakable entities (e.g. the shack) swap to their broken art and
+          // stay in the world; everything else shrinks away.
+          if (def?.breakable) view.onBreak();
+          else view.onDepleted('respawning');
+        }
         this.spawnHitFx(event.instanceId, 0, 'active', true);
         this.opts.sound?.play('deplete');
+        if (def) this.reactToDepletion(def, event.x, event.y);
         break;
       }
       case 'entity.respawned': {
@@ -186,7 +246,12 @@ export class SceneRenderer {
           this.views.get(this.currentTargetId)?.setTargeted(false);
         }
         this.currentTargetId = event.instanceId;
-        if (event.instanceId) this.views.get(event.instanceId)?.setTargeted(true);
+        this.locked = event.locked;
+        if (event.instanceId) {
+          const view = this.views.get(event.instanceId);
+          view?.setTargeted(true);
+          view?.setLocked(event.locked);
+        }
         this.cursorView?.setLocked(event.locked);
         if (event.locked) this.opts.sound?.play('lock');
         break;
@@ -222,8 +287,32 @@ export class SceneRenderer {
     }
   }
 
+  /** Picks the nearest off-cooldown NPC and has it comment on a depletion. */
+  private reactToDepletion(def: EntityDefinition, x: number, y: number): void {
+    if (this.npcs.length === 0) return;
+    const trigger = reactionTriggerFor(def);
+    if (!trigger) return;
+
+    let best: NpcEntry | undefined;
+    let bestDist = Infinity;
+    for (const npc of this.npcs) {
+      if (npc.cooldown > 0) continue;
+      const d = (npc.x - x) ** 2 + (npc.y - y) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        best = npc;
+      }
+    }
+    if (!best) return;
+    best.view.say(pickLine(trigger));
+    best.cooldown = NPC_REACTION_COOLDOWN;
+  }
+
   private update(dt: number): void {
     for (const view of this.views.values()) view.update(dt);
+    for (const npc of this.npcs) {
+      if (npc.cooldown > 0) npc.cooldown -= dt;
+    }
     this.particles.update(dt);
     this.damageNumbers.update(dt);
     this.cursorView?.update(dt);

@@ -9,6 +9,8 @@ import {
 import { requireEntityDefinition, type PlacedEntity } from '@tot/shared';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import type { TextureMap } from '../render/assets';
+import { resolveArt } from '../content/entityArt';
+import { createContactShadow, createOutlineFilter } from '../render/entityFx';
 
 interface EditorEntity {
   placed: PlacedEntity;
@@ -147,19 +149,23 @@ export class EditorScene {
 
   private spawn(placed: PlacedEntity): void {
     const def = requireEntityDefinition(placed.definitionId);
-    const tex = this.opts.textures.get(def.art.textureId);
+    const resolved = resolveArt(def);
+    const tex = this.opts.textures.get(resolved.textureId);
     if (!tex) return;
     const container = new Container();
     container.x = placed.x;
     container.y = placed.y;
     container.zIndex = placed.y;
 
+    const shadow = createContactShadow(tex.width * resolved.scale);
     const sprite = new Sprite(tex);
-    sprite.anchor.set(def.art.anchorX ?? 0.5, def.art.anchorY ?? 0.9);
-    sprite.scale.set(def.art.scale ?? 1);
+    sprite.anchor.set(resolved.anchorX, resolved.anchorY);
+    sprite.scale.set(resolved.scale);
+    sprite.rotation = resolved.rotation;
+    sprite.filters = [createOutlineFilter()];
     sprite.eventMode = 'static';
     sprite.cursor = 'move';
-    container.addChild(sprite);
+    container.addChild(shadow, sprite);
 
     sprite.on('pointerdown', (e: FederatedPointerEvent) => {
       e.stopPropagation();

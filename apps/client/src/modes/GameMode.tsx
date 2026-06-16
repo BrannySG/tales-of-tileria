@@ -68,9 +68,8 @@ export function GameMode() {
           level={level}
           playerName="Branny"
           tool="pickaxe"
-          title={level.displayName.toUpperCase()}
-          subtitle="Loaded from a saved LevelDefinition."
           locationName={level.displayName}
+          variant="game"
         />
       ) : (
         <div className="stage-host">

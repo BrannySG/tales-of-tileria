@@ -49,6 +49,18 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Entity instance** — A single placed entity in a Level/Level instance with
   its own live runtime state (current HP, claim owner, respawn timer).
 
+## Economy
+
+- **Currency** — A fungible, count-only measure the player accumulates and can
+  spend (shown as the single coin total in the HUD). Distinct from Resources: a
+  currency has no item identity beyond its amount.
+- **Coins** — The prototype's single Currency.
+- **Resource** — A gathered material item with its own identity (e.g. Wood,
+  Stone), collected by damaging Resource entities and held in the Inventory.
+  Resources are not Currency.
+- **Inventory** — A player's collection of held items (Resources and other
+  loot), keyed by item id with quantities.
+
 ## Tooling
 
 - **Content Zoo** — A development testbed scene used to build and tune the feel
@@ -58,3 +70,8 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Level Editor** — A development tool for placing Entity instances into a
   Level via drag-and-drop and assigning per-instance data (loot table, HP,
   respawn rate). Saves LevelDefinition files that the real game can load.
+  Concerns *where* entities are placed (per-Level), not what a type looks like.
+- **Entity Editor** — A development tool for tuning the global visual transform
+  of an Entity definition (scale, rotation, anchor). Edits apply to every
+  instance of that type across all Levels. Concerns *what a type looks like*
+  (global), not where instances are placed. Complements the Level Editor.

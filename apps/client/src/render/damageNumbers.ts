@@ -1,5 +1,6 @@
 import { Container, Text } from 'pixi.js';
 import type { DamageSource } from '@tot/shared';
+import { GAME_FONT_FAMILY } from '../assets/fonts';
 
 interface FloatingNumber {
   text: Text;
@@ -27,7 +28,7 @@ export class DamageNumbers {
     const text = new Text({
       text: String(amount),
       style: {
-        fontFamily: 'Segoe UI, system-ui, sans-serif',
+        fontFamily: GAME_FONT_FAMILY,
         fontSize: active ? 30 : 18,
         fontWeight: active ? '800' : '600',
         fill: active ? 0xfff1a8 : 0xd7e7ff,

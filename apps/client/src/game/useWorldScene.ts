@@ -6,6 +6,8 @@ import { loadTextures } from '../render/assets';
 import { SoundSystem } from '../audio/SoundSystem';
 import { bindHud, useHud } from '../state/store';
 import { buildNameLookup } from './levels';
+import { loadGameFonts } from '../assets/fonts';
+import { loadEntityArtOverlay } from '../content/entityArt';
 
 export interface WorldSession {
   transport: LocalTransport;
@@ -38,7 +40,11 @@ export function useWorldScene(
     useHud.getState().setEquippedTool(options.tool);
 
     void (async () => {
-      const textures = await loadTextures();
+      const [textures] = await Promise.all([
+        loadTextures(),
+        loadGameFonts(),
+        loadEntityArtOverlay(),
+      ]);
       if (cancelled || !hostRef.current) return;
       renderer = await SceneRenderer.create({
         host: hostRef.current,
@@ -48,6 +54,7 @@ export function useWorldScene(
         sound,
         playerName: options.playerName,
         equippedTool: options.tool,
+        onAutoEquip: (tool) => useHud.getState().setEquippedTool(tool),
         tick: (dt) => transport.tick(dt),
       });
       if (cancelled) {

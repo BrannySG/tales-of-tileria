@@ -6,7 +6,7 @@ export const smallRock: EntityDefinition = {
   kind: 'resource',
   art: {
     textureId: 'rock',
-    scale: 1,
+    scale: 0.5,
     anchorX: 0.5,
     anchorY: 0.82,
     hitParticleTextureId: 'fx_rock_shard',
@@ -27,7 +27,7 @@ export const basicTree: EntityDefinition = {
   kind: 'resource',
   art: {
     textureId: 'tree',
-    scale: 1,
+    scale: 0.95,
     anchorX: 0.5,
     anchorY: 0.95,
     hitParticleTextureId: 'fx_wood_chip',
@@ -42,4 +42,41 @@ export const basicTree: EntityDefinition = {
   tags: ['tree', 'choppable'],
 };
 
-export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [smallRock, basicTree];
+export const mrSmith: EntityDefinition = {
+  id: 'mr_smith',
+  displayName: 'Mr. Smith',
+  kind: 'npc',
+  art: {
+    textureId: 'npc_smith',
+    scale: 0.6,
+    anchorX: 0.5,
+    anchorY: 0.96,
+  },
+  interactionRule: 'personal',
+  tags: ['npc', 'villager'],
+};
+
+export const woodShack: EntityDefinition = {
+  id: 'wood_shack',
+  displayName: 'Wood Shack',
+  kind: 'questObject',
+  art: {
+    textureId: 'shack',
+    scale: 0.95,
+    anchorX: 0.5,
+    anchorY: 0.92,
+    hitParticleTextureId: 'fx_wood_chip',
+    hitTint: 0xffffff,
+  },
+  damageable: { maxHp: 24 },
+  breakable: { brokenTextureId: 'shack_broken', brokenAnchorY: 0.86 },
+  interactionRule: 'personal',
+  tags: ['shack', 'tutorial'],
+};
+
+export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
+  smallRock,
+  basicTree,
+  mrSmith,
+  woodShack,
+];

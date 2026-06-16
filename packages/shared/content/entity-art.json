@@ -1,0 +1,26 @@
+{
+  "small_rock": {
+    "scale": 0.31,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.82
+  },
+  "basic_tree": {
+    "scale": 1.02,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.95
+  },
+  "mr_smith": {
+    "scale": 0.6,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.96
+  },
+  "wood_shack": {
+    "scale": 1.69,
+    "rotation": 0,
+    "anchorX": 0.52,
+    "anchorY": 0.85
+  }
+}

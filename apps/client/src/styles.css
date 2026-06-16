@@ -1,13 +1,14 @@
 :root {
   --bg: #1a1d23;
-  --panel: #23272f;
+  --panel: rgba(20, 22, 27, 0.82);
+  --panel-solid: #23272f;
   --panel-border: #353b45;
   --text: #e8eaed;
   --muted: #9aa3af;
   --accent: #ffd24a;
   --accent-2: #6cc24a;
   --danger: #e5484d;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: 'DERRICK', 'Segoe UI', system-ui, sans-serif;
 }
 
 * {
@@ -26,7 +27,7 @@ body,
 
 button {
   font-family: inherit;
-  cursor: pointer;
+  cursor: inherit;
 }
 
 /* ---- App shell / mode nav ---- */
@@ -80,111 +81,160 @@ button {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
-/* ---- HUD overlay ---- */
+/* ---- World frame: overlays + clips the HUD to the letterboxed world view ---- */
+.world-frame-host {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.world-frame {
+  position: relative;
+  overflow: hidden;
+}
+
+/* HUD authored at the virtual resolution; scaled to match the displayed canvas. */
+.hud-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
 .hud {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
 }
 
 .hud > * {
   pointer-events: auto;
 }
 
-.hud-resources {
+/* ---- Currency (top-left) ---- */
+.hud-currency {
   position: absolute;
-  top: 14px;
-  left: 16px;
-  display: flex;
-  gap: 14px;
-  font-weight: 700;
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
-}
-
-.hud-resource {
+  top: 34px;
+  left: 40px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 14px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
 }
 
-.hud-quest {
-  position: absolute;
-  top: 56px;
-  left: 16px;
-  background: rgba(20, 22, 27, 0.55);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 8px 12px;
-  max-width: 220px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+.coin {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9a6 0%, #ffcf45 45%, #e8a01f 100%);
+  border: 3px solid #b9791a;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.18);
+  transform: skewX(-8deg);
 }
 
-.hud-quest h4 {
-  margin: 0 0 4px;
-  font-size: 11px;
+.coin-amount {
+  font-size: 46px;
+  font-weight: 800;
   letter-spacing: 1px;
-  color: var(--muted);
+  color: #fff;
+  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
 }
 
+/* ---- Location (bottom-left) ---- */
 .hud-location {
   position: absolute;
-  bottom: 14px;
-  left: 16px;
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+  bottom: 36px;
+  left: 42px;
+  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
+  line-height: 1.1;
 }
 
 .hud-location small {
   color: var(--accent);
   display: block;
+  font-size: 24px;
+  font-weight: 700;
 }
 
+.hud-location-name {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+/* ---- Hotbar (bottom-center) ---- */
 .hotbar {
   position: absolute;
-  bottom: 14px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hotbar-tooltip {
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.65);
+}
+
+.hotbar-slots {
+  display: flex;
+  gap: 10px;
 }
 
 .hotbar-slot {
-  width: 46px;
-  height: 46px;
-  border: 2px solid var(--panel-border);
-  border-radius: 8px;
-  background: rgba(20, 22, 27, 0.55);
+  width: 84px;
+  height: 84px;
+  border: 3px solid rgba(0, 0, 0, 0.45);
+  border-radius: 14px;
+  background: rgba(60, 44, 28, 0.62);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06);
   display: grid;
   place-items: center;
+  padding: 0;
 }
 
 .hotbar-slot.active {
   border-color: var(--accent);
-  background: rgba(255, 210, 74, 0.15);
+  background: rgba(255, 210, 74, 0.2);
+}
+
+.hotbar-slot.empty {
+  background: rgba(40, 30, 20, 0.5);
 }
 
 .hotbar-slot img {
-  width: 30px;
-  height: 30px;
+  width: 58px;
+  height: 58px;
   image-rendering: pixelated;
 }
 
-/* ---- Dev panel ---- */
+/* ---- Dev panel (Zoo only; lives inside the world frame) ---- */
 .dev-panel {
   position: absolute;
-  top: 14px;
-  right: 16px;
-  width: 230px;
-  background: rgba(20, 22, 27, 0.85);
+  top: 34px;
+  right: 40px;
+  width: 360px;
+  background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 12px;
+  border-radius: 14px;
+  padding: 18px;
+  font-size: 18px;
+  backdrop-filter: blur(4px);
 }
 
 .dev-panel h4 {
-  margin: 0 0 8px;
-  font-size: 11px;
+  margin: 0 0 12px;
+  font-size: 16px;
   letter-spacing: 1px;
   color: var(--muted);
 }
@@ -193,8 +243,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .dev-row label {
@@ -206,29 +256,29 @@ button {
 }
 
 .dev-row .val {
-  width: 34px;
+  width: 48px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Editor ---- */
-.editor {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-columns: 200px 1fr 240px;
-  z-index: 10;
-  pointer-events: none;
+.editor-hint {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
-.editor > .panel {
-  pointer-events: auto;
+/* ---- Editor / Entity Editor side panels (consistent skin) ---- */
+.tool-layout {
+  position: absolute;
+  inset: 0;
+  padding-top: 52px;
+  display: grid;
 }
 
 .panel {
-  background: var(--panel);
+  background: var(--panel-solid);
   border-right: 1px solid var(--panel-border);
-  padding: 12px;
+  padding: 14px;
   overflow-y: auto;
 }
 
@@ -239,7 +289,7 @@ button {
 
 .panel h3 {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: 15px;
   letter-spacing: 0.5px;
 }
 
@@ -256,6 +306,15 @@ button {
   user-select: none;
 }
 
+.palette-item.selectable {
+  cursor: inherit;
+}
+
+.palette-item.selected {
+  border-color: var(--accent);
+  background: rgba(255, 210, 74, 0.12);
+}
+
 .palette-item img {
   width: 34px;
   height: 34px;
@@ -263,30 +322,39 @@ button {
   image-rendering: pixelated;
 }
 
+.palette-item span {
+  font-size: 15px;
+}
+
 .field {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .field label {
-  display: block;
-  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
   color: var(--muted);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .field input,
 .field select {
   width: 100%;
-  padding: 6px 8px;
+  padding: 7px 9px;
   background: #1c2027;
   color: var(--text);
   border: 1px solid var(--panel-border);
   border-radius: 6px;
 }
 
+.field input[type='range'] {
+  padding: 0;
+}
+
 .btn {
   width: 100%;
-  padding: 9px;
+  padding: 10px;
   border: none;
   border-radius: 8px;
   font-weight: 700;
@@ -300,13 +368,7 @@ button {
   color: var(--text);
 }
 
-.editor-hint {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 .empty-note {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
 }
