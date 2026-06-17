@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "mortal_realm_01",
+    "displayName": "Tileria",
+    "backgroundTextureId": "bg_area01",
+    "width": 1920,
+    "height": 1080,
+    "entities": [
+      {
+        "instanceId": "mortal_tree_1",
+        "definitionId": "basic_tree",
+        "x": 527,
+        "y": 407,
+        "overrides": {}
+      },
+      {
+        "instanceId": "mortal_tree_2",
+        "definitionId": "basic_tree",
+        "x": 371,
+        "y": 702,
+        "overrides": {}
+      },
+      {
+        "instanceId": "mortal_rock_1",
+        "definitionId": "small_rock",
+        "x": 250,
+        "y": 387,
+        "overrides": {}
+      },
+      {
+        "instanceId": "mortal_rock_2",
+        "definitionId": "small_rock",
+        "x": 321,
+        "y": 878,
+        "overrides": {}
+      },
+      {
+        "instanceId": "small_rock_mqib197k_1",
+        "definitionId": "small_rock",
+        "x": 260,
+        "y": 271
+      },
+      {
+        "instanceId": "small_rock_mqib1ab4_2",
+        "definitionId": "small_rock",
+        "x": 333,
+        "y": 215
+      },
+      {
+        "instanceId": "small_rock_mqib1cui_3",
+        "definitionId": "small_rock",
+        "x": 577,
+        "y": 518
+      },
+      {
+        "instanceId": "small_rock_mqib1e53_4",
+        "definitionId": "small_rock",
+        "x": 1392,
+        "y": 483
+      },
+      {
+        "instanceId": "basic_tree_mqib1fwo_5",
+        "definitionId": "basic_tree",
+        "x": 1565,
+        "y": 440
+      },
+      {
+        "instanceId": "small_rock_mqib1jpq_6",
+        "definitionId": "small_rock",
+        "x": 1555,
+        "y": 570
+      },
+      {
+        "instanceId": "small_rock_mqib1lid_7",
+        "definitionId": "small_rock",
+        "x": 1314,
+        "y": 787
+      },
+      {
+        "instanceId": "small_rock_mqib1n2k_8",
+        "definitionId": "small_rock",
+        "x": 1160,
+        "y": 976
+      },
+      {
+        "instanceId": "small_rock_mqib1p4e_9",
+        "definitionId": "small_rock",
+        "x": 479,
+        "y": 813
+      },
+      {
+        "instanceId": "basic_tree_mqib1qkh_10",
+        "definitionId": "basic_tree",
+        "x": 675,
+        "y": 974
+      },
+      {
+        "instanceId": "small_rock_mqib1rve_11",
+        "definitionId": "small_rock",
+        "x": 803,
+        "y": 618
+      },
+      {
+        "instanceId": "small_rock_mqib1sym_12",
+        "definitionId": "small_rock",
+        "x": 1149,
+        "y": 503
+      },
+      {
+        "instanceId": "basic_tree_mqib1ufp_13",
+        "definitionId": "basic_tree",
+        "x": 1002,
+        "y": 420
+      },
+      {
+        "instanceId": "small_rock_mqib1w7p_14",
+        "definitionId": "small_rock",
+        "x": 873,
+        "y": 769
+      },
+      {
+        "instanceId": "basic_tree_mqib1x1s_15",
+        "definitionId": "basic_tree",
+        "x": 1090,
+        "y": 769
+      },
+      {
+        "instanceId": "small_rock_mqib23n6_16",
+        "definitionId": "small_rock",
+        "x": 1565,
+        "y": 792
+      },
+      {
+        "instanceId": "small_rock_mqib257s_17",
+        "definitionId": "small_rock",
+        "x": 1275,
+        "y": 303
+      }
+    ]
+  }
+}

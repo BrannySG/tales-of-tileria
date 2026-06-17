@@ -22,6 +22,28 @@ language in the design docs, this file wins and the docs should be reconciled.
   Player's `displayName`) and persisted on the client, so the shrine label,
   cursor nameplate, NPC lines, and welcome message all read it.
 
+## Divine Powers
+
+- **Divine power** — A removable, player-scoped supernatural capability,
+  authoritative on the Player and portable across Levels until revoked by a
+  `player.setDivinePower` command. Smite is the first; the structure is kept
+  extensible for later powers. Losing and regaining divine power is the game's
+  long-term progression spine.
+- **Smite** — A temporary Divine power active during the divine intro: every
+  third consecutive Active tap on the **same** target lands as a Smite — a single
+  Active hit multiplied (not an extra swing), with a dramatic flash, oversized
+  damage number, and impact sprite. The per-target counter is transient World
+  state; the unlock flag rides the Player snapshot. Granted at the intro start,
+  revoked by the Council at Banishment.
+- **Banishment** — The arc beat in which the Council of Clickers strips the
+  player's Divine power (Smite) and casts them into the mortal realm. It removes
+  intro-only power **only** — Owned tools, Skills, Inventory, Divine name, and
+  Quests are all retained — and is enacted as a real sim command, so the carried
+  snapshot inherits the change.
+- **Council of Clickers** — A court of celestial Cursor-beings who judge the
+  player for meddling with mortals and enact the Banishment. Authored as a real
+  Level (`council_01`) of Cursor-being Entities, scripted by a Director.
+
 ## Damage & Targeting
 
 - **Active damage** — Burst damage dealt by tapping/clicking an entity. The
@@ -48,11 +70,12 @@ language in the design docs, this file wins and the docs should be reconciled.
   one Level. A Player's personal state (Divine name, Owned tools, Skills,
   Inventory, Quests) is **portable across Level instances**: a snapshot can seed a
   new instance, so progress survives a Level swap (e.g. tutorial → Shared zone).
-- **Shared zone** — Zone 1, the place the player arrives in after Onboarding,
-  framed as a shared/multiplayer clearing. Authored in its final state (shack and
-  furnace built, shrine active, no tool pickups). Currently single local player;
-  the "shared" framing is presentational, with forward-compatible interaction
-  rules and no networking yet.
+- **Shared zone** — The mortal realm the player is banished into after the
+  Council (`mortal_realm_01`), framed as a shared/social clearing and the player's
+  first time existing around other cursors. Authored in a lived-in state (shack
+  and furnace built, shrine active, gathering nodes, a few ambient Cursor-beings).
+  Currently single local player; the "shared" framing is presentational, with
+  forward-compatible interaction rules and no networking yet.
 
 ## Entities
 
@@ -63,6 +86,14 @@ language in the design docs, this file wins and the docs should be reconciled.
   Authored once, referenced many times.
 - **Entity instance** — A single placed entity in a Level/Level instance with
   its own live runtime state (current HP, claim owner, respawn timer).
+- **Cursor-being** — An Entity kind for a celestial or other-player cursor
+  (Council members, ambient crowd cursors): non-damageable and non-reactive, a
+  scriptable speaker a Director addresses by instance id. Distinct from a mortal
+  System NPC. Ambient Cursor-beings fake social presence (no networking yet).
+- **Ancient Tree** — An imposing, effectively unbreakable Resource that gates the
+  path beyond the tutorial. Striking it (especially with Smite) triggers the
+  Council of Clickers cutscene. It is never actually depleted and remains a
+  long-term aspirational gate ("you are not strong enough yet").
 - **Shrine** — A persistent Entity that receives crafted results: a completed
   Crafting job places its Offering on the Shrine to be claimed. Authored locked,
   enabled (undedicated) by a Quest reward, then Dedicated by the player.
@@ -115,7 +146,9 @@ language in the design docs, this file wins and the docs should be reconciled.
   come in tiers. Each tool the player holds is an instance of a Tool definition.
 - **Tool definition** — The static, reusable content describing one tool (id,
   Tool type, Tool tier, display name, icon, optional Wield requirement). Tools are
-  *identified*: the player owns a set of tool ids, e.g. `axe_basic`, `axe_stone`.
+  *identified*: the player owns a set of tool ids, e.g. `axe_rusty`, `axe_stone`.
+  Tiers progress Rusty (found, tier 1) → Stone (crafted, tier 2) for both the Axe
+  (Woodcutting) and Pickaxe (Mining) lines.
 - **Tool type** — The category a tool belongs to (axe, pickaxe, sword), used by
   a Tool requirement to say *what kind* of tool an entity needs.
 - **Tool tier** — A numeric rank on a Tool definition (higher = more capable). A

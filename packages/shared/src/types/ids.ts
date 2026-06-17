@@ -17,7 +17,13 @@ export type EntityKind =
   | 'pickup'
   | 'craftingStation'
   | 'questObject'
-  | 'shrine';
+  | 'shrine'
+  /**
+   * A celestial/other cursor (Council members, ambient other players): non-
+   * damageable, non-reactive, a scriptable speaker a director addresses by
+   * instanceId. Distinct from mortal NPCs (see CONTEXT.md: Cursor-being).
+   */
+  | 'cursorBeing';
 
 /**
  * How ownership of an entity is resolved when multiple players interact.

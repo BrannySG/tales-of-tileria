@@ -56,7 +56,7 @@ function rockLevel(count: number): LevelDefinition {
 
 describe('skills — XP + level up', () => {
   it('awards woodcutting XP on deplete and levels up at the curve thresholds', () => {
-    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 100 } });
+    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 100 } });
     // L2 needs 40 XP; each tree = 12 woodcutting XP -> 4 trees = 48 XP > 40.
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'tree1' });
     expect(typesOf(events)).toContain('skill.xpGained');
@@ -81,8 +81,8 @@ describe('skills — XP + level up', () => {
 });
 
 describe('tiered tool gating', () => {
-  it('blocks the oak with only a basic (tier-1) axe: toolTierTooLow', () => {
-    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 100 } });
+  it('blocks the oak with only a rusty (tier-1) axe: toolTierTooLow', () => {
+    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 100 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' });
     const blocked = events.find((e) => e.type === 'entity.blocked');
     expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('toolTierTooLow');
@@ -120,7 +120,7 @@ describe('tiered tool gating', () => {
 describe('furnace multi-cost build', () => {
   it('consumes all costs (10 stone + 5 wood) deterministically', () => {
     const player = createPlayer('local', 'Hero');
-    player.ownedTools = ['pickaxe_stone'];
+    player.ownedTools = ['pickaxe_rusty'];
     player.inventory = { stone: 10, wood: 5 };
     const level = richLevel();
     // Unlock the furnace so it can be built.
@@ -215,7 +215,7 @@ describe('quest chaining + world unlocks', () => {
 
   it('rebuild_shack reward enables the pickaxe pickup and grants pickup_pickaxe', () => {
     const player = createPlayer('local', 'Hero');
-    player.ownedTools = ['axe_basic'];
+    player.ownedTools = ['axe_rusty'];
     player.inventory = { wood: 10 };
     const world = new World(richLevel(), { seed: 1, player });
     world.applyCommand({ type: 'quest.grant', questId: 'rebuild_shack' });
@@ -228,8 +228,8 @@ describe('quest chaining + world unlocks', () => {
     expect(world.getPlayer().quests.map((q) => q.questId)).toContain('pickup_pickaxe');
   });
 
-  it('mine_stone reward enables the furnace and advances to better_wood across the rest of the chain', () => {
-    const world = new World(rockLevel(12), { seed: 1, startingTools: ['pickaxe_stone'], combat: { activeDamage: 100 } });
+  it('mine_stone completes once enough stone is gathered with a rusty pickaxe', () => {
+    const world = new World(rockLevel(12), { seed: 1, startingTools: ['pickaxe_rusty'], combat: { activeDamage: 100 } });
     world.applyCommand({ type: 'quest.grant', questId: 'mine_stone' });
     for (let i = 0; i < 12; i++) world.applyCommand({ type: 'entity.tap', instanceId: `rock${i}` });
     const q = world.getPlayer().quests.find((x) => x.questId === 'mine_stone');
@@ -237,7 +237,7 @@ describe('quest chaining + world unlocks', () => {
     expect(world.getPlayer().inventory.stone).toBeGreaterThanOrEqual(10);
   });
 
-  it('completing + claiming first_offering (via the shrine) auto-grants better_wood', () => {
+  it('completing + claiming first_offering (via the shrine) auto-grants craft_stone_pickaxe', () => {
     const player = createPlayer('local', 'Hero');
     player.craftingUnlocked = true;
     player.inventory = { wood: 12, stone: 6 };
@@ -249,28 +249,28 @@ describe('quest chaining + world unlocks', () => {
     expect(world.getPlayer().quests.find((q) => q.questId === 'first_offering')?.status).toBe('completed');
 
     world.applyCommand({ type: 'quest.claim', questId: 'first_offering' });
-    expect(world.getPlayer().quests.map((q) => q.questId)).toContain('better_wood');
+    expect(world.getPlayer().quests.map((q) => q.questId)).toContain('craft_stone_pickaxe');
   });
 });
 
 describe('portable player snapshot (ADR-0011)', () => {
   it('seeds a new World with the carried name, tools, skills, inventory, and quests', () => {
     const player = createPlayer('hero-id', 'Aurelia');
-    player.ownedTools = ['axe_basic', 'pickaxe_stone', 'axe_stone'];
+    player.ownedTools = ['axe_rusty', 'pickaxe_stone', 'axe_stone'];
     player.craftingUnlocked = true;
     player.inventory = { wood: 7, gold: 99 };
     player.skills = emptySkills();
     player.skills.woodcutting = { xp: xpToReach(3), level: 3 };
-    player.quests = [{ questId: 'better_wood', status: 'active', progress: 0, goal: 1 }];
+    player.quests = [{ questId: 'the_path_beyond', status: 'active', progress: 0, goal: 1 }];
 
     const world = new World(richLevel(), { seed: 1, player });
     const got = world.getPlayer();
     expect(got.displayName).toBe('Aurelia');
-    expect(got.ownedTools).toEqual(['axe_basic', 'pickaxe_stone', 'axe_stone']);
+    expect(got.ownedTools).toEqual(['axe_rusty', 'pickaxe_stone', 'axe_stone']);
     expect(got.craftingUnlocked).toBe(true);
     expect(got.inventory.gold).toBe(99);
     expect(got.skills.woodcutting.level).toBe(3);
-    expect(got.quests.find((q) => q.questId === 'better_wood')?.status).toBe('active');
+    expect(got.quests.find((q) => q.questId === 'the_path_beyond')?.status).toBe('active');
 
     // It is a clone: mutating the source does not change the World's player.
     player.inventory.gold = 0;

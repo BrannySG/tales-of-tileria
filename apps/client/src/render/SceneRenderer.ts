@@ -172,6 +172,10 @@ export class SceneRenderer {
   /** While a craft is in flight, a countdown badge replaces the craft prompt. */
   private furnaceTimer?: WorldPrompt;
   private furnaceTimerTick?: Updatable;
+  /** True once an NPC has reacted to the first Smite (so it fires only once). */
+  private smiteWitnessed = false;
+  /** Instances whose next entity.damaged number should be skipped (a Smite owns it). */
+  private readonly smiteSuppressNumberFor = new Set<string>();
 
   private constructor(private readonly opts: SceneRendererOptions) {}
 
@@ -305,6 +309,13 @@ export class SceneRenderer {
     if ((def.tags ?? []).includes('tree')) this.registerLeafSource(view, inst);
     if (def.kind === 'npc') {
       this.npcs.push({ view, x: inst.x, y: inst.y, cooldown: 0 });
+    } else if (def.kind === 'cursorBeing') {
+      // Celestial/other cursors are non-interactive scriptable speakers. They
+      // start hidden when locked so a director can reveal them on cue.
+      view.setInteractive(false);
+      if (inst.locked) {
+        view.container.visible = false;
+      }
     } else if (def.kind === 'shrine') {
       this.shrineIds.add(inst.instanceId);
       // A locked shrine stays hidden until enabled, then appears on cue.
@@ -669,9 +680,23 @@ export class SceneRenderer {
         const view = this.views.get(event.instanceId);
         if (!view) break;
         view.onDamaged(event.hp, event.maxHp, event.source);
-        this.spawnHitFx(event.instanceId, event.amount, event.source, false);
+        const suppressNumber = this.smiteSuppressNumberFor.delete(event.instanceId);
+        this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber);
         break;
       }
+      case 'smiteTriggered': {
+        // The Smite is emitted just before its entity.damaged, so claim that hit's
+        // damage number (we show a big one) and play the full Smite presentation.
+        this.smiteSuppressNumberFor.add(event.instanceId);
+        this.spawnSmiteFx(event.x, event.y, event.amount);
+        if (!this.smiteWitnessed) {
+          this.smiteWitnessed = true;
+          this.npcReact('smite_witnessed');
+        }
+        break;
+      }
+      case 'divinePowerChanged':
+        break;
       case 'entity.depleted': {
         const view = this.views.get(event.instanceId);
         const def = this.defs.get(event.instanceId);
@@ -865,7 +890,13 @@ export class SceneRenderer {
     );
   }
 
-  private spawnHitFx(instanceId: string, amount: number, source: DamageSource, deplete: boolean): void {
+  private spawnHitFx(
+    instanceId: string,
+    amount: number,
+    source: DamageSource,
+    deplete: boolean,
+    suppressNumber = false,
+  ): void {
     const view = this.views.get(instanceId);
     const def = this.defs.get(instanceId);
     if (!view || !def) return;
@@ -887,10 +918,121 @@ export class SceneRenderer {
     if (dtex) this.particles.burst(dtex, x, y, driftBurstOptions(deplete));
 
     if (!deplete) {
-      this.damageNumbers.spawn(x, y, amount, source);
+      if (!suppressNumber) this.damageNumbers.spawn(x, y, amount, source);
       const isRock = def.art.textureId === 'rock';
       this.opts.sound?.play(isRock ? 'hitRock' : 'hitTree', { pitchVariation: 0.12 });
     }
+  }
+
+  /**
+   * The minimal Smite presentation (see CONTEXT.md: Smite): a white/gold screen
+   * flash, the divine impact sprite at the target, a big "SMITE!" callout and an
+   * oversized damage number, plus impact sparks and a punchy sound.
+   */
+  private spawnSmiteFx(x: number, y: number, amount: number): void {
+    this.flashScreen(0xfff3c0, 0.55, 320);
+
+    const tex = this.opts.textures.get('fx_smite');
+    if (tex) {
+      const sprite = new Sprite(tex);
+      sprite.anchor.set(0.5, 0.92);
+      const s = 380 / Math.max(1, tex.height);
+      sprite.x = x;
+      sprite.y = y;
+      sprite.zIndex = 950;
+      sprite.blendMode = 'add';
+      sprite.scale.set(s * 0.9, s * 1.2);
+      this.fxLayer.addChild(sprite);
+      this.cineAnimator.add(
+        0.45,
+        (v) => {
+          sprite.alpha = 1 - v;
+          sprite.scale.set(s * (0.9 + v * 0.2), s * (1.2 + v * 0.2));
+        },
+        { ease: Easings.outQuad, onComplete: () => sprite.destroy() },
+      );
+    }
+
+    this.floatText(x, y - 150, 'SMITE!', { color: 0xffe66a, size: 64, life: 1.2, vy: -36 });
+    this.floatText(x, y - 60, `${amount}`, { color: 0xfff1a8, size: 56, life: 1.1, vy: -120 });
+    this.particleBurstWorld('fx_sparkle', x, y - 20, { count: 20, speed: 320, scale: 0.8 });
+    this.opts.sound?.play('lightning');
+  }
+
+  /**
+   * The Smite presentation rendered on the CINEMATIC layer (above the blackout),
+   * so the onboarding void's scripted third-blow smites read on the black screen
+   * — coordinates are screen-space (the void props live here, not in the world).
+   */
+  playCinematicSmiteFx(x: number, y: number): void {
+    this.flashScreen(0xfff3c0, 0.6, 340);
+
+    const tex = this.opts.textures.get('fx_smite');
+    if (tex) {
+      const sprite = new Sprite(tex);
+      sprite.anchor.set(0.5, 0.92);
+      const s = 380 / Math.max(1, tex.height);
+      sprite.position.set(x, y);
+      sprite.zIndex = 5000;
+      sprite.blendMode = 'add';
+      sprite.scale.set(s * 0.9, s * 1.2);
+      this.cinematicContent.addChild(sprite);
+      this.cineAnimator.add(
+        0.45,
+        (v) => {
+          sprite.alpha = 1 - v;
+          sprite.scale.set(s * (0.9 + v * 0.2), s * (1.2 + v * 0.2));
+        },
+        { ease: Easings.outQuad, onComplete: () => sprite.destroy() },
+      );
+    }
+
+    this.cinematicCallout(x, y - 150, 'SMITE!');
+    this.particleBurst('fx_sparkle', x, y - 20, { count: 20, speed: 320, scale: 0.8 });
+    this.opts.sound?.play('lightning');
+  }
+
+  /** A rising, fading caption on the cinematic layer (the void Smite "SMITE!"). */
+  private cinematicCallout(x: number, y: number, text: string): void {
+    const t = new Text({
+      text,
+      style: {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: 64,
+        fontWeight: '800',
+        fill: 0xffe66a,
+        stroke: { color: 0x1a1206, width: 6 },
+        align: 'center',
+      },
+    });
+    t.anchor.set(0.5);
+    t.position.set(x, y);
+    t.zIndex = 5001;
+    this.cinematicContent.addChild(t);
+    this.cineAnimator.add(
+      1.2,
+      (v) => {
+        t.alpha = 1 - v * v;
+        t.y = y - 40 * v;
+      },
+      { onComplete: () => t.destroy() },
+    );
+  }
+
+  /** A quick full-screen color flash (above the world), used by Smite. */
+  private flashScreen(color: number, alpha: number, ms: number): void {
+    const flash = new Graphics();
+    flash.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill(color);
+    flash.alpha = alpha;
+    flash.eventMode = 'none';
+    this.cinematicRoot.addChild(flash);
+    this.cineAnimator.add(
+      Math.max(0.0001, ms / 1000),
+      (v) => {
+        flash.alpha = alpha * (1 - v);
+      },
+      { ease: Easings.outQuad, onComplete: () => flash.destroy() },
+    );
   }
 
   /** Picks the nearest off-cooldown NPC and has it comment on a depletion. */
@@ -1075,6 +1217,34 @@ export class SceneRenderer {
     const on = alpha > 0.001;
     this.blackout.visible = on;
     this.blackout.eventMode = on ? 'static' : 'none';
+  }
+
+  /**
+   * Ramps a full-screen WHITE flash up to full and holds it — the Ancient Tree
+   * banishment blink. The caller transitions away (a level swap tears the
+   * renderer down), so the flash is intentionally left covering the screen.
+   */
+  flashWhite(ms = 420): Promise<void> {
+    return new Promise((resolve) => {
+      const flash = new Graphics();
+      flash.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill(0xffffff);
+      flash.alpha = 0;
+      flash.eventMode = 'static';
+      this.cinematicRoot.addChild(flash);
+      this.cineAnimator.add(
+        Math.max(0.0001, ms / 1000),
+        (v) => {
+          flash.alpha = v;
+        },
+        {
+          ease: Easings.inQuad,
+          onComplete: () => {
+            flash.alpha = 1;
+            resolve();
+          },
+        },
+      );
+    });
   }
 
   /** Fades the full-screen blackout toward `to` over `ms`. Resolves when done. */

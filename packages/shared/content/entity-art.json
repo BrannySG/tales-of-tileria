@@ -46,5 +46,17 @@
     "rotation": 0,
     "anchorX": 0.49,
     "anchorY": 0.83
+  },
+  "council_member": {
+    "scale": 0.4,
+    "rotation": 0,
+    "anchorX": 0.51,
+    "anchorY": 0.94
+  },
+  "crowd_cursor": {
+    "scale": 0.27,
+    "rotation": 0,
+    "anchorX": 0.49,
+    "anchorY": 0.98
   }
 }

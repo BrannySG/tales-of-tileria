@@ -34,8 +34,13 @@ export interface OnboardingCallbacks {
    * the host can open the naming modal *after* the dialogue (not on top of it).
    */
   onRequestName?: () => void;
-  /** Fired when the whole scripted sequence finishes (control is the player's). */
+  /** Fired after the shrine beat, when the player takes control to craft (Phases 7-8). */
   onComplete?: () => void;
+  /**
+   * Fired when the Ancient Tree banishment blink completes — the host transitions
+   * to the Council of Clickers (see ADR-0013). The screen is left flashed white.
+   */
+  onAscend?: () => void;
 }
 
 /**
@@ -64,8 +69,12 @@ export class OnboardingDirector {
     const { renderer, sound } = this.session;
     renderer.setWorldEntitiesVisible(false);
     renderer.setBlackout(1);
+    // Audio is unlocked here, but the void stays SILENT — the meadow only swells
+    // in once the world is revealed (see houseAndReveal).
     sound.unlock();
-    sound.playMusic('onboarding', { loop: true, fadeInMs: 1800 });
+    // The player begins the intro as a divine cursor: grant the Smite power so
+    // every third same-target tap lands as a Smite (revoked later by the Council).
+    this.session.transport.send({ type: 'player.setDivinePower', power: 'smite', unlocked: true });
     this.wisps = renderer.addWisps({ count: 32 });
     this.wisps.fadeTo(1);
 
@@ -171,7 +180,68 @@ export class OnboardingDirector {
       if (this.cancelled) return;
     }
 
+    // Hand control to the player for the crafting phases (Stone Axe + Pickaxe).
     this.cb.onComplete?.();
+
+    // Act 4 — the Ancient Tree gate (Phase 9). The sim grants `the_path_beyond`
+    // when the Stone Pickaxe craft is claimed; we re-enter then to script the
+    // forbidden strike and the blinding flash that summons the Council.
+    await this.waitForQuestGranted('the_path_beyond');
+    if (this.cancelled) return;
+    await this.ancientTreeBeat(npcId);
+    if (this.cancelled) return;
+    this.cb.onAscend?.();
+  }
+
+  /**
+   * Act 4: focus the imposing Ancient Tree, let Mr Smith fret, then wait for the
+   * player to strike it. The forbidden blow (a Smite, or the third hit) cuts him
+   * off with a blinding white flash — the cue to ascend to the Council.
+   */
+  private async ancientTreeBeat(npcId: string | undefined): Promise<void> {
+    const { renderer } = this.session;
+    const treeId = renderer.instanceIdByDefinition('ancient_tree');
+    if (!treeId) return;
+
+    // The summons begins: the meadow gives way to the Council's theme, which now
+    // carries through the strike, the ascent, and the whole cutscene.
+    this.session.sound.playMusic('before_council', { loop: true, fadeInMs: 2000 });
+
+    await renderer.cameraFocus(treeId, { zoom: 1.45, anchor: { x: 0.5, y: 0.52 } });
+    if (this.cancelled) return;
+    if (npcId) {
+      await this.dialogue(npcId, [
+        { text: 'That tree has stood longer than my family name. I wouldn\u2019t\u2014' },
+        { text: 'Perhaps the gods should leave that one alo\u2014' },
+      ]);
+    }
+    if (this.cancelled) return;
+
+    await this.waitForAncientStrike(treeId);
+    if (this.cancelled) return;
+
+    await renderer.flashWhite(420);
+    if (this.cancelled) return;
+    await this.sleep(700);
+  }
+
+  /**
+   * Resolves on the first Smite against the Ancient Tree, or after a few ordinary
+   * strikes if the player never triggers one — so the gate always fires.
+   */
+  private waitForAncientStrike(treeId: string): Promise<void> {
+    return new Promise((resolve) => {
+      let hits = 0;
+      const unsub = this.session.transport.subscribe((e) => {
+        const isSmite = e.type === 'smiteTriggered' && e.instanceId === treeId;
+        if (e.type === 'entity.damaged' && e.instanceId === treeId) hits += 1;
+        if (isSmite || hits >= 3) {
+          unsub();
+          resolve();
+        }
+      });
+      this.subscribers.push(unsub);
+    });
   }
 
   /**
@@ -196,10 +266,10 @@ export class OnboardingDirector {
     // Pan to the pickaxe and wait for the player to take it. The owns-guards keep
     // the beat from hanging if the player grabbed it during the dialogue above.
     const pickaxeId = renderer.instanceIdByDefinition('pickaxe_pickup');
-    if (pickaxeId && !this.owns('pickaxe_stone')) {
+    if (pickaxeId && !this.owns('pickaxe_rusty')) {
       await renderer.cameraFocus(pickaxeId, { zoom: 1.8 });
       if (this.cancelled) return;
-      if (!this.owns('pickaxe_stone')) {
+      if (!this.owns('pickaxe_rusty')) {
         await this.waitForEvent((e) => e.type === 'pickup.collected' && e.instanceId === pickaxeId);
       }
     }
@@ -255,6 +325,15 @@ export class OnboardingDirector {
       .player.quests.some((q) => q.questId === questId && q.status === 'claimed');
   }
 
+  /** Resolves once the named quest exists on the player (active or beyond). */
+  private waitForQuestGranted(questId: string): Promise<void> {
+    const has = this.session.transport
+      .getSnapshot()
+      .player.quests.some((q) => q.questId === questId);
+    if (has) return Promise.resolve();
+    return this.waitForEvent((e) => e.type === 'quest.updated' && e.quest.questId === questId);
+  }
+
   /** True while the named entity is still locked (not yet enabled). */
   private entityLocked(instanceId: string): boolean {
     return (
@@ -307,6 +386,8 @@ export class OnboardingDirector {
     renderer.removeWisps();
     this.wisps = undefined;
     this.destroyProp(prop);
+    // The world is here — let the meadow ambience rise with it.
+    this.session.sound.playMusic('ambient_meadow', { loop: true, fadeInMs: 2400 });
     this.cb.onReveal?.();
     await this.sleep(450);
   }
@@ -358,13 +439,15 @@ export class OnboardingDirector {
     const { renderer } = this.session;
     const px = prop.view.container.x;
     const py = prop.view.container.y + prop.view.hitOffsetY;
+    // The third blow lands as a divine SMITE — a flash of lightning shatters the
+    // prop (extra drama for the void tutorial). The smite plays its own sound.
+    renderer.playCinematicSmiteFx(px, py);
     if (prop.def.breakable) prop.view.onBreak();
     else prop.view.onDepleted('depleted');
     const fx = prop.def.art.hitParticleTextureId;
     if (fx) renderer.particleBurst(fx, px, py, { count: 20, speed: 330, scale: 0.7 });
     const drift = prop.def.art.driftParticleTextureId;
     if (drift) renderer.particleBurst(drift, px, py, driftBurstOptions(true));
-    renderer.playSound('deplete');
   }
 
   private destroyProp(prop: Prop): void {

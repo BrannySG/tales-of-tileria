@@ -17,4 +17,20 @@ export const stoneAxeRecipe: RecipeDefinition = {
   xp: { crafting: 10 },
 };
 
-export const RECIPE_DEFINITIONS: readonly RecipeDefinition[] = [stoneAxeRecipe];
+/**
+ * The Stone Pickaxe recipe — the mining-side second craft (Phase 8). Consumes
+ * wood + stone, then places the Stone Pickaxe on the Shrine to be claimed.
+ */
+export const stonePickaxeRecipe: RecipeDefinition = {
+  id: 'stone_pickaxe',
+  displayName: 'Stone Pickaxe',
+  cost: [
+    { itemId: 'wood', quantity: 5 },
+    { itemId: 'stone', quantity: 10 },
+  ],
+  craftSeconds: 6,
+  result: { grantsToolId: 'pickaxe_stone' },
+  xp: { crafting: 10 },
+};
+
+export const RECIPE_DEFINITIONS: readonly RecipeDefinition[] = [stoneAxeRecipe, stonePickaxeRecipe];

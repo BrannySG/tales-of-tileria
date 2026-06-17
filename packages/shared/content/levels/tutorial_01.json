@@ -138,6 +138,13 @@
         "y": 381,
         "locked": true,
         "overrides": {}
+      },
+      {
+        "instanceId": "ancient_tree_tutorial_1",
+        "definitionId": "ancient_tree",
+        "x": 960,
+        "y": 250,
+        "overrides": {}
       }
     ]
   }

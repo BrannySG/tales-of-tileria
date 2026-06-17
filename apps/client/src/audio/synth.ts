@@ -50,9 +50,20 @@ function make(durationSeconds: number, fn: (t: number, i: number) => number): Fl
 const decay = (t: number, rate: number) => Math.exp(-t * rate);
 const sine = (t: number, freq: number) => Math.sin(2 * Math.PI * freq * t);
 
-export type SoundName = 'hitRock' | 'hitTree' | 'deplete' | 'respawn' | 'lock' | 'loot' | 'denied';
+/** One-shots that are procedurally synthesised here (data-URI WAVs). */
+export type SynthSoundName =
+  | 'hitRock'
+  | 'hitTree'
+  | 'deplete'
+  | 'respawn'
+  | 'lock'
+  | 'loot'
+  | 'denied';
 
-export function generatePlaceholderSounds(): Record<SoundName, string> {
+/** All one-shot names: the synthesised set plus file-backed SFX (see SoundSystem). */
+export type SoundName = SynthSoundName | 'lightning';
+
+export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
   // Rock hit: low thock + noise transient.
   const hitRock = encodeWav(
     make(0.18, (t) => (sine(t, 130) * 0.6 + (Math.random() * 2 - 1) * 0.5) * decay(t, 28)),

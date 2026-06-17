@@ -9,6 +9,32 @@ export interface SkillState {
 }
 
 /**
+ * The Smite divine power's tunable state. While `unlocked`, every
+ * `everyNthClick`th consecutive tap on the SAME target lands as a Smite — a
+ * single Active hit multiplied by `damageMultiplier`. Granted at the divine
+ * intro and revoked at the Council banishment.
+ */
+export interface SmitePower {
+  unlocked: boolean;
+  everyNthClick: number;
+  damageMultiplier: number;
+}
+
+/**
+ * Removable, player-scoped supernatural capabilities (see CONTEXT.md: Divine
+ * power). Authoritative on the Player and portable across Levels until revoked
+ * by command. Smite is the first; keep this shape extensible for later powers.
+ */
+export interface DivinePowers {
+  smite: SmitePower;
+}
+
+/** A fresh divine-powers block: every power locked (mortal by default). */
+export function emptyDivinePowers(): DivinePowers {
+  return { smite: { unlocked: false, everyNthClick: 3, damageMultiplier: 6 } };
+}
+
+/**
  * Authoritative player-scoped state held by the sim `World` (see ADR-0006).
  * Owned tools, inventory, skills, crafting, and quest progress all live here so
  * tool-gating and quest tracking have a single source of truth. A Player is
@@ -35,6 +61,8 @@ export interface Player {
   craftingJob?: CraftingJob;
   /** Live progress on accepted quests. */
   quests: QuestState[];
+  /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
+  divinePowers: DivinePowers;
 }
 
 const SKILL_IDS: SkillId[] = ['mining', 'woodcutting', 'combat', 'crafting'];
@@ -55,5 +83,6 @@ export function createPlayer(id: string, displayName: string): Player {
     skills: emptySkills(),
     craftingUnlocked: false,
     quests: [],
+    divinePowers: emptyDivinePowers(),
   };
 }

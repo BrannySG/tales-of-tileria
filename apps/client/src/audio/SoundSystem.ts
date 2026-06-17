@@ -1,20 +1,29 @@
 import { Howl, Howler } from 'howler';
 import { generatePlaceholderSounds, type SoundName } from './synth';
+import meadowUrl from '@assets/Music/Music_Ambient_Meadow.ogg';
+import beforeCouncilUrl from '@assets/Music/Music_BeforeTheCouncil.ogg';
+import lightningUrl from '@assets/Music/SFX_LightningStrike.ogg';
 
-/** Background music tracks. Sources are added as assets land (see below). */
-export type MusicTrack = 'onboarding';
+/** Background music tracks. */
+export type MusicTrack = 'ambient_meadow' | 'before_council';
 
 /**
- * Music source map. Intentionally empty for now: there is no music asset yet, so
- * `playMusic` is a graceful no-op. To add a track later, import the audio file
- * and map it here, e.g.:
- *
- *   import onboardingUrl from '@assets/M_Onboarding.mp3';
- *   const MUSIC_SOURCES = { onboarding: onboardingUrl };
- *
- * Nothing else needs to change — the channel, fades, and call-sites are wired.
+ * Music source map — the single place tracks are mapped to bundled audio. A
+ * track with no source here makes `playMusic` a graceful no-op.
  */
-const MUSIC_SOURCES: Partial<Record<MusicTrack, string>> = {};
+const MUSIC_SOURCES: Partial<Record<MusicTrack, string>> = {
+  ambient_meadow: meadowUrl,
+  before_council: beforeCouncilUrl,
+};
+
+/**
+ * File-backed one-shots that override/extend the procedural placeholders. The
+ * key is the same `SoundName` used at call sites, so swapping a synth blip for a
+ * real recording is a one-line map entry.
+ */
+const SFX_SOURCES: Partial<Record<SoundName, string>> = {
+  lightning: lightningUrl,
+};
 
 interface MusicOptions {
   loop?: boolean;
@@ -42,6 +51,10 @@ export class SoundSystem {
         name,
         new Howl({ src: [uri], format: ['wav'], volume: name === 'hitRock' ? 0.5 : 0.4 }),
       );
+    }
+    // File-backed SFX layer on top, replacing any synth placeholder of the same name.
+    for (const [name, url] of Object.entries(SFX_SOURCES) as [SoundName, string][]) {
+      this.sounds.set(name, new Howl({ src: [url], volume: 0.6 }));
     }
   }
 

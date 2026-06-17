@@ -37,7 +37,11 @@ export type SimCommand =
     }
   | { type: 'craft.start'; recipeId: string }
   | { type: 'craft.claim'; instanceId: string }
-  | { type: 'player.setName'; name: string };
+  | { type: 'player.setName'; name: string }
+  | { type: 'player.setDivinePower'; power: DivinePowerId; unlocked: boolean };
+
+/** Identifier of a removable divine power (see CONTEXT.md: Divine power). */
+export type DivinePowerId = 'smite';
 
 export type DamageSource = 'active' | 'passive';
 
@@ -108,7 +112,16 @@ export type SimEvent =
   | { type: 'craftingJobCompleted'; recipeId: string }
   | { type: 'craftedItemPlacedAtShrine'; instanceId: string; grantsToolId: ToolId }
   | { type: 'craftedItemClaimed'; instanceId: string; toolId: ToolId; x: number; y: number }
-  | { type: 'player.nameChanged'; name: string };
+  | { type: 'player.nameChanged'; name: string }
+  | {
+      /** A Smite landed: a multiplied Active hit on a target (presentation hook). */
+      type: 'smiteTriggered';
+      instanceId: string;
+      x: number;
+      y: number;
+      amount: number;
+    }
+  | { type: 'divinePowerChanged'; power: DivinePowerId; unlocked: boolean };
 
 export type SimEventHandler = (event: SimEvent) => void;
 

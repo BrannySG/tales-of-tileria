@@ -3,6 +3,7 @@ import {
   bestOwnedToolTier,
   bestUsableTool,
   createPlayer,
+  emptyDivinePowers,
   emptySkills,
   getLootTable,
   listQuestDefinitions,
@@ -19,6 +20,7 @@ import {
   type CombatConfig,
   type CursorState,
   type DamageSource,
+  type DivinePowerId,
   type EntityInstance,
   type ItemCost,
   type LevelDefinition,
@@ -91,6 +93,10 @@ export class World {
   private readonly rng: Rng;
   private passiveAccumulator = 0;
   private readonly player: Player;
+  /** Transient Smite counter: the entity the last active tap landed on... */
+  private lastSmiteTargetId?: string;
+  /** ...and how many consecutive active taps have landed on it (resets on change). */
+  private smiteCount = 0;
 
   constructor(level: LevelDefinition, opts: WorldOptions = {}) {
     this.combat = { ...DEFAULT_COMBAT_CONFIG, ...opts.combat };
@@ -165,7 +171,7 @@ export class World {
         if (block) {
           return [{ type: 'entity.blocked', instanceId: entity.instanceId, ...block }];
         }
-        return this.applyDamage(entity, this.combat.activeDamage, 'active');
+        return this.applyActiveTap(entity);
       }
 
       case 'entity.hoverStart': {
@@ -227,6 +233,9 @@ export class World {
 
       case 'player.setName':
         return this.setName(cmd.name);
+
+      case 'player.setDivinePower':
+        return this.setDivinePower(cmd.power, cmd.unlocked);
 
       default:
         return [];
@@ -565,6 +574,53 @@ export class World {
     return events;
   }
 
+  // --- Divine powers (Smite) ---
+
+  /**
+   * Applies one active tap, upgrading every Nth consecutive same-target tap to a
+   * Smite (a single Active hit multiplied by `damageMultiplier`) while the Smite
+   * divine power is unlocked (see CONTEXT.md: Smite). The per-target counter is
+   * transient and resets whenever the tapped target changes.
+   */
+  private applyActiveTap(entity: EntityInstance): SimEvent[] {
+    const smite = this.player.divinePowers.smite;
+    if (!smite.unlocked || smite.everyNthClick <= 0) {
+      this.smiteCount = 0;
+      this.lastSmiteTargetId = entity.instanceId;
+      return this.applyDamage(entity, this.combat.activeDamage, 'active');
+    }
+
+    if (this.lastSmiteTargetId !== entity.instanceId) {
+      this.lastSmiteTargetId = entity.instanceId;
+      this.smiteCount = 0;
+    }
+    this.smiteCount += 1;
+
+    if (this.smiteCount % smite.everyNthClick !== 0) {
+      return this.applyDamage(entity, this.combat.activeDamage, 'active');
+    }
+
+    // The Nth tap IS the Smite — one big Active hit, not an extra swing.
+    const amount = this.combat.activeDamage * smite.damageMultiplier;
+    const events: SimEvent[] = [
+      { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount },
+    ];
+    events.push(...this.applyDamage(entity, amount, 'active'));
+    return events;
+  }
+
+  /** Grants/revokes a divine power (the Council revokes Smite at banishment). */
+  private setDivinePower(power: DivinePowerId, unlocked: boolean): SimEvent[] {
+    const current = this.player.divinePowers[power];
+    if (!current || current.unlocked === unlocked) return [];
+    current.unlocked = unlocked;
+    if (!unlocked) {
+      this.smiteCount = 0;
+      this.lastSmiteTargetId = undefined;
+    }
+    return [{ type: 'divinePowerChanged', power, unlocked }];
+  }
+
   // --- Damage / depletion / loot / XP ---
 
   private tickPassiveDamage(dt: number, events: SimEvent[]): void {
@@ -695,6 +751,9 @@ function clonePlayer(player: Player): Player {
   // Backfill any skills missing from a partial carried snapshot.
   const base = emptySkills();
   for (const id of Object.keys(base) as SkillId[]) if (!skills[id]) skills[id] = { ...base[id] };
+  const divinePowers = player.divinePowers
+    ? { smite: { ...player.divinePowers.smite } }
+    : emptyDivinePowers();
   return {
     ...player,
     ownedTools: [...player.ownedTools],
@@ -702,6 +761,7 @@ function clonePlayer(player: Player): Player {
     skills,
     craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,
     quests: player.quests.map((q) => ({ ...q })),
+    divinePowers,
   };
 }
 

@@ -51,7 +51,7 @@ describe('World — tool gating', () => {
   });
 
   it('allows damage once the axe is owned', () => {
-    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 3 } });
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 3 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
     expect(typesOf(events)).toEqual(['entity.damaged']);
     expect(world.getEntity('t1')?.hp).toBe(3);
@@ -76,7 +76,7 @@ describe('World — pickups', () => {
     expect(typesOf(events)).toContain('pickup.collected');
     expect(typesOf(events)).toContain('tool.equipped');
     expect(world.getEntity('axe1')).toBeUndefined();
-    expect(world.getPlayer().ownedTools).toContain('axe_basic');
+    expect(world.getPlayer().ownedTools).toContain('axe_rusty');
     expect(world.getPlayer().equippedToolType).toBe('axe');
   });
 
@@ -100,7 +100,7 @@ describe('World — quests', () => {
   });
 
   it('advances a depleteEntity quest as trees are chopped', () => {
-    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 10 } });
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 10 } });
     world.applyCommand({ type: 'quest.grant', questId: 'chop_trees' });
 
     world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
@@ -137,7 +137,7 @@ describe('World — runtime spawn', () => {
   });
 
   it('awards flat 4 wood per tree into inventory', () => {
-    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 10 } });
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 10 } });
     world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
     expect(world.getPlayer().inventory.wood).toBe(4);
   });
@@ -165,13 +165,13 @@ describe('World — locked pickups', () => {
 
 describe('World — building', () => {
   it('starts the authored shack unbuilt and inert to taps', () => {
-    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 10 } });
+    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 10 } });
     expect(world.getEntity('shack1')?.state).toBe('unbuilt');
     expect(world.applyCommand({ type: 'entity.tap', instanceId: 'shack1' })).toEqual([]);
   });
 
   it('rejects building until the wood cost is affordable, then consumes it', () => {
-    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 10 } });
+    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 10 } });
     // Not enough wood yet.
     expect(world.applyCommand({ type: 'entity.build', instanceId: 'shack1' })).toEqual([]);
     expect(world.getEntity('shack1')?.state).toBe('unbuilt');
@@ -193,7 +193,7 @@ describe('World — building', () => {
   });
 
   it('completes a buildEntity quest when the shack is built', () => {
-    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_basic'], combat: { activeDamage: 10 } });
+    const world = new World(makeBuildLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 10 } });
     world.applyCommand({ type: 'quest.grant', questId: 'rebuild_shack' });
     world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
     world.applyCommand({ type: 'entity.tap', instanceId: 't2' });

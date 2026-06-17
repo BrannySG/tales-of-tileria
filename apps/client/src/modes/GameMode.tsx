@@ -13,7 +13,7 @@ const ZONE_ONE_LEVEL_ID = 'zone_01';
  */
 function buildReturningPlayer(): Player {
   const player = createPlayer('local', getPlayerName() ?? 'Wanderer');
-  player.ownedTools = ['axe_basic', 'pickaxe_stone'];
+  player.ownedTools = ['axe_rusty', 'pickaxe_rusty'];
   player.equippedToolType = 'axe';
   player.craftingUnlocked = true;
   player.skills = emptySkills();

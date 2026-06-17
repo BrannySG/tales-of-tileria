@@ -1,11 +1,11 @@
 import type { ToolDefinition } from '../types/tool';
 
-/** The starting wooden axe: low tier, no wield requirement. */
-export const axeBasic: ToolDefinition = {
-  id: 'axe_basic',
+/** The found starting axe: low tier, no wield requirement. A battered old axe. */
+export const axeRusty: ToolDefinition = {
+  id: 'axe_rusty',
   toolType: 'axe',
   tier: 1,
-  displayName: 'Wooden Axe',
+  displayName: 'Rusty Axe',
   iconTextureId: 'icon_axe',
 };
 
@@ -22,13 +22,31 @@ export const axeStone: ToolDefinition = {
   iconTextureId: 'icon_axe',
 };
 
-/** The Stone Pickaxe found near Mr Smith. */
-export const pickaxeStone: ToolDefinition = {
-  id: 'pickaxe_stone',
+/** The found starting pickaxe: low tier, no wield requirement. More rust than pickaxe. */
+export const pickaxeRusty: ToolDefinition = {
+  id: 'pickaxe_rusty',
   toolType: 'pickaxe',
   tier: 1,
-  displayName: 'Stone Pickaxe',
+  displayName: 'Rusty Pickaxe',
   iconTextureId: 'icon_pickaxe',
 };
 
-export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [axeBasic, axeStone, pickaxeStone];
+/**
+ * The crafted Stone Pickaxe: tier 2 (can mine Hard Rocks) but requires Mining 3
+ * to wield — the mining-side mirror of the Stone Axe (see ADR-0008).
+ */
+export const pickaxeStone: ToolDefinition = {
+  id: 'pickaxe_stone',
+  toolType: 'pickaxe',
+  tier: 2,
+  displayName: 'Stone Pickaxe',
+  wieldRequirement: { skillId: 'mining', level: 3 },
+  iconTextureId: 'icon_pickaxe',
+};
+
+export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
+  axeRusty,
+  axeStone,
+  pickaxeRusty,
+  pickaxeStone,
+];

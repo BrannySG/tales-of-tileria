@@ -3,7 +3,7 @@ import type { LevelDefinition, Player, ToolId, ToolType } from '@tot/shared';
 import { LocalTransport, World } from '@tot/sim';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { loadTextures } from '../render/assets';
-import { SoundSystem } from '../audio/SoundSystem';
+import { SoundSystem, type MusicTrack } from '../audio/SoundSystem';
 import { bindHud, useHud } from '../state/store';
 import { buildNameLookup } from './levels';
 import { loadGameFonts } from '../assets/fonts';
@@ -29,6 +29,12 @@ export function useWorldScene(
     startingTools?: ToolId[];
     /** A carried Player snapshot to seed the World with (see ADR-0011). */
     player?: Player;
+    /**
+     * Music track to loop while this session is mounted (default `ambient_meadow`).
+     * Pass `null` for silence — e.g. the onboarding void, which only finds its
+     * meadow once the world is revealed.
+     */
+    music?: MusicTrack | null;
     /** Invoked when the player taps the craft prompt over Mr Smith. */
     onOpenCrafting?: () => void;
     /** Invoked once the session is live; return an optional cleanup. */
@@ -80,6 +86,11 @@ export function useWorldScene(
       }
       const session: WorldSession = { transport, renderer, sound };
       sessionRef.current = session;
+      // Default world ambience; `music: null` keeps the session silent (the void).
+      if (options.music !== null) {
+        sound.unlock();
+        sound.playMusic(options.music ?? 'ambient_meadow', { loop: true, fadeInMs: 1200 });
+      }
       onReadyCleanup = options.onReady?.(session);
       if (import.meta.env.DEV) {
         (globalThis as Record<string, unknown>).__tot = {
@@ -94,6 +105,9 @@ export function useWorldScene(
       cancelled = true;
       if (onReadyCleanup) onReadyCleanup();
       unbind();
+      // Each session owns its own SoundSystem; stop music so it never bleeds
+      // across level swaps (e.g. tutorial -> Council -> mortal realm).
+      sound.stopMusic();
       renderer?.destroy();
       sessionRef.current = null;
       setReady(false);

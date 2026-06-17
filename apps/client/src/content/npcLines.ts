@@ -20,6 +20,7 @@ export type ReactionTrigger =
   | 'craft_started'
   | 'offering_ready'
   | 'shrine_enabled'
+  | 'smite_witnessed'
   | 'level_up';
 
 const LINES: Record<ReactionTrigger, readonly string[]> = {
@@ -68,6 +69,11 @@ const LINES: Record<ReactionTrigger, readonly string[]> = {
   shrine_enabled: [
     'A house restored, a furnace raised... this place feels holy now.',
     'A shrine, for one such as you. But by what name shall we honour you?',
+  ],
+  smite_witnessed: [
+    'BY THE ANVIL — THE SKY JUST PUNCHED THAT TREE!',
+    'Right. Yes. Good. The gods are armed.',
+    'I shall pretend that was entirely normal.',
   ],
   level_up: [
     'You grow mightier by the moment!',

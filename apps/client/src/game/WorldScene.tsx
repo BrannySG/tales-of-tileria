@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CombatConfig, LevelDefinition, Player, Rarity, ToolId, ToolType } from '@tot/shared';
 import { useWorldScene, type WorldSession } from './useWorldScene';
+import type { MusicTrack } from '../audio/SoundSystem';
 import { useStageScale } from './useStageScale';
 import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
@@ -17,6 +18,8 @@ export interface WorldSceneProps {
   startingTools?: ToolId[];
   /** A carried Player snapshot to seed the World with (see ADR-0011). */
   player?: Player;
+  /** Looping music for this session (default `ambient_meadow`; `null` = silent). */
+  music?: MusicTrack | null;
   /** Show the DOM HUD overlay. Hidden during the onboarding void. Default true. */
   hudVisible?: boolean;
   /** Invoked once the session is live (e.g. to start the onboarding Director). */
@@ -38,6 +41,7 @@ export function WorldScene({
   variant = 'game',
   startingTools,
   player,
+  music,
   hudVisible = true,
   onReady,
 }: WorldSceneProps) {
@@ -47,6 +51,7 @@ export function WorldScene({
     tool,
     startingTools,
     player,
+    music,
     onOpenCrafting: () => setCraftingOpen(true),
     onReady,
   });

@@ -70,7 +70,7 @@ export const oakTree: EntityDefinition = {
   tags: ['tree', 'choppable', 'oak'],
 };
 
-/** A blocked Mining teaser: needs a tier-2 pickaxe + Mining 5 (unreachable now). */
+/** Unlocked by the crafted Stone Pickaxe: needs a tier-2 pickaxe + Mining 3. */
 export const hardRock: EntityDefinition = {
   id: 'hard_rock',
   displayName: 'Hard Rock',
@@ -86,7 +86,7 @@ export const hardRock: EntityDefinition = {
   damageable: { maxHp: 80 },
   respawns: { respawnSeconds: 30 },
   loot: { lootTableId: 'rock_basic' },
-  requirements: { skill: { skillId: 'mining', level: 5 }, toolType: 'pickaxe', minTier: 2 },
+  requirements: { skill: { skillId: 'mining', level: 3 }, toolType: 'pickaxe', minTier: 2 },
   xp: { rewards: { mining: 20 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'hard'],
@@ -193,7 +193,7 @@ export const axePickup: EntityDefinition = {
     anchorX: 0.5,
     anchorY: 0.5,
   },
-  pickup: { grantsToolId: 'axe_basic' },
+  pickup: { grantsToolId: 'axe_rusty' },
   interactionRule: 'personal',
   tags: ['pickup', 'tool'],
 };
@@ -208,9 +208,67 @@ export const pickaxePickup: EntityDefinition = {
     anchorX: 0.5,
     anchorY: 0.5,
   },
-  pickup: { grantsToolId: 'pickaxe_stone' },
+  pickup: { grantsToolId: 'pickaxe_rusty' },
   interactionRule: 'personal',
   tags: ['pickup', 'tool', 'pickaxe'],
+};
+
+/**
+ * The Ancient Tree world gate (see CONTEXT.md: Ancient Tree). Imposing and
+ * effectively unbreakable (huge HP — it is never actually depleted; the Council
+ * cutscene fires first). Ungated, so a divine player's taps/Smite land and react.
+ */
+export const ancientTree: EntityDefinition = {
+  id: 'ancient_tree',
+  displayName: 'Ancient Tree',
+  kind: 'resource',
+  art: {
+    textureId: 'tree_ancient',
+    scale: 1.7,
+    anchorX: 0.5,
+    anchorY: 0.97,
+    hitParticleTextureId: 'fx_wood_chip',
+    driftParticleTextureId: 'fx_leaf',
+    hitTint: 0xd8ffe0,
+  },
+  damageable: { maxHp: 100000 },
+  xp: { rewards: { woodcutting: 0 } },
+  interactionRule: 'personal',
+  tags: ['tree', 'ancient', 'gate'],
+};
+
+/**
+ * A Council of Clickers member: a celestial cursor-being. Non-damageable, non-
+ * reactive; the CouncilDirector scripts its lines and names it in dialogue.
+ * Placed locked so the cutscene can reveal the council on cue.
+ */
+export const councilMember: EntityDefinition = {
+  id: 'council_member',
+  displayName: 'Council of Clickers',
+  kind: 'cursorBeing',
+  art: {
+    textureId: 'cursor',
+    scale: 2.4,
+    anchorX: 0.2,
+    anchorY: 0.2,
+  },
+  interactionRule: 'personal',
+  tags: ['cursorBeing', 'council'],
+};
+
+/** An ambient crowd cursor (faked social presence): a small, dim cursor-being. */
+export const crowdCursor: EntityDefinition = {
+  id: 'crowd_cursor',
+  displayName: 'A Cursor',
+  kind: 'cursorBeing',
+  art: {
+    textureId: 'cursor',
+    scale: 1.2,
+    anchorX: 0.2,
+    anchorY: 0.2,
+  },
+  interactionRule: 'personal',
+  tags: ['cursorBeing', 'crowd'],
 };
 
 export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
@@ -218,10 +276,13 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   basicTree,
   oakTree,
   hardRock,
+  ancientTree,
   mrSmith,
   woodShack,
   furnace,
   shrine,
   axePickup,
   pickaxePickup,
+  councilMember,
+  crowdCursor,
 ];
