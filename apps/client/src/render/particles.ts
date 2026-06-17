@@ -23,6 +23,23 @@ export interface BurstOptions {
 }
 
 /**
+ * Tuning for fluttery "drift" particles (e.g. leaves): they pop up into an
+ * upward arc, fall slowly under light gravity and linger far longer than
+ * heavier debris like wood chips or rock shards.
+ */
+export function driftBurstOptions(deplete: boolean): BurstOptions {
+  return {
+    count: deplete ? 12 : 4,
+    speed: deplete ? 170 : 120,
+    spread: Math.PI,
+    gravity: 220,
+    lifeSeconds: 1.5,
+    upwardBias: 130,
+    scale: 0.55,
+  };
+}
+
+/**
  * Lightweight sprite-based particle system. Spawns short-lived textured
  * fragments (rock shards, wood chips) that fly out, fall under gravity, spin,
  * shrink and fade. Implemented directly on Pixi v8 sprites for full control.

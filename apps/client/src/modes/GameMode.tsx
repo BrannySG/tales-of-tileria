@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
-import type { LevelDefinition } from '@tot/shared';
+import { createPlayer, emptySkills, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
+import { getPlayerName } from '../onboarding';
+
+const ZONE_ONE_LEVEL_ID = 'zone_01';
+
+/**
+ * A returning player's default kit (see ADR-0011: sim state isn't persisted
+ * yet). They re-enter Zone 1 owning the basics, with crafting already unlocked
+ * and their persisted divine name.
+ */
+function buildReturningPlayer(): Player {
+  const player = createPlayer('local', getPlayerName() ?? 'Wanderer');
+  player.ownedTools = ['axe_basic', 'pickaxe_stone'];
+  player.equippedToolType = 'axe';
+  player.craftingUnlocked = true;
+  player.skills = emptySkills();
+  return player;
+}
 
 export function GameMode() {
   const [levels, setLevels] = useState<LevelSummary[]>([]);
@@ -13,7 +30,9 @@ export function GameMode() {
       try {
         const list = await listLevels();
         setLevels(list);
-        if (list.length > 0) setLevel(await loadLevel(list[0]!.id));
+        // Returning players drop straight into Zone 1 if it exists.
+        const preferred = list.find((l) => l.id === ZONE_ONE_LEVEL_ID) ?? list[0];
+        if (preferred) setLevel(await loadLevel(preferred.id));
       } catch (err) {
         setError(String(err));
       }
@@ -63,14 +82,25 @@ export function GameMode() {
       </div>
 
       {level ? (
-        <WorldScene
-          key={level.id}
-          level={level}
-          playerName="Branny"
-          tool="pickaxe"
-          locationName={level.displayName}
-          variant="game"
-        />
+        level.id === ZONE_ONE_LEVEL_ID ? (
+          <WorldScene
+            key={level.id}
+            level={level}
+            playerName={getPlayerName() ?? 'Wanderer'}
+            locationName={level.displayName}
+            variant="game"
+            player={buildReturningPlayer()}
+          />
+        ) : (
+          <WorldScene
+            key={level.id}
+            level={level}
+            playerName="Branny"
+            tool="pickaxe"
+            locationName={level.displayName}
+            variant="game"
+          />
+        )
       ) : (
         <div className="stage-host">
           <div className="empty-note">

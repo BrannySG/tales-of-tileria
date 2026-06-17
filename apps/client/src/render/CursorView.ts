@@ -1,6 +1,7 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
 import type { ToolType } from '@tot/shared';
 import { TOOL_ICON } from '../assets/manifest';
+import { CURSOR_SHADOW_OFFSET, createCursorShadow } from './entityFx';
 import type { TextureMap } from './assets';
 
 const RING_RADIUS = 30;
@@ -18,6 +19,7 @@ export class CursorView {
   private readonly lockRing = new Graphics();
   private readonly toolIcon: Sprite;
   private readonly arrow: Sprite;
+  private readonly arrowShadow: Sprite;
 
   private hovering = false;
   private locked = false;
@@ -57,7 +59,16 @@ export class CursorView {
     this.arrow.x = 0;
     this.arrow.y = 0;
 
-    this.container.addChild(this.ringGroup, this.arrow);
+    // A black-tinted copy of the arrow, offset down-right and behind it, so the
+    // cursor casts a shadow over the world and reads as lifted off the surface.
+    this.arrowShadow = createCursorShadow(arrowTex);
+    this.arrowShadow.anchor.set(0.05, 0.05);
+    this.arrowShadow.width = 38;
+    this.arrowShadow.height = 43;
+    this.arrowShadow.x = CURSOR_SHADOW_OFFSET.x;
+    this.arrowShadow.y = CURSOR_SHADOW_OFFSET.y;
+
+    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow);
   }
 
   setPosition(x: number, y: number): void {

@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
-import type { CombatConfig, LevelDefinition, ToolType } from '@tot/shared';
+import { useEffect, useState } from 'react';
+import type { CombatConfig, LevelDefinition, Player, Rarity, ToolId, ToolType } from '@tot/shared';
 import { useWorldScene, type WorldSession } from './useWorldScene';
 import { useStageScale } from './useStageScale';
 import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
+import { CraftingMenu } from '../ui/CraftingMenu';
 
 export interface WorldSceneProps {
   level: LevelDefinition;
@@ -12,8 +13,10 @@ export interface WorldSceneProps {
   locationName?: string;
   /** 'game' = clean HUD; 'zoo' = HUD + dev tuning panel. */
   variant?: HudVariant;
-  /** Tools owned at start; omit for the sandbox default (all tools). */
-  startingTools?: ToolType[];
+  /** Identified tools owned at start; omit for the sandbox default (all tools). */
+  startingTools?: ToolId[];
+  /** A carried Player snapshot to seed the World with (see ADR-0011). */
+  player?: Player;
   /** Show the DOM HUD overlay. Hidden during the onboarding void. Default true. */
   hudVisible?: boolean;
   /** Invoked once the session is live (e.g. to start the onboarding Director). */
@@ -34,16 +37,25 @@ export function WorldScene({
   locationName,
   variant = 'game',
   startingTools,
+  player,
   hudVisible = true,
   onReady,
 }: WorldSceneProps) {
+  const [craftingOpen, setCraftingOpen] = useState(false);
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
     startingTools,
+    player,
+    onOpenCrafting: () => setCraftingOpen(true),
     onReady,
   });
   const stage = useStageScale(hostRef);
+
+  const onCraft = (recipeId: string) => {
+    sessionRef.current?.transport.send({ type: 'craft.start', recipeId });
+    setCraftingOpen(false);
+  };
 
   const onLock = () => sessionRef.current?.renderer.lockCurrentTarget();
   const onUnlock = () => sessionRef.current?.renderer.unlock();
@@ -52,6 +64,9 @@ export function WorldScene({
     // which updates the HUD store and cursor (see ADR-0006).
     sessionRef.current?.transport.send({ type: 'tool.equip', toolType: next });
   };
+  const onClaimQuest = (questId: string) => {
+    sessionRef.current?.transport.send({ type: 'quest.claim', questId });
+  };
   const onCombatChange = (partial: Partial<CombatConfig>) => {
     sessionRef.current?.transport.setCombatConfig(partial);
     useHud.getState().setCombat(partial);
@@ -59,6 +74,9 @@ export function WorldScene({
   const onToggleSound = (enabled: boolean) => {
     sessionRef.current?.sound.setEnabled(enabled);
     useHud.getState().setSoundEnabled(enabled);
+  };
+  const onTestLootBurst = (rarity: Rarity) => {
+    sessionRef.current?.renderer.testLootBurst(rarity);
   };
 
   // Spacebar toggles lock on the current target (keyboard players).
@@ -89,9 +107,12 @@ export function WorldScene({
               onLock={onLock}
               onUnlock={onUnlock}
               onSelectTool={onSelectTool}
+              onClaimQuest={onClaimQuest}
               onCombatChange={onCombatChange}
               onToggleSound={onToggleSound}
+              onTestLootBurst={onTestLootBurst}
             />
+            {craftingOpen && <CraftingMenu onCraft={onCraft} onClose={() => setCraftingOpen(false)} />}
           </div>
         </div>
       </div>

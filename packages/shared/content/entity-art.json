@@ -1,9 +1,9 @@
 {
   "small_rock": {
-    "scale": 0.31,
+    "scale": 0.27,
     "rotation": 0,
     "anchorX": 0.5,
-    "anchorY": 0.82
+    "anchorY": 0.89
   },
   "basic_tree": {
     "scale": 1.02,
@@ -34,5 +34,17 @@
     "rotation": 0,
     "anchorX": 0.5,
     "anchorY": 0.5
+  },
+  "furnace": {
+    "scale": 1.01,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.81
+  },
+  "shrine": {
+    "scale": 0.97,
+    "rotation": 0,
+    "anchorX": 0.49,
+    "anchorY": 0.83
   }
 }

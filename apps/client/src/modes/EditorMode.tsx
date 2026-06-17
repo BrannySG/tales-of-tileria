@@ -8,14 +8,14 @@ import {
 } from '@tot/shared';
 import { EditorScene } from '../editor/EditorScene';
 import { loadTextures } from '../render/assets';
-import { ASSET_URL } from '../assets/manifest';
+import { ASSET_URL, BACKGROUNDS } from '../assets/manifest';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import { listLevels, loadLevel, saveLevel, type LevelSummary } from '../game/levelApi';
 import { loadGameFonts } from '../assets/fonts';
 import { loadEntityArtOverlay } from '../content/entityArt';
 
 const DEF_DRAG_TYPE = 'text/plain';
-const BACKGROUND_TEXTURE_ID = 'bg_area01';
+const DEFAULT_BACKGROUND_ID = 'bg_area00';
 
 interface LevelMeta {
   id: string;
@@ -28,6 +28,7 @@ export function EditorMode() {
   const [entities, setEntities] = useState<PlacedEntity[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [meta, setMeta] = useState<LevelMeta>({ id: 'my_level', displayName: 'My Level' });
+  const [backgroundId, setBackgroundId] = useState(DEFAULT_BACKGROUND_ID);
   const [saved, setSaved] = useState<LevelSummary[]>([]);
   const [status, setStatus] = useState('');
 
@@ -44,7 +45,7 @@ export function EditorMode() {
       scene = await EditorScene.create({
         host: hostRef.current,
         textures,
-        backgroundTextureId: BACKGROUND_TEXTURE_ID,
+        backgroundTextureId: DEFAULT_BACKGROUND_ID,
         onChange: setEntities,
         onSelect: setSelectedId,
       });
@@ -78,11 +79,16 @@ export function EditorMode() {
     sceneRef.current.place(definitionId, x, y);
   };
 
+  const onChangeBackground = (id: string) => {
+    setBackgroundId(id);
+    sceneRef.current?.setBackground(id);
+  };
+
   const onSave = async () => {
     const level: LevelDefinition = {
       id: meta.id.trim() || 'untitled',
       displayName: meta.displayName.trim() || 'Untitled',
-      backgroundTextureId: BACKGROUND_TEXTURE_ID,
+      backgroundTextureId: backgroundId,
       width: VIRTUAL_WIDTH,
       height: VIRTUAL_HEIGHT,
       entities,
@@ -101,6 +107,8 @@ export function EditorMode() {
     try {
       const level = await loadLevel(id);
       setMeta({ id: level.id, displayName: level.displayName });
+      setBackgroundId(level.backgroundTextureId);
+      sceneRef.current?.setBackground(level.backgroundTextureId);
       sceneRef.current?.loadEntities(level.entities);
       setStatus(`Loaded "${level.id}"`);
     } catch (err) {
@@ -111,6 +119,7 @@ export function EditorMode() {
   const onNew = () => {
     sceneRef.current?.loadEntities([]);
     setMeta({ id: 'my_level', displayName: 'My Level' });
+    onChangeBackground(DEFAULT_BACKGROUND_ID);
     setStatus('New level');
   };
 
@@ -152,6 +161,16 @@ export function EditorMode() {
             value={meta.displayName}
             onChange={(e) => setMeta({ ...meta, displayName: e.target.value })}
           />
+        </div>
+        <div className="field">
+          <label>Background</label>
+          <select value={backgroundId} onChange={(e) => onChangeBackground(e.target.value)}>
+            {BACKGROUNDS.map((bg) => (
+              <option key={bg.id} value={bg.id}>
+                {bg.label}
+              </option>
+            ))}
+          </select>
         </div>
         <button className="btn" onClick={onSave}>
           Save

@@ -6,6 +6,7 @@ import { GameMode } from './modes/GameMode';
 import { EntityEditorMode } from './modes/EntityEditorMode';
 import { TitleMode } from './modes/TitleMode';
 import { OnboardingMode } from './modes/OnboardingMode';
+import { OnboardingDevControl } from './ui/OnboardingDevControl';
 
 /** Modes shown in the dev mode-nav. Title + onboarding are intentionally absent. */
 const NAV_MODES = ['game', 'zoo', 'editor', 'entities'] as const;
@@ -49,9 +50,16 @@ export function App() {
 
   // The Title Screen and onboarding cinematic are full-bleed: no dev nav.
   const showNav = mode !== 'title' && mode !== 'onboarding';
+  // Onboarding dev controls live on the title screen only; Zoo keeps them in DevPanel.
+  const showGlobalDev = import.meta.env.DEV && mode === 'title';
 
   return (
     <div className="app" style={{ cursor: APP_CURSOR }}>
+      {showGlobalDev && (
+        <div className="dev-global">
+          <OnboardingDevControl />
+        </div>
+      )}
       {showNav && (
         <nav className="mode-nav">
           {NAV_MODES.map((m) => (

@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "zone_01",
+    "displayName": "The Clearing",
+    "backgroundTextureId": "bg_area00",
+    "width": 1920,
+    "height": 1080,
+    "entities": [
+      {
+        "instanceId": "zone1_mr_smith",
+        "definitionId": "mr_smith",
+        "x": 1247,
+        "y": 798,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_shack",
+        "definitionId": "wood_shack",
+        "x": 947,
+        "y": 585,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_furnace",
+        "definitionId": "furnace",
+        "x": 1348,
+        "y": 522,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_shrine",
+        "definitionId": "shrine",
+        "x": 1578,
+        "y": 725,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_tree_1",
+        "definitionId": "basic_tree",
+        "x": 533,
+        "y": 338,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_tree_2",
+        "definitionId": "basic_tree",
+        "x": 344,
+        "y": 705,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_tree_3",
+        "definitionId": "basic_tree",
+        "x": 1518,
+        "y": 332,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_tree_4",
+        "definitionId": "basic_tree",
+        "x": 628,
+        "y": 882,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_rock_1",
+        "definitionId": "small_rock",
+        "x": 254,
+        "y": 348,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_rock_2",
+        "definitionId": "small_rock",
+        "x": 1665,
+        "y": 356,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_rock_3",
+        "definitionId": "small_rock",
+        "x": 1296,
+        "y": 957,
+        "overrides": {}
+      },
+      {
+        "instanceId": "zone1_rock_4",
+        "definitionId": "small_rock",
+        "x": 435,
+        "y": 827,
+        "overrides": {}
+      }
+    ]
+  }
+}

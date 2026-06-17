@@ -12,16 +12,19 @@ export function resolveEntityInstance(
   const maxHp = placed.overrides?.maxHp ?? def.damageable?.maxHp ?? 0;
   const respawnSeconds = placed.overrides?.respawnSeconds ?? def.respawns?.respawnSeconds ?? 0;
   const lootTableId = placed.overrides?.lootTableId ?? def.loot?.lootTableId;
+  // A Buildable authored as 'unbuilt' starts inert in its needs-build look.
+  const unbuilt = placed.initialState === 'unbuilt' && !!def.buildable;
   return {
     instanceId: placed.instanceId,
     definitionId: placed.definitionId,
     x: placed.x,
     y: placed.y,
-    state: 'available',
+    state: unbuilt ? 'unbuilt' : 'available',
     hp: maxHp,
     maxHp,
     respawnSeconds,
     lootTableId,
     respawnRemaining: 0,
+    locked: placed.locked ?? false,
   };
 }

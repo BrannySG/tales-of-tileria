@@ -1,19 +1,32 @@
 import {
   DEFAULT_COMBAT_CONFIG,
+  bestOwnedToolTier,
+  bestUsableTool,
   createPlayer,
+  emptySkills,
   getLootTable,
+  listQuestDefinitions,
+  listToolDefinitions,
   objectiveGoal,
   requireEntityDefinition,
   requireQuestDefinition,
+  requireRecipeDefinition,
+  requireToolDefinition,
+  xpToLevel,
+  xpToReach,
   type AwardedItem,
+  type BlockReason,
   type CombatConfig,
   type CursorState,
   type DamageSource,
   type EntityInstance,
+  type ItemCost,
   type LevelDefinition,
   type Player,
   type SimCommand,
   type SimEvent,
+  type SkillId,
+  type ToolId,
   type ToolType,
   type ZoneSnapshot,
 } from '@tot/shared';
@@ -22,7 +35,19 @@ import { applySignal, type QuestSignal } from './questEngine';
 import { mulberry32, type Rng } from './rng';
 import { resolveEntityInstance } from './resolve';
 
-const ALL_TOOLS: ToolType[] = ['axe', 'pickaxe', 'sword'];
+const ALL_TOOL_IDS: ToolId[] = listToolDefinitions().map((t) => t.id);
+/** Sandbox skill level granted when no explicit starting tools/player are set. */
+const SANDBOX_SKILL_LEVEL = 10;
+const MAX_NAME_LENGTH = 16;
+
+/** Structured reason an interaction was blocked (see ADR-0008). */
+interface BlockInfo {
+  reason: BlockReason;
+  requiredToolType?: ToolType;
+  requiredTier?: number;
+  requiredSkillId?: SkillId;
+  requiredSkillLevel?: number;
+}
 
 export interface WorldOptions {
   combat?: Partial<CombatConfig>;
@@ -33,12 +58,19 @@ export interface WorldOptions {
   playerId?: string;
   playerName?: string;
   /**
-   * Tools the player owns at start. Defaults to all tools (sandbox-friendly for
-   * the Zoo and existing levels). The onboarding passes `[]` so tools are earned.
+   * Identified tools the player owns at start. Omit for the sandbox default
+   * (all tools + high skills, for the Zoo/editor). The onboarding passes `[]`.
+   * Ignored when a carried `player` snapshot is provided.
    */
-  startingTools?: ToolType[];
-  /** Tool equipped at start (must be owned). Defaults to the first owned tool. */
+  startingTools?: ToolId[];
+  /** Tool type the cursor ring shows at start (defaults to the first owned). */
   equippedTool?: ToolType;
+  /**
+   * A carried Player snapshot (see ADR-0011): seeds a new World with existing
+   * progress (name/tools/skills/inventory/quests) instead of `createPlayer`,
+   * so the onboarding → Zone 1 swap preserves the player.
+   */
+  player?: Player;
 }
 
 /**
@@ -47,9 +79,10 @@ export interface WorldOptions {
  * returns domain events describing what changed. The same class is intended to
  * run inside a Durable Object later.
  *
- * The World also owns authoritative Player state — owned/equipped tools,
- * inventory, and quest progress — so tool-gating and quest tracking have a
- * single source of truth (see ADR-0006).
+ * The World also owns authoritative Player state — owned tools, skills,
+ * inventory, crafting, and quest progress — so tool-gating, skills, and quest
+ * tracking have a single source of truth (see ADR-0006). A Player is portable
+ * across Level instances via the `player` option (see ADR-0011).
  */
 export class World {
   private readonly entities = new Map<string, EntityInstance>();
@@ -67,9 +100,25 @@ export class World {
       this.entities.set(placed.instanceId, resolveEntityInstance(placed, def));
     }
 
-    this.player = createPlayer(opts.playerId ?? 'local', opts.playerName ?? 'You');
-    this.player.ownedToolTypes = [...(opts.startingTools ?? ALL_TOOLS)];
-    this.player.equippedToolType = opts.equippedTool ?? this.player.ownedToolTypes[0];
+    if (opts.player) {
+      // Carried snapshot: deep-clone so the new World owns its own state.
+      this.player = clonePlayer(opts.player);
+    } else {
+      this.player = createPlayer(opts.playerId ?? 'local', opts.playerName ?? 'You');
+      const sandbox = opts.startingTools === undefined;
+      this.player.ownedTools = [...(opts.startingTools ?? ALL_TOOL_IDS)];
+      if (sandbox) {
+        for (const id of Object.keys(this.player.skills) as SkillId[]) {
+          this.player.skills[id] = {
+            xp: xpToReach(SANDBOX_SKILL_LEVEL),
+            level: SANDBOX_SKILL_LEVEL,
+          };
+        }
+      }
+    }
+
+    this.player.equippedToolType =
+      opts.equippedTool ?? this.player.equippedToolType ?? this.firstOwnedToolType();
     this.cursor.equippedToolType = this.player.equippedToolType;
   }
 
@@ -87,7 +136,7 @@ export class World {
   }
 
   getPlayer(): Player {
-    return { ...this.player, ownedToolTypes: [...this.player.ownedToolTypes], quests: this.player.quests.map((q) => ({ ...q })), inventory: { ...this.player.inventory } };
+    return clonePlayer(this.player);
   }
 
   getSnapshot(): ZoneSnapshot {
@@ -114,9 +163,7 @@ export class World {
         if (!entity || entity.state !== 'available' || entity.maxHp <= 0) return [];
         const block = this.blockedReason(entity);
         if (block) {
-          return [
-            { type: 'entity.blocked', instanceId: entity.instanceId, reason: 'missingTool', requiredToolType: block },
-          ];
+          return [{ type: 'entity.blocked', instanceId: entity.instanceId, ...block }];
         }
         return this.applyDamage(entity, this.combat.activeDamage, 'active');
       }
@@ -131,9 +178,6 @@ export class World {
       }
 
       case 'entity.hoverEnd': {
-        // Pause passive damage (mode -> free) but KEEP the selected target so it
-        // can still be locked (e.g. via a HUD button after the cursor leaves the
-        // entity). Passive only ticks while hovering or locked.
         if (this.cursor.mode === 'hovering' && this.cursor.targetInstanceId === cmd.instanceId) {
           this.cursor.mode = 'free';
         }
@@ -163,8 +207,26 @@ export class World {
       case 'quest.grant':
         return this.grantQuest(cmd.questId);
 
+      case 'quest.claim':
+        return this.claimQuest(cmd.questId);
+
+      case 'entity.build':
+        return this.buildEntity(cmd.instanceId);
+
+      case 'entity.enable':
+        return this.enableEntity(cmd.instanceId);
+
       case 'entity.spawn':
         return this.spawnEntity(cmd);
+
+      case 'craft.start':
+        return this.startCraft(cmd.recipeId);
+
+      case 'craft.claim':
+        return this.claimOffering(cmd.instanceId);
+
+      case 'player.setName':
+        return this.setName(cmd.name);
 
       default:
         return [];
@@ -175,25 +237,80 @@ export class World {
     const events: SimEvent[] = [];
     this.tickPassiveDamage(dtSeconds, events);
     this.tickRespawns(dtSeconds, events);
+    this.tickCrafting(dtSeconds, events);
     return events;
   }
 
-  // --- Player / tools ---
+  // --- Player / tools / skills ---
 
-  /** Returns the required tool type if the player cannot damage the entity, else undefined. */
-  private blockedReason(entity: EntityInstance): ToolType | undefined {
+  private skillLevel(skillId: SkillId): number {
+    return this.player.skills[skillId]?.level ?? 1;
+  }
+
+  private firstOwnedToolType(): ToolType | undefined {
+    const first = this.player.ownedTools[0];
+    return first ? requireToolDefinition(first).toolType : undefined;
+  }
+
+  /**
+   * Structured block reason if the player cannot damage the entity, else
+   * undefined (see ADR-0008). Checks tool ownership / tier / wield, then the
+   * entity's own skill requirement.
+   */
+  private blockedReason(entity: EntityInstance): BlockInfo | undefined {
     const def = requireEntityDefinition(entity.definitionId);
-    const required = def.requirements?.toolType;
-    if (required && !this.player.ownedToolTypes.includes(required)) return required;
+    const req = def.requirements;
+    if (!req) return undefined;
+
+    if (req.toolType) {
+      const toolType = req.toolType;
+      const minTier = req.minTier ?? 1;
+      const owned = this.player.ownedTools
+        .map((id) => requireToolDefinition(id))
+        .filter((t) => t.toolType === toolType);
+
+      if (owned.length === 0) {
+        return { reason: 'missingTool', requiredToolType: toolType, requiredTier: minTier };
+      }
+      if (bestOwnedToolTier(this.player.ownedTools, toolType) < minTier) {
+        return { reason: 'toolTierTooLow', requiredToolType: toolType, requiredTier: minTier };
+      }
+      const usable = bestUsableTool(this.player.ownedTools, toolType, (s) => this.skillLevel(s));
+      if (!usable || usable.tier < minTier) {
+        // Owns a tier-ok tool but cannot wield it: report the easiest wield gate.
+        const blocked = owned
+          .filter((t) => t.tier >= minTier && t.wieldRequirement)
+          .sort((a, b) => a.wieldRequirement!.level - b.wieldRequirement!.level)[0];
+        const wield = blocked?.wieldRequirement;
+        return {
+          reason: 'toolWieldLevel',
+          requiredToolType: toolType,
+          requiredTier: minTier,
+          requiredSkillId: wield?.skillId,
+          requiredSkillLevel: wield?.level,
+        };
+      }
+    }
+
+    if (req.skill && this.skillLevel(req.skill.skillId) < req.skill.level) {
+      return {
+        reason: 'skillLevel',
+        requiredSkillId: req.skill.skillId,
+        requiredSkillLevel: req.skill.level,
+      };
+    }
+
     return undefined;
   }
 
   private collectPickup(instanceId: string): SimEvent[] {
     const entity = this.entities.get(instanceId);
     if (!entity) return [];
+    if (entity.locked) return [];
     const def = requireEntityDefinition(entity.definitionId);
-    const toolType = def.pickup?.grantsToolType;
-    if (!toolType) return [];
+    const toolId = def.pickup?.grantsToolId;
+    if (!toolId) return [];
+    const toolDef = requireToolDefinition(toolId);
 
     this.entities.delete(instanceId);
     if (this.cursor.targetInstanceId === instanceId) {
@@ -202,18 +319,19 @@ export class World {
     }
 
     const events: SimEvent[] = [
-      { type: 'pickup.collected', instanceId, toolType, x: entity.x, y: entity.y },
+      { type: 'pickup.collected', instanceId, toolId, toolType: toolDef.toolType, x: entity.x, y: entity.y },
     ];
-    if (!this.player.ownedToolTypes.includes(toolType)) this.player.ownedToolTypes.push(toolType);
-    this.player.equippedToolType = toolType;
-    this.cursor.equippedToolType = toolType;
-    events.push({ type: 'tool.equipped', toolType });
-    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolType }));
+    if (!this.player.ownedTools.includes(toolId)) this.player.ownedTools.push(toolId);
+    this.player.equippedToolType = toolDef.toolType;
+    this.cursor.equippedToolType = toolDef.toolType;
+    events.push({ type: 'tool.equipped', toolType: toolDef.toolType });
+    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }));
     return events;
   }
 
   private equipTool(toolType: ToolType): SimEvent[] {
-    if (!this.player.ownedToolTypes.includes(toolType)) return [];
+    const owns = this.player.ownedTools.some((id) => requireToolDefinition(id).toolType === toolType);
+    if (!owns) return [];
     if (this.player.equippedToolType === toolType) return [];
     this.player.equippedToolType = toolType;
     this.cursor.equippedToolType = toolType;
@@ -231,6 +349,45 @@ export class World {
     return [{ type: 'entity.spawned', entity: { ...instance } }];
   }
 
+  /** Unlocks a Locked pickup/shrine so it becomes collectible/active. */
+  private enableEntity(instanceId: string): SimEvent[] {
+    const entity = this.entities.get(instanceId);
+    if (!entity || !entity.locked) return [];
+    entity.locked = false;
+    return [{ type: 'entity.enabled', instanceId }];
+  }
+
+  // --- Building ---
+
+  private canAfford(cost: readonly ItemCost[]): boolean {
+    return cost.every((c) => (this.player.inventory[c.itemId] ?? 0) >= c.quantity);
+  }
+
+  /**
+   * Builds an unbuilt Buildable entity: validates the player can afford all
+   * Build costs, consumes them, flips the entity to built, and advances any
+   * 'buildEntity' quests.
+   */
+  private buildEntity(instanceId: string): SimEvent[] {
+    const entity = this.entities.get(instanceId);
+    if (!entity || entity.state !== 'unbuilt') return [];
+    const def = requireEntityDefinition(entity.definitionId);
+    const cost = def.buildable?.cost;
+    if (!cost || !this.canAfford(cost)) return [];
+
+    for (const c of cost) this.player.inventory[c.itemId] = (this.player.inventory[c.itemId] ?? 0) - c.quantity;
+    entity.state = 'available';
+
+    const events: SimEvent[] = [
+      { type: 'inventory.changed', inventory: { ...this.player.inventory } },
+      { type: 'entity.built', instanceId },
+    ];
+    events.push(
+      ...this.advanceQuests({ kind: 'entityBuilt', definitionId: entity.definitionId, tags: def.tags ?? [] }),
+    );
+    return events;
+  }
+
   // --- Quests ---
 
   private grantQuest(questId: string): SimEvent[] {
@@ -244,6 +401,70 @@ export class World {
     };
     this.player.quests.push(state);
     return [{ type: 'quest.updated', quest: { ...state } }];
+  }
+
+  /**
+   * Claims a completed Quest's Reward: grants Gold, applies any world unlock
+   * (`enableEntityTag`), marks the Quest claimed, and auto-grants any quest
+   * whose prerequisites are now all claimed (data-driven chaining, ADR-0009).
+   */
+  private claimQuest(questId: string): SimEvent[] {
+    const i = this.player.quests.findIndex((q) => q.questId === questId);
+    if (i === -1) return [];
+    const state = this.player.quests[i]!;
+    if (state.status !== 'completed') return [];
+    const def = requireQuestDefinition(questId);
+
+    const events: SimEvent[] = [];
+    const gold = def.rewards?.gold ?? 0;
+    if (gold > 0) {
+      this.player.inventory.gold = (this.player.inventory.gold ?? 0) + gold;
+      events.push({ type: 'inventory.changed', inventory: { ...this.player.inventory } });
+    }
+    const claimed = { ...state, status: 'claimed' as const };
+    this.player.quests[i] = claimed;
+    events.push({ type: 'quest.updated', quest: { ...claimed } });
+
+    const enableTag = def.rewards?.enableEntityTag;
+    if (enableTag) events.push(...this.enableEntitiesByTag(enableTag));
+
+    events.push(...this.autoGrantChained());
+    return events;
+  }
+
+  /** Enables every still-locked entity carrying `tag` (a quest world unlock). */
+  private enableEntitiesByTag(tag: string): SimEvent[] {
+    const events: SimEvent[] = [];
+    for (const entity of this.entities.values()) {
+      if (!entity.locked) continue;
+      const def = requireEntityDefinition(entity.definitionId);
+      if ((def.tags ?? []).includes(tag)) {
+        entity.locked = false;
+        events.push({ type: 'entity.enabled', instanceId: entity.instanceId });
+      }
+    }
+    return events;
+  }
+
+  /** Grants any quest whose prerequisites are all claimed (cascades). */
+  private autoGrantChained(): SimEvent[] {
+    const events: SimEvent[] = [];
+    let granted = true;
+    while (granted) {
+      granted = false;
+      for (const def of QUEST_DEFS_FOR_CHAINING) {
+        const prereqs = def.prerequisiteQuestIds;
+        if (!prereqs || prereqs.length === 0) continue;
+        if (this.player.quests.some((q) => q.questId === def.id)) continue;
+        const ok = prereqs.every((pid) =>
+          this.player.quests.some((q) => q.questId === pid && q.status === 'claimed'),
+        );
+        if (!ok) continue;
+        events.push(...this.grantQuest(def.id));
+        granted = true;
+      }
+    }
+    return events;
   }
 
   private advanceQuests(signal: QuestSignal): SimEvent[] {
@@ -260,7 +481,91 @@ export class World {
     return events;
   }
 
-  // --- Damage / depletion / loot ---
+  // --- Crafting / shrine ---
+
+  private startCraft(recipeId: string): SimEvent[] {
+    if (!this.player.craftingUnlocked || this.player.craftingJob) return [];
+    const recipe = requireRecipeDefinition(recipeId);
+    if (!this.canAfford(recipe.cost)) return [];
+
+    for (const c of recipe.cost) {
+      this.player.inventory[c.itemId] = (this.player.inventory[c.itemId] ?? 0) - c.quantity;
+    }
+    this.player.craftingJob = {
+      recipeId,
+      remainingSeconds: recipe.craftSeconds,
+      totalSeconds: recipe.craftSeconds,
+    };
+    return [
+      { type: 'inventory.changed', inventory: { ...this.player.inventory } },
+      { type: 'craftingJobStarted', recipeId, totalSeconds: recipe.craftSeconds },
+    ];
+  }
+
+  private tickCrafting(dt: number, events: SimEvent[]): void {
+    const job = this.player.craftingJob;
+    if (!job) return;
+    job.remainingSeconds -= dt;
+    if (job.remainingSeconds > 0) return;
+
+    const recipe = requireRecipeDefinition(job.recipeId);
+    this.player.craftingJob = undefined;
+    events.push({ type: 'craftingJobCompleted', recipeId: recipe.id });
+
+    const shrine = this.findShrine();
+    if (shrine) {
+      shrine.pendingOffering = { grantsToolId: recipe.result.grantsToolId };
+      events.push({
+        type: 'craftedItemPlacedAtShrine',
+        instanceId: shrine.instanceId,
+        grantsToolId: recipe.result.grantsToolId,
+      });
+    }
+    if (recipe.xp) events.push(...this.awardSkillXp(recipe.xp));
+  }
+
+  /** Claims a Shrine's pending Offering: grants the tool id and clears it. */
+  private claimOffering(instanceId: string): SimEvent[] {
+    const shrine = this.entities.get(instanceId);
+    if (!shrine || !shrine.pendingOffering) return [];
+    const toolId = shrine.pendingOffering.grantsToolId;
+    shrine.pendingOffering = undefined;
+
+    if (!this.player.ownedTools.includes(toolId)) this.player.ownedTools.push(toolId);
+    const events: SimEvent[] = [
+      { type: 'craftedItemClaimed', instanceId, toolId, x: shrine.x, y: shrine.y },
+    ];
+    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }));
+    return events;
+  }
+
+  private findShrine(): EntityInstance | undefined {
+    let fallback: EntityInstance | undefined;
+    for (const entity of this.entities.values()) {
+      const def = requireEntityDefinition(entity.definitionId);
+      if (def.kind !== 'shrine') continue;
+      if (!entity.locked) return entity;
+      fallback = fallback ?? entity;
+    }
+    return fallback;
+  }
+
+  // --- Divine name (Phase 8) ---
+
+  private setName(rawName: string): SimEvent[] {
+    const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
+    if (!name) return [];
+    this.player.displayName = name;
+    const wasUnlocked = this.player.craftingUnlocked;
+    this.player.craftingUnlocked = true;
+    const events: SimEvent[] = [{ type: 'player.nameChanged', name }];
+    // (No separate event for unlocking crafting; the client reads craftingUnlocked
+    // from the snapshot / nameChanged beat.)
+    void wasUnlocked;
+    return events;
+  }
+
+  // --- Damage / depletion / loot / XP ---
 
   private tickPassiveDamage(dt: number, events: SimEvent[]): void {
     const targetId = this.cursor.targetInstanceId;
@@ -333,6 +638,8 @@ export class World {
       },
     ];
 
+    if (def.xp) events.push(...this.awardSkillXp(def.xp.rewards));
+
     if (entity.lootTableId) {
       const table = getLootTable(entity.lootTableId);
       if (table) {
@@ -354,6 +661,21 @@ export class World {
     return events;
   }
 
+  /** Adds XP per skill, recomputes the level, and emits gain/level-up events. */
+  private awardSkillXp(rewards: Partial<Record<SkillId, number>>): SimEvent[] {
+    const events: SimEvent[] = [];
+    for (const [skillId, amount] of Object.entries(rewards) as [SkillId, number][]) {
+      if (!amount || amount <= 0) continue;
+      const prev = this.player.skills[skillId] ?? { xp: 0, level: 1 };
+      const totalXp = prev.xp + amount;
+      const level = xpToLevel(totalXp);
+      this.player.skills[skillId] = { xp: totalXp, level };
+      events.push({ type: 'skill.xpGained', skillId, amount, totalXp, level });
+      if (level > prev.level) events.push({ type: 'skill.leveledUp', skillId, level });
+    }
+    return events;
+  }
+
   private awardItems(items: AwardedItem[]): SimEvent[] {
     for (const item of items) {
       this.player.inventory[item.itemId] = (this.player.inventory[item.itemId] ?? 0) + item.quantity;
@@ -365,3 +687,23 @@ export class World {
     return events;
   }
 }
+
+/** Deep-clones a Player so the World owns its own mutable state. */
+function clonePlayer(player: Player): Player {
+  const skills = {} as Player['skills'];
+  for (const id of Object.keys(player.skills) as SkillId[]) skills[id] = { ...player.skills[id] };
+  // Backfill any skills missing from a partial carried snapshot.
+  const base = emptySkills();
+  for (const id of Object.keys(base) as SkillId[]) if (!skills[id]) skills[id] = { ...base[id] };
+  return {
+    ...player,
+    ownedTools: [...player.ownedTools],
+    inventory: { ...player.inventory },
+    skills,
+    craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,
+    quests: player.quests.map((q) => ({ ...q })),
+  };
+}
+
+// Cached for the auto-grant scan (avoids re-listing each claim).
+const QUEST_DEFS_FOR_CHAINING = listQuestDefinitions();

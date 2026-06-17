@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LevelDefinition, ToolType } from '@tot/shared';
+import type { LevelDefinition, Player, ToolId, ToolType } from '@tot/shared';
 import { LocalTransport, World } from '@tot/sim';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { loadTextures } from '../render/assets';
@@ -25,8 +25,12 @@ export function useWorldScene(
   options: {
     playerName: string;
     tool?: ToolType;
-    /** Tools owned at start; omit for the sandbox default (all tools). */
-    startingTools?: ToolType[];
+    /** Identified tools owned at start; omit for the sandbox default (all tools). */
+    startingTools?: ToolId[];
+    /** A carried Player snapshot to seed the World with (see ADR-0011). */
+    player?: Player;
+    /** Invoked when the player taps the craft prompt over Mr Smith. */
+    onOpenCrafting?: () => void;
     /** Invoked once the session is live; return an optional cleanup. */
     onReady?: (session: WorldSession) => (() => void) | void;
   },
@@ -45,6 +49,7 @@ export function useWorldScene(
       playerName: options.playerName,
       equippedTool: options.tool,
       startingTools: options.startingTools,
+      player: options.player,
     });
     const transport = new LocalTransport(world);
     // Reset the projection store BEFORE binding so hydration is not clobbered.
@@ -67,6 +72,7 @@ export function useWorldScene(
         playerName: options.playerName,
         equippedTool: options.tool,
         tick: (dt) => transport.tick(dt),
+        onOpenCrafting: options.onOpenCrafting,
       });
       if (cancelled) {
         renderer.destroy();

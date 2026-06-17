@@ -7,6 +7,7 @@ import {
 } from '@tot/shared';
 import type { WorldSession } from './useWorldScene';
 import { EntityView } from '../render/EntityView';
+import { driftBurstOptions } from '../render/particles';
 import { Easings } from '../render/juice';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import { GAME_FONT_FAMILY } from '../assets/fonts';
@@ -28,6 +29,11 @@ interface Prop {
 export interface OnboardingCallbacks {
   /** Fired when the void lifts and the live level is revealed. */
   onReveal?: () => void;
+  /**
+   * Fired during the shrine beat once the NPC has finished asking for a name, so
+   * the host can open the naming modal *after* the dialogue (not on top of it).
+   */
+  onRequestName?: () => void;
   /** Fired when the whole scripted sequence finishes (control is the player's). */
   onComplete?: () => void;
 }
@@ -37,6 +43,11 @@ export interface OnboardingCallbacks {
  * presentation (blackout, wisps, decorative props, captions, dialogue pacing)
  * via the renderer's cinematic API, and drives the live world only through the
  * same transport commands any player action uses (`quest.grant`, `entity.spawn`).
+ *
+ * After the opening void it hands control to the player, then re-enters for two
+ * scripted payoff beats keyed off sim events: the rebuilt-house + pickaxe beat
+ * (on the `rebuild_shack` claim) and the shrine + divine-name beat (on the
+ * shrine being enabled). Each uses the cinematic camera to focus the moment.
  */
 export class OnboardingDirector {
   private readonly timers: ReturnType<typeof setTimeout>[] = [];
@@ -75,8 +86,20 @@ export class OnboardingDirector {
     await this.houseAndReveal();
     if (this.cancelled) return;
 
-    // Beat 4 — the NPC's furious reaction, then the request + the axe hint.
     const npcId = renderer.instanceIdByDefinition('mr_smith');
+    const axeId = renderer.instanceIdByDefinition('axe_pickup');
+
+    // ---- Cinematic camera block (experiment, see CINEMATIC_CAMERA flag) ----
+    // Hold on the freshly-revealed wide scene, then ease into a gentle focus on
+    // the NPC, composed off-centre so the axe's spawn spot starts off-frame.
+    // Delete this whole block (and the cameraFocus/cameraReset calls below) to
+    // remove the experiment entirely.
+    await this.sleep(1000);
+    if (this.cancelled) return;
+    if (npcId) await renderer.cameraFocus(npcId, { zoom: 1.8, anchor: { x: 0.38, y: 0.6 } });
+    if (this.cancelled) return;
+
+    // Beat 4 — the NPC's furious reaction, then the request + the axe hint.
     if (npcId) {
       await this.dialogue(npcId, [
         { text: 'MY HOUSE?!?!', shout: true },
@@ -87,28 +110,161 @@ export class OnboardingDirector {
     }
     if (this.cancelled) return;
 
-    // Beat 5 — grant the first quest and conjure the axe near the NPC.
+    // Beat 5 — grant the first quest and make the (already-placed) axe
+    // collectible, so it appears to "awaken" right as the NPC asks for it.
     this.session.transport.send({ type: 'quest.grant', questId: 'pickup_axe' });
-    const axe = this.spawnAxeNearNpc();
+    if (axeId) this.session.transport.send({ type: 'entity.enable', instanceId: axeId });
+
+    // Camera pans over to the axe as it spawns, so the eye follows it in.
+    if (axeId) await renderer.cameraFocus(axeId, { zoom: 1.8 });
+    if (this.cancelled) return;
 
     // Wait for the player to pick up the axe.
     await this.waitForEvent(
-      (e) => e.type === 'pickup.collected' && (axe ? e.instanceId === axe : true),
+      (e) => e.type === 'pickup.collected' && (axeId ? e.instanceId === axeId : true),
     );
     if (this.cancelled) return;
     await this.sleep(450);
 
-    // Beat 6 — NPC reacts to the floating axe, then the chopping quest begins.
+    // Camera pans back to the NPC for his reaction to the floating axe.
+    if (npcId) await renderer.cameraFocus(npcId, { zoom: 1.8, anchor: { x: 0.5, y: 0.55 } });
+    if (this.cancelled) return;
+
+    // Beat 6 — NPC reacts to the floating axe. The middle of the quest chain
+    // (chop trees, rebuild shack) now self-propagates in the sim as the player
+    // claims each reward (data-driven chaining, ADR-0009); the Director only
+    // re-enters for the scripted payoff beats below.
     if (npcId) {
       await this.dialogue(npcId, [
-        { text: 'Woah?! Did my Axe just float away?' },
-        { text: 'I must have angered the gods!' },
+        { text: 'My Axe — it rises into the air on its own!' },
+        { text: 'Spirited away by some unseen hand...' },
+        { text: 'How am I supposed to rebuild now?' },
       ]);
     }
     if (this.cancelled) return;
-    this.session.transport.send({ type: 'quest.grant', questId: 'chop_trees' });
+
+    // Zoom back out to the full scene; the player takes over to chop and rebuild.
+    await renderer.cameraReset({ durationMs: 1400 });
+    if (this.cancelled) return;
+
+    // Act 2 — the rebuilt-house payoff. Anchored to the `rebuild_shack` *claim*,
+    // because that single sim beat both enables the pickaxe and activates the
+    // `pickup_pickaxe` quest, so the pickaxe is safe to collect on cue.
+    if (!this.questClaimed('rebuild_shack')) {
+      await this.waitForEvent(
+        (e) => e.type === 'quest.updated' && e.quest.questId === 'rebuild_shack' && e.quest.status === 'claimed',
+      );
+    }
+    if (this.cancelled) return;
+    await this.houseRebuiltBeat(npcId);
+    if (this.cancelled) return;
+
+    // Act 3 — the shrine + divine-name beat. Anchored to the shrine being enabled
+    // (the `build_furnace` reward). Focus + speak first, *then* prompt for a name.
+    const shrineId = renderer.instanceIdByDefinition('shrine');
+    if (shrineId) {
+      if (this.entityLocked(shrineId)) {
+        await this.waitForEvent((e) => e.type === 'entity.enabled' && e.instanceId === shrineId);
+      }
+      if (this.cancelled) return;
+      await this.shrineNamingBeat(npcId);
+      if (this.cancelled) return;
+    }
 
     this.cb.onComplete?.();
+  }
+
+  /**
+   * Act 2: the NPC's overjoyed reaction to his rebuilt home, then a pan to the
+   * pickaxe that has appeared (the `rebuild_shack` reward), the player's pickup,
+   * and his bewildered dismay as it floats off too.
+   */
+  private async houseRebuiltBeat(npcId: string | undefined): Promise<void> {
+    const { renderer } = this.session;
+    if (npcId) {
+      await renderer.cameraFocus(npcId, { zoom: 1.8, anchor: { x: 0.42, y: 0.6 } });
+      if (this.cancelled) return;
+      await this.dialogue(npcId, [
+        { text: 'MY HOUSE — IT STANDS WHOLE AGAIN!', shout: true },
+        { text: "IT'S A MIRACLE! BLESS THE GODS!", shout: true },
+        { text: 'Now... back to that furnace I was building.' },
+        { text: 'Hm? Where has my pickaxe wandered off to...' },
+      ]);
+    }
+    if (this.cancelled) return;
+
+    // Pan to the pickaxe and wait for the player to take it. The owns-guards keep
+    // the beat from hanging if the player grabbed it during the dialogue above.
+    const pickaxeId = renderer.instanceIdByDefinition('pickaxe_pickup');
+    if (pickaxeId && !this.owns('pickaxe_stone')) {
+      await renderer.cameraFocus(pickaxeId, { zoom: 1.8 });
+      if (this.cancelled) return;
+      if (!this.owns('pickaxe_stone')) {
+        await this.waitForEvent((e) => e.type === 'pickup.collected' && e.instanceId === pickaxeId);
+      }
+    }
+    if (this.cancelled) return;
+    await this.sleep(450);
+
+    if (npcId) {
+      await renderer.cameraFocus(npcId, { zoom: 1.8, anchor: { x: 0.5, y: 0.55 } });
+      if (this.cancelled) return;
+      await this.dialogue(npcId, [
+        { text: 'There it floats — up into the heavens!' },
+        { text: 'WAIT — NOT THAT TOO?!', shout: true },
+        { text: 'How is a humble smith to work like this?' },
+      ]);
+    }
+    if (this.cancelled) return;
+    await renderer.cameraReset({ durationMs: 1400 });
+  }
+
+  /**
+   * Act 3: focus the NPC and let him marvel at the shrine and ask the player's
+   * name, THEN request the naming modal — so the speech is read before the
+   * prompt interrupts it (a pacing fix). Resumes once the name is set.
+   */
+  private async shrineNamingBeat(npcId: string | undefined): Promise<void> {
+    const { renderer } = this.session;
+    if (npcId) {
+      await renderer.cameraFocus(npcId, { zoom: 1.7, anchor: { x: 0.42, y: 0.58 } });
+      if (this.cancelled) return;
+      await this.dialogue(npcId, [
+        { text: 'A house restored, a furnace ablaze... the very air feels holy.' },
+        { text: 'Such a presence must surely have a name.' },
+        { text: 'By what name shall we honour you, O sky-being?' },
+      ]);
+    }
+    if (this.cancelled) return;
+
+    this.cb.onRequestName?.();
+    await this.waitForEvent((e) => e.type === 'player.nameChanged');
+    if (this.cancelled) return;
+
+    if (npcId) {
+      await this.dialogue(npcId, [{ text: 'Then it is so. This shrine shall carry your name.' }]);
+    }
+    if (this.cancelled) return;
+    await renderer.cameraReset({ durationMs: 1400 });
+  }
+
+  /** True once the named quest has been claimed (read from the live snapshot). */
+  private questClaimed(questId: string): boolean {
+    return this.session.transport
+      .getSnapshot()
+      .player.quests.some((q) => q.questId === questId && q.status === 'claimed');
+  }
+
+  /** True while the named entity is still locked (not yet enabled). */
+  private entityLocked(instanceId: string): boolean {
+    return (
+      this.session.transport.getSnapshot().entities.find((e) => e.instanceId === instanceId)?.locked ?? false
+    );
+  }
+
+  /** True if the player currently owns the given tool id. */
+  private owns(toolId: string): boolean {
+    return (this.session.transport.getSnapshot().player.ownedTools as string[]).includes(toolId);
   }
 
   // ---- Beats ----
@@ -140,10 +296,9 @@ export class OnboardingDirector {
     await this.waitForTaps(prop.view, prop.def, 3, 'hitTree');
 
     const { renderer } = this.session;
-    // Bring the live level up (still under black), with the shack pre-broken.
+    // Bring the live level up (still under black). The live shack is authored
+    // as 'unbuilt', so it is already revealed broken in place underneath.
     renderer.setWorldEntitiesVisible(true);
-    const shackId = renderer.instanceIdByDefinition('wood_shack');
-    if (shackId) renderer.setEntityBroken(shackId);
     this.breakProp(prop);
 
     renderer.particleBurst('fx_wood_chip', PROP_X, PROP_Y, { count: 22, speed: 340 });
@@ -172,8 +327,12 @@ export class OnboardingDirector {
       maxHp,
       respawnSeconds: 0,
       respawnRemaining: 0,
+      locked: false,
     };
     const view = new EntityView(instance, def, this.session.renderer.textures);
+    // Cinematic props are tap puppets — always tappable, regardless of the
+    // definition's interaction rules (e.g. Buildables are inert in the world).
+    view.setInteractive(true);
     view.container.zIndex = Math.round(PROP_Y);
     this.session.renderer.cinematicLayer.addChild(view.container);
     const removeUpdatable = this.session.renderer.addUpdatable(view);
@@ -203,21 +362,14 @@ export class OnboardingDirector {
     else prop.view.onDepleted('depleted');
     const fx = prop.def.art.hitParticleTextureId;
     if (fx) renderer.particleBurst(fx, px, py, { count: 20, speed: 330, scale: 0.7 });
+    const drift = prop.def.art.driftParticleTextureId;
+    if (drift) renderer.particleBurst(drift, px, py, driftBurstOptions(true));
     renderer.playSound('deplete');
   }
 
   private destroyProp(prop: Prop): void {
     prop.removeUpdatable();
     prop.view.destroy();
-  }
-
-  private spawnAxeNearNpc(): string | undefined {
-    const npc = this.session.transport.getSnapshot().entities.find((e) => e.definitionId === 'mr_smith');
-    const instanceId = 'tutorial_axe';
-    const x = npc ? npc.x - 150 : PROP_X;
-    const y = npc ? npc.y - 40 : PROP_Y;
-    this.session.transport.send({ type: 'entity.spawn', instanceId, definitionId: 'axe_pickup', x, y });
-    return instanceId;
   }
 
   // ---- Captions ----
@@ -277,14 +429,14 @@ export class OnboardingDirector {
           return;
         }
         view.hit('active');
+        const x = view.container.x;
+        const y = view.container.y + view.hitOffsetY;
         const fx = def.art.hitParticleTextureId;
         if (fx) {
-          this.session.renderer.particleBurst(fx, view.container.x, view.container.y + view.hitOffsetY, {
-            count: 8,
-            speed: 220,
-            scale: 0.5,
-          });
+          this.session.renderer.particleBurst(fx, x, y, { count: 8, speed: 220, scale: 0.5 });
         }
+        const drift = def.art.driftParticleTextureId;
+        if (drift) this.session.renderer.particleBurst(drift, x, y, driftBurstOptions(false));
         this.session.renderer.playSound(hitSound, { pitchVariation: 0.12 });
       };
       target.on('pointertap', onTap);

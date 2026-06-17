@@ -3,99 +3,141 @@
   "level": {
     "id": "tutorial_01",
     "displayName": "Mr Smith's",
-    "backgroundTextureId": "bg_area01",
+    "backgroundTextureId": "bg_area00",
     "width": 1920,
     "height": 1080,
     "entities": [
       {
         "instanceId": "mr_smith_mqhadpwx_1",
         "definitionId": "mr_smith",
-        "x": 1204,
-        "y": 602,
+        "x": 1223,
+        "y": 794,
         "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqhadrgd_2",
         "definitionId": "basic_tree",
-        "x": 388,
-        "y": 268,
+        "x": 592,
+        "y": 322,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhae0ar_3",
         "definitionId": "small_rock",
-        "x": 254,
-        "y": 348,
+        "x": 325,
+        "y": 324,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhae1w4_4",
         "definitionId": "small_rock",
-        "x": 357,
-        "y": 377,
+        "x": 256,
+        "y": 408,
         "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqhaeeie_6",
         "definitionId": "basic_tree",
-        "x": 355,
-        "y": 732,
+        "x": 348,
+        "y": 659,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhaegba_7",
         "definitionId": "small_rock",
-        "x": 1529,
-        "y": 275,
+        "x": 1606,
+        "y": 289,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhaehn7_8",
         "definitionId": "small_rock",
-        "x": 1483,
-        "y": 910,
+        "x": 711,
+        "y": 945,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhaejgn_9",
         "definitionId": "small_rock",
-        "x": 1322,
-        "y": 1056,
+        "x": 1697,
+        "y": 456,
         "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqhaghaa_10",
         "definitionId": "basic_tree",
-        "x": 694,
-        "y": 479,
+        "x": 1408,
+        "y": 302,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhagkd4_11",
         "definitionId": "small_rock",
-        "x": 346,
-        "y": 840,
+        "x": 394,
+        "y": 806,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhagm63_12",
         "definitionId": "small_rock",
-        "x": 1233,
-        "y": 996,
+        "x": 1296,
+        "y": 956,
         "overrides": {}
       },
       {
         "instanceId": "small_rock_mqhagq4i_13",
         "definitionId": "small_rock",
-        "x": 1437,
-        "y": 205,
+        "x": 1682,
+        "y": 357,
         "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqhck0dg_1",
         "definitionId": "basic_tree",
-        "x": 1360,
-        "y": 951
+        "x": 584,
+        "y": 857,
+        "overrides": {}
+      },
+      {
+        "instanceId": "wood_shack_tutorial_1",
+        "definitionId": "wood_shack",
+        "x": 952,
+        "y": 590,
+        "initialState": "unbuilt",
+        "overrides": {}
+      },
+      {
+        "instanceId": "furnace_tutorial_1",
+        "definitionId": "furnace",
+        "x": 1367,
+        "y": 555,
+        "initialState": "unbuilt",
+        "locked": true,
+        "overrides": {}
+      },
+      {
+        "instanceId": "shrine_tutorial_1",
+        "definitionId": "shrine",
+        "x": 1601,
+        "y": 734,
+        "locked": true,
+        "overrides": {}
+      },
+      {
+        "instanceId": "axe_pickup_tutorial_1",
+        "definitionId": "axe_pickup",
+        "x": 1392,
+        "y": 678,
+        "locked": true,
+        "overrides": {}
+      },
+      {
+        "instanceId": "pickaxe_pickup_tutorial_1",
+        "definitionId": "pickaxe_pickup",
+        "x": 1569,
+        "y": 381,
+        "locked": true,
+        "overrides": {}
       }
     ]
   }

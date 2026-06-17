@@ -102,14 +102,16 @@ Shared zones should make the world feel alive without requiring a fully persiste
 
 NPCs should not treat the player like a normal character. They should interpret player actions as divine, supernatural, or mysterious events.
 
+NPCs live *inside* the fiction and never see the machinery behind it. They must **never name the player's mechanics** — no "cursor", "click", "tap", "hover", "lock", or UI verbs like "claim your reward". Instead they react with sincere **bewilderment** at the impossible things happening around them: objects shattering on their own, tools drifting up into the sky, materials appearing from nowhere. The humour comes from their genuine confusion, never from winking at the player.
+
 Examples:
 
 - “The gods have taken my axe!”
 - “Another request from above, is it?”
-- “The rocks tremble when the cursor descends…”
+- “The very stones tremble, and I cannot say why…”
 - “Please stop smashing my belongings, mighty one.”
 
-This tone should be playful, charming, and lightly absurd.
+This tone should be playful, charming, and lightly absurd — but always sincere bewilderment, never meta-awareness.
 
 ---
 
@@ -542,14 +544,18 @@ Reward:
 
 Crafting should reinforce the “god cursor” fantasy.
 
+The **Furnace (the forge)** is the physical crafting station — the craft prompt
+lives over it, not over the Blacksmith. The Blacksmith remains the *voice* of
+crafting: he reacts and narrates, but the player interacts with the forge.
+
 Example flow:
 
-1. Player clicks Blacksmith
+1. Player clicks the Furnace (the forge)
 2. Crafting menu opens
 3. Player selects item
-4. Required materials drop physically beside the blacksmith
-5. Blacksmith reacts
-6. Blacksmith crafts item
+4. Required materials fly physically into the forge
+5. Blacksmith reacts and voices the work
+6. The item is forged
 7. Item is placed on a shrine or offering table
 8. Player clicks item to collect
 
@@ -713,3 +719,38 @@ These should be answered through prototyping and playtesting:
 8. How much of the tutorial should be private before joining the shared zone?
 9. Should the cursor have cosmetics from day one?
 10. Should early gear be crafted, dropped, or quest-rewarded?
+
+---
+
+## 16. Design Rules (First Core Loop addendum)
+
+These rules crystallised while building the first repeatable loop (gather → skill
+XP → build → craft → unlock). They constrain future feature work; treat them as
+defaults to be argued against, not casual preferences.
+
+- **Progression unlocks interactions.** Advancement is gated by what the player
+  *can now do*, not just bigger numbers. New tools, tiers, and quest claims open
+  up new entities (the Oak you couldn't fell, the furnace you couldn't build).
+  Prefer "now you can interact with X" over "now X gives +10%".
+- **Own it, then grow into it.** A tool can be owned before it is usable (the
+  Stone Axe needs Woodcutting 3 to wield). Goals you can see but not yet use are a
+  deliberate motivator; the UI must say *why* it's blocked.
+- **Crafting is physical and active.** Crafting happens in the world (resources
+  fly to the System NPC, work/spark animation, a glowing Offering on the shrine
+  you must claim) — not a silent menu transaction. Active play is the high-value
+  path; idle is the floor, not the ceiling.
+- **Deepen before you widen.** Push Woodcutting, Mining, and Crafting further
+  (more tiers, more meaningful gates) before adding new skills or systems. Three
+  loops that feel great beat ten that feel flat.
+- **The divine voice is consistent, and never meta.** NPCs (and the world) speak
+  to the player as a divine force with a name; the shrine, nameplate, and dialogue
+  all read the one authoritative Divine name. NPCs live inside the fiction: they
+  never name the player's mechanics ("cursor", "click", "tap", "hover", "lock") or
+  use UI verbs ("claim your reward"). They react only with sincere bewilderment at
+  the impossible events around them (see §2.6). Out-of-world tutorial captions
+  ("Tap to Mine") and developer/system messages are a separate channel and may
+  name mechanics.
+- **In-world fiction and out-of-world dev messaging stay separate.** Diegetic NPC
+  speech bubbles are not the same channel as developer/system messages (e.g. the
+  Zone 1 welcome). They must look and read differently so players never confuse the
+  game's voice with the app's voice.

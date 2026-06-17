@@ -3,7 +3,7 @@ import {
   type QuestDefinition,
   type QuestObjective,
   type QuestState,
-  type ToolType,
+  type ToolId,
 } from '@tot/shared';
 
 /**
@@ -12,15 +12,16 @@ import {
  * data-driven (see CONTEXT.md / ADR-0006).
  */
 export type QuestSignal =
-  | { kind: 'toolAcquired'; toolType: ToolType }
+  | { kind: 'toolAcquired'; toolId: ToolId }
   | { kind: 'entityDepleted'; definitionId: string; tags: string[] }
-  | { kind: 'itemCollected'; itemId: string; quantity: number };
+  | { kind: 'itemCollected'; itemId: string; quantity: number }
+  | { kind: 'entityBuilt'; definitionId: string; tags: string[] };
 
 /** Returns how many units of progress a signal contributes to an objective. */
 function progressFrom(objective: QuestObjective, signal: QuestSignal): number {
   switch (objective.kind) {
     case 'acquireTool':
-      return signal.kind === 'toolAcquired' && signal.toolType === objective.toolType ? 1 : 0;
+      return signal.kind === 'toolAcquired' && signal.toolId === objective.toolId ? 1 : 0;
     case 'depleteEntity': {
       if (signal.kind !== 'entityDepleted') return 0;
       const defOk = objective.definitionId ? signal.definitionId === objective.definitionId : true;
@@ -31,6 +32,12 @@ function progressFrom(objective: QuestObjective, signal: QuestSignal): number {
       return signal.kind === 'itemCollected' && signal.itemId === objective.itemId
         ? signal.quantity
         : 0;
+    case 'buildEntity': {
+      if (signal.kind !== 'entityBuilt') return 0;
+      const defOk = objective.definitionId ? signal.definitionId === objective.definitionId : true;
+      const tagOk = objective.tag ? signal.tags.includes(objective.tag) : true;
+      return defOk && tagOk ? 1 : 0;
+    }
   }
 }
 

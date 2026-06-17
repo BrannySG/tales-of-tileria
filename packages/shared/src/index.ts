@@ -1,5 +1,8 @@
 export * from './types/ids';
 export * from './types/loot';
+export * from './types/item';
+export * from './types/tool';
+export * from './types/recipe';
 export * from './types/entity';
 export * from './types/level';
 export * from './types/cursor';
@@ -8,6 +11,10 @@ export * from './types/player';
 export * from './types/protocol';
 
 export * from './content/entities';
+export * from './content/items';
 export * from './content/lootTables';
 export * from './content/quests';
+export * from './content/recipes';
+export * from './content/skills';
+export * from './content/tools';
 export * from './content/registry';

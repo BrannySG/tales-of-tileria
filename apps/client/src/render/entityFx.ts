@@ -1,4 +1,4 @@
-import { Graphics } from 'pixi.js';
+import { Graphics, Sprite, type Texture } from 'pixi.js';
 import { OutlineFilter } from 'pixi-filters';
 
 /** Global, uniform sprite-stroke style (see CONTEXT.md / plan: strokes). */
@@ -36,6 +36,24 @@ export function createContactShadow(footprintWidth: number): Graphics {
   const ry = rx * SHADOW_FLATNESS;
   const shadow = new Graphics();
   shadow.ellipse(0, 0, rx, ry).fill({ color: SHADOW_COLOR, alpha: SHADOW_ALPHA });
+  shadow.eventMode = 'none';
+  return shadow;
+}
+
+/** Offset of the cursor's cast shadow, in cursor-local pixels (down-right). */
+export const CURSOR_SHADOW_OFFSET = { x: 4, y: 5 } as const;
+const CURSOR_SHADOW_ALPHA = 0.3;
+
+/**
+ * Builds a drop shadow for the cursor arrow: a black-tinted copy of the same
+ * texture, offset down-right and rendered behind the arrow so it casts over the
+ * world below (the cursor layer sits above everything). Mirror the arrow's
+ * anchor + size when placing it so the silhouettes line up before the offset.
+ */
+export function createCursorShadow(texture: Texture | undefined): Sprite {
+  const shadow = new Sprite(texture);
+  shadow.tint = SHADOW_COLOR;
+  shadow.alpha = CURSOR_SHADOW_ALPHA;
   shadow.eventMode = 'none';
   return shadow;
 }

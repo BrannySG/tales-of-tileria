@@ -11,6 +11,16 @@ export interface PlacedEntity {
   x: number;
   y: number;
   overrides?: EntityOverrides;
+  /**
+   * Authored starting condition. 'unbuilt' makes a Buildable entity start in its
+   * needs-build (inert) look instead of fully built. Omit for the default.
+   */
+  initialState?: 'unbuilt';
+  /**
+   * For pickups: present in the Level but not yet collectible until enabled
+   * (see "Locked pickup" in CONTEXT.md). Defaults to false (collectible).
+   */
+  locked?: boolean;
 }
 
 /**

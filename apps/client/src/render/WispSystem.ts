@@ -20,6 +20,12 @@ export interface WispOptions {
   height?: number;
   /** Warm-to-cool tints randomly assigned to motes. */
   tints?: number[];
+  /** Min/max base alpha per mote. Default [0.25, 0.8] (dim for ambient). */
+  alphaRange?: [number, number];
+  /** Min/max base scale per mote. Default [0.18, 0.68]. */
+  scaleRange?: [number, number];
+  /** Multiplier on drift velocity; subtle ambient fields drift slower. Default 1. */
+  driftScale?: number;
 }
 
 let glowTexture: Texture | undefined;
@@ -61,6 +67,9 @@ export class WispSystem {
     this.height = opts.height ?? VIRTUAL_HEIGHT;
     const count = opts.count ?? 26;
     const tints = opts.tints ?? [0xfff3c8, 0xffe39a, 0xbfe6ff, 0xd9c2ff];
+    const [alphaMin, alphaMax] = opts.alphaRange ?? [0.25, 0.8];
+    const [scaleMin, scaleMax] = opts.scaleRange ?? [0.18, 0.68];
+    const driftScale = opts.driftScale ?? 1;
     this.container.eventMode = 'none';
     this.container.zIndex = 5;
     parent.addChild(this.container);
@@ -71,18 +80,18 @@ export class WispSystem {
       sprite.anchor.set(0.5);
       sprite.blendMode = 'add';
       sprite.tint = tints[Math.floor(Math.random() * tints.length)]!;
-      const baseScale = 0.18 + Math.random() * 0.5;
+      const baseScale = scaleMin + Math.random() * (scaleMax - scaleMin);
       sprite.scale.set(baseScale);
       sprite.x = Math.random() * this.width;
       const baseY = Math.random() * this.height;
       sprite.y = baseY;
-      const baseAlpha = 0.25 + Math.random() * 0.55;
+      const baseAlpha = alphaMin + Math.random() * (alphaMax - alphaMin);
       sprite.alpha = baseAlpha;
       this.container.addChild(sprite);
       this.wisps.push({
         sprite,
-        vx: (Math.random() - 0.5) * 22,
-        vy: (Math.random() - 0.5) * 10,
+        vx: (Math.random() - 0.5) * 22 * driftScale,
+        vy: (Math.random() - 0.5) * 10 * driftScale,
         phase: Math.random() * Math.PI * 2,
         twinkleSpeed: 0.6 + Math.random() * 1.6,
         baseAlpha,

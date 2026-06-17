@@ -53,6 +53,14 @@ export class EntityView {
   private readonly brokenTexture?: Texture;
   private brokenScale = 1;
   private brokenAnchorY = 0.9;
+  /** Base ('built') texture, kept so a Buildable can swap back to it on build. */
+  private readonly baseTexture: Texture;
+  /** Resolved 'unbuilt' art for buildable entities (e.g. the shack rubble). */
+  private readonly unbuiltTexture?: Texture;
+  private unbuiltScale = 1;
+  private unbuiltAnchorY = 0.9;
+  /** Buildable entities are inert in the world; their only interaction is the Build Prompt. */
+  private readonly isBuildable: boolean;
   /** Y of the speech-bubble tail tip (just above the name plate). */
   private readonly speechAnchorY: number;
   private speech?: SpeechBubble;
@@ -79,6 +87,8 @@ export class EntityView {
     const anchorX = resolved.anchorX;
     this.anchorY = resolved.anchorY;
     this.isNpc = def.kind === 'npc';
+    this.isBuildable = !!def.buildable;
+    this.baseTexture = tex;
 
     if (def.breakable) {
       const brokenTex = textures.get(def.breakable.brokenTextureId);
@@ -86,6 +96,15 @@ export class EntityView {
         this.brokenTexture = brokenTex;
         this.brokenScale = def.breakable.brokenScale ?? this.baseScale;
         this.brokenAnchorY = def.breakable.brokenAnchorY ?? this.anchorY;
+      }
+    }
+
+    if (def.buildable) {
+      const unbuiltTex = textures.get(def.buildable.unbuiltTextureId);
+      if (unbuiltTex) {
+        this.unbuiltTexture = unbuiltTex;
+        this.unbuiltScale = def.buildable.unbuiltScale ?? this.baseScale;
+        this.unbuiltAnchorY = def.buildable.unbuiltAnchorY ?? this.anchorY;
       }
     }
 
@@ -137,9 +156,30 @@ export class EntityView {
     this.buildLockButton(topY);
     this.ui.addChild(this.nameLabel, this.hpBg, this.hpFill, this.lockButton);
 
+    if (this.state === 'unbuilt') this.applyUnbuiltArt();
+
     this.redrawHp();
     this.updateUiVisibility();
     this.applyStateVisual();
+  }
+
+  /**
+   * Y (in container space) just above the *currently displayed* sprite — where a
+   * World Prompt tail sits. Computed live from the sprite so prompts hug a short
+   * unbuilt (rubble) look as tightly as the tall built one.
+   */
+  get headAnchorY(): number {
+    return -this.sprite.height * this.sprite.anchor.y - 16;
+  }
+
+  /** On-screen width of the currently displayed sprite (for sizing FX spawns). */
+  get visualWidth(): number {
+    return this.sprite.width;
+  }
+
+  /** On-screen height of the currently displayed sprite (for prompt placement). */
+  get visualHeight(): number {
+    return this.sprite.height;
   }
 
   setTargeted(targeted: boolean): void {
@@ -215,7 +255,8 @@ export class EntityView {
     this.art.x = this.shake > 0 ? (Math.random() * 2 - 1) * this.shake : 0;
     const sx = this.baseScale * (1 + this.squash);
     const sy = this.baseScale * (1 - this.squash);
-    if (this.state === 'available') {
+    // Buildables are inert (no hit squash); their scale is driven by build/idle tweens.
+    if (this.state === 'available' && !this.isBuildable) {
       this.sprite.scale.set(sx, sy);
       this.flash.scale.set(sx, sy);
     }
@@ -266,6 +307,18 @@ export class EntityView {
   /** Plays the hit juice (flash/shake/squash) without changing HP — for cinematic props. */
   hit(source: DamageSource = 'active'): void {
     this.playHit(source);
+  }
+
+  /** A brief additive shimmer — e.g. when a Locked pickup becomes collectible. */
+  sparkle(): void {
+    this.flash.alpha = 0.85;
+    this.animator.add(
+      0.55,
+      (v) => {
+        this.flash.alpha = 0.85 * (1 - v);
+      },
+      { ease: Easings.outQuad },
+    );
   }
 
   /** A short no-damage shake — used when an interaction is blocked. */
@@ -348,11 +401,27 @@ export class EntityView {
   }
 
   private applyStateVisual(): void {
-    const available = this.state === 'available';
-    this.art.visible = available;
-    this.shadow.visible = available;
-    // NPCs never participate in combat interactions (conversation comes later).
-    this.setInteractive(available && !this.isNpc);
+    const visible = this.state === 'available' || this.state === 'unbuilt';
+    this.art.visible = visible;
+    this.shadow.visible = visible;
+    // NPCs and Buildables never participate in combat interactions (the Build
+    // Prompt is the Buildable's only interaction).
+    this.setInteractive(this.state === 'available' && !this.isNpc && !this.isBuildable);
+  }
+
+  /** Swaps the sprite to its unbuilt (rubble) look. Used at construction. */
+  private applyUnbuiltArt(): void {
+    if (!this.unbuiltTexture) return;
+    const ax = this.sprite.anchor.x;
+    this.sprite.texture = this.unbuiltTexture;
+    this.flash.texture = this.unbuiltTexture;
+    this.sprite.anchor.set(ax, this.unbuiltAnchorY);
+    this.flash.anchor.set(ax, this.unbuiltAnchorY);
+    this.sprite.scale.set(this.unbuiltScale);
+    this.flash.scale.set(this.unbuiltScale);
+    this.sprite.rotation = 0;
+    this.flash.rotation = 0;
+    this.flash.alpha = 0;
   }
 
   /** Floats a speech bubble above the head; replaces any current line. */
@@ -360,9 +429,10 @@ export class EntityView {
     if (!this.speech) {
       this.speech = new SpeechBubble();
       this.speech.container.y = this.speechAnchorY;
-      this.speech.container.zIndex = 10;
-      this.container.addChild(this.speech.container);
     }
+    // Re-add to keep the bubble on top of any sibling (e.g. a craft prompt),
+    // which would otherwise crowd it since this container isn't zIndex-sorted.
+    this.container.addChild(this.speech.container);
     this.speech.say(text, opts);
   }
 
@@ -399,6 +469,41 @@ export class EntityView {
       },
       { ease: Easings.outBack },
     );
+    this.setInteractive(false);
+    this.updateUiVisibility();
+  }
+
+  /**
+   * One-time build: swap the unbuilt (rubble) art back to the base ('built')
+   * art with a celebratory pop. The entity stays inert (no combat interactions).
+   */
+  onBuilt(): void {
+    this.state = 'available';
+    const ax = this.sprite.anchor.x;
+    this.sprite.texture = this.baseTexture;
+    this.flash.texture = this.baseTexture;
+    this.sprite.anchor.set(ax, this.anchorY);
+    this.flash.anchor.set(ax, this.anchorY);
+    this.sprite.rotation = this.baseRotation;
+    this.flash.rotation = this.baseRotation;
+    this.flash.alpha = 0;
+    this.art.visible = true;
+    this.art.alpha = 1;
+    this.shadow.visible = true;
+    this.shadow.alpha = 1;
+    // Pop up into place.
+    this.sprite.scale.set(this.baseScale * 0.6);
+    this.flash.scale.set(this.baseScale * 0.6);
+    this.animator.add(
+      0.5,
+      (v) => {
+        const s = this.baseScale * (0.6 + 0.4 * v);
+        this.sprite.scale.set(s);
+        this.flash.scale.set(s);
+      },
+      { ease: Easings.outBack },
+    );
+    // Buildables are inert even when built.
     this.setInteractive(false);
     this.updateUiVisibility();
   }

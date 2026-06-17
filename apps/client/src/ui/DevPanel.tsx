@@ -1,5 +1,7 @@
-import type { CombatConfig } from '@tot/shared';
+import type { CombatConfig, Rarity } from '@tot/shared';
+import { RARITIES } from '@tot/shared';
 import { useHud } from '../state/store';
+import { OnboardingDevControl } from './OnboardingDevControl';
 
 interface SliderProps {
   label: string;
@@ -31,9 +33,11 @@ function Slider({ label, value, min, max, step, onChange, format }: SliderProps)
 export function DevPanel({
   onCombatChange,
   onToggleSound,
+  onTestLootBurst,
 }: {
   onCombatChange: (partial: Partial<CombatConfig>) => void;
   onToggleSound: (enabled: boolean) => void;
+  onTestLootBurst: (rarity: Rarity) => void;
 }) {
   const combat = useHud((s) => s.combat);
   const soundEnabled = useHud((s) => s.soundEnabled);
@@ -75,6 +79,17 @@ export function DevPanel({
         />
         <span className="val">{soundEnabled ? 'on' : 'off'}</span>
       </div>
+      <div className="dev-row dev-loot">
+        <label>Loot burst</label>
+        <div className="dev-loot-buttons">
+          {RARITIES.map((r) => (
+            <button key={r} type="button" className={`loot-rarity ${r}`} onClick={() => onTestLootBurst(r)}>
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      <OnboardingDevControl />
       <p className="editor-hint" style={{ marginBottom: 0 }}>
         Hover an entity to passively damage it. Click to tap. Lock to idle-farm hands-free.
       </p>

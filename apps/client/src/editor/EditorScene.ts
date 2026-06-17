@@ -36,6 +36,7 @@ export class EditorScene {
   private app!: Application;
   private readonly world = new Container();
   private readonly outline = new Graphics();
+  private bg?: Sprite;
   private readonly entities = new Map<string, EditorEntity>();
   private selectedId: string | null = null;
   private dragging: { id: string; offsetX: number; offsetY: number } | null = null;
@@ -64,15 +65,14 @@ export class EditorScene {
     app.stage.eventMode = 'static';
     app.stage.hitArea = new Rectangle(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
-    const bgTex = this.opts.textures.get(this.opts.backgroundTextureId);
-    if (bgTex) {
-      const bg = new Sprite(bgTex);
-      bg.width = VIRTUAL_WIDTH;
-      bg.height = VIRTUAL_HEIGHT;
-      bg.eventMode = 'static';
-      bg.on('pointerdown', () => this.select(null));
-      app.stage.addChild(bg);
-    }
+    const bg = new Sprite();
+    bg.width = VIRTUAL_WIDTH;
+    bg.height = VIRTUAL_HEIGHT;
+    bg.eventMode = 'static';
+    bg.on('pointerdown', () => this.select(null));
+    app.stage.addChild(bg);
+    this.bg = bg;
+    this.setBackground(this.opts.backgroundTextureId);
 
     this.world.sortableChildren = true;
     app.stage.addChild(this.world);
@@ -86,6 +86,16 @@ export class EditorScene {
     this.fitToHost();
     this.resizeObserver = new ResizeObserver(() => this.fitToHost());
     this.resizeObserver.observe(this.opts.host);
+  }
+
+  /** Swaps the level background to a different texture id (live preview). */
+  setBackground(textureId: string): void {
+    if (!this.bg) return;
+    const tex = this.opts.textures.get(textureId);
+    if (!tex) return;
+    this.bg.texture = tex;
+    this.bg.width = VIRTUAL_WIDTH;
+    this.bg.height = VIRTUAL_HEIGHT;
   }
 
   /** Replaces all placed entities (e.g. on load / new level). */

@@ -13,6 +13,14 @@ language in the design docs, this file wins and the docs should be reconciled.
   and an equipped-tool ring in the mockup). "The player" and "the cursor" refer
   to the same actor from different angles: Player = the human/account, Cursor =
   their in-world presence.
+- **God Cursor** — Emphatic synonym for the Cursor, naming the fantasy: the
+  player is a divine force whose only physical presence is the cursor. Used when
+  the divine framing matters (hover ring, click impact, nameplate). Same actor as
+  the Cursor.
+- **Divine name** — The name the player gives themselves at the shrine
+  Dedication. Sim-authoritative (a `player.setName` command sets it; it is the
+  Player's `displayName`) and persisted on the client, so the shrine label,
+  cursor nameplate, NPC lines, and welcome message all read it.
 
 ## Damage & Targeting
 
@@ -37,7 +45,14 @@ language in the design docs, this file wins and the docs should be reconciled.
   as a LevelDefinition. Retires the design-doc synonyms "Area" and "Zone".
 - **Level instance** — A runtime, possibly-multiplayer copy of a Level, holding
   live state (entity HP, claims, respawn timers). Many instances can exist for
-  one Level.
+  one Level. A Player's personal state (Divine name, Owned tools, Skills,
+  Inventory, Quests) is **portable across Level instances**: a snapshot can seed a
+  new instance, so progress survives a Level swap (e.g. tutorial → Shared zone).
+- **Shared zone** — Zone 1, the place the player arrives in after Onboarding,
+  framed as a shared/multiplayer clearing. Authored in its final state (shack and
+  furnace built, shrine active, no tool pickups). Currently single local player;
+  the "shared" framing is presentational, with forward-compatible interaction
+  rules and no networking yet.
 
 ## Entities
 
@@ -48,18 +63,35 @@ language in the design docs, this file wins and the docs should be reconciled.
   Authored once, referenced many times.
 - **Entity instance** — A single placed entity in a Level/Level instance with
   its own live runtime state (current HP, claim owner, respawn timer).
+- **Shrine** — A persistent Entity that receives crafted results: a completed
+  Crafting job places its Offering on the Shrine to be claimed. Authored locked,
+  enabled (undedicated) by a Quest reward, then Dedicated by the player.
+- **Dedication** — The presentational act of naming a Shrine. When the player
+  sets their Divine name at the enabled Shrine, the client renders it as "Shrine
+  of [name]". Dedication is the beat at which Crafting unlocks.
 
 ## Economy
 
 - **Currency** — A fungible, count-only measure the player accumulates and can
-  spend (shown as the single coin total in the HUD). Distinct from Resources: a
+  spend (shown as the single Gold total in the HUD). Distinct from Resources: a
   currency has no item identity beyond its amount.
-- **Coins** — The prototype's single Currency.
+- **Gold** — The prototype's single Currency. Retires the earlier synonym
+  "Coins".
 - **Resource** — A gathered material item with its own identity (e.g. Wood,
   Stone), collected by damaging Resource entities and held in the Inventory.
   Resources are not Currency.
 - **Inventory** — A player's collection of held items (Resources and other
   loot), keyed by item id with quantities.
+- **Item** — A thing with its own identity that a player can hold: a display
+  name, a Rarity, and (optionally) art. Resources and the Gold coin are Items.
+  An Item is the identity; its count in the Inventory is separate.
+- **Rarity** — A tier classifying how scarce/valuable an Item is, surfaced to
+  players as a signature color. Ordered common, uncommon, rare, epic,
+  legendary. Generic placeholder colors for now.
+- **Loot burst** — The in-world reward moment shown when an entity is depleted:
+  the rolled Items visibly burst from the entity, arc out, and settle on the
+  floor, each glowing in its Rarity color. Purely presentational — the loot is
+  already awarded to the Inventory the instant the entity is depleted.
 
 ## Tooling
 
@@ -78,31 +110,105 @@ language in the design docs, this file wins and the docs should be reconciled.
 
 ## Tools & Gating
 
-- **Tool** — A unique held item that unlocks interactions (Axe, Pickaxe,
-  Sword). Tools are not Resources: they are owned, equipped, and gate which
-  entities a player may damage.
-- **Owned tool** — A tool the player has acquired and may equip. The set of a
-  player's owned tools is authoritative state.
-- **Equipped tool** — The single owned tool currently in the player's hand,
-  used to satisfy an entity's tool requirement. Equipping only chooses among
-  owned tools.
-- **Tool requirement** — A gate on an entity declaring the tool type needed to
-  damage it (e.g. a Tree requires an Axe). Tapping without the required tool
-  deals no damage.
-- **Blocked** — The outcome of attempting an interaction whose requirement is
-  unmet (e.g. tapping a Tree with no Axe). The world reports the block so the
-  presentation can explain why nothing happened. (Design-doc cursor "Disabled /
-  Blocked" maps here.)
+- **Tool** — A held item that unlocks interactions (Axe, Pickaxe, Sword). Tools
+  are not Resources: they are owned, gate which entities a player may damage, and
+  come in tiers. Each tool the player holds is an instance of a Tool definition.
+- **Tool definition** — The static, reusable content describing one tool (id,
+  Tool type, Tool tier, display name, icon, optional Wield requirement). Tools are
+  *identified*: the player owns a set of tool ids, e.g. `axe_basic`, `axe_stone`.
+- **Tool type** — The category a tool belongs to (axe, pickaxe, sword), used by
+  a Tool requirement to say *what kind* of tool an entity needs.
+- **Tool tier** — A numeric rank on a Tool definition (higher = more capable). A
+  Tool requirement may demand a minimum tier, so a basic tool of the right type is
+  not always enough (e.g. an Oak Tree needs a tier-2 axe).
+- **Wield requirement** — A Skill level a Tool definition needs to *use* it.
+  Owning a tool is not enough if its wield requirement is unmet (e.g. the Stone
+  Axe needs Woodcutting 3). A tool is *usable* only when its wield requirement is
+  met.
+- **Owned tool** — A tool the player has acquired (a tool id in their set). The
+  set of owned tools is authoritative state.
+- **Equipped tool** — The tool whose icon the cursor ring shows. Presentation-
+  derived, not a gating input: the world auto-selects the best *usable* tool of
+  the type an interaction needs, so the player never manually equips.
+- **Tool requirement** — A gate on an entity declaring the Tool type (and
+  optional minimum Tool tier) needed to damage it. Satisfied when the player owns
+  a usable tool of that type at or above the tier.
+- **Blocked** — The outcome of an interaction whose requirement is unmet. The
+  world reports *why* so the presentation can explain it. Reasons: missing tool,
+  tool tier too low, tool wield level unmet (owns it but Skill too low), or Skill
+  level too low. (Design-doc cursor "Disabled / Blocked" maps here.)
+- **Locked pickup** — A pickup that exists in the Level but is not yet
+  collectible. It becomes collectible only when enabled (e.g. when the player is
+  asked to take it), letting authored items sit inertly in the world beforehand.
+
+## Skills
+
+- **Skill** — A trainable proficiency the player levels by acting (Woodcutting,
+  Mining, Combat, Crafting). Skills gate Wield requirements and some entity
+  interactions, and are personal authoritative state.
+- **Skill XP** — Experience accumulated in a Skill. Awarded by the world when an
+  entity is depleted (its XP reward) and when a craft completes. The single source
+  of truth for a Skill's progress.
+- **Skill level** — The rank derived from Skill XP via the authored XP curve;
+  recomputed (and stored) on every gain. Drives Wield requirements and gating.
+
+## Crafting
+
+- **Recipe** — Static, reusable content describing how to craft one result:
+  resource cost, craft time, the tool it grants, and Skill XP awarded. Crafting is
+  sim-authoritative and tick-based.
+- **Crafting job** — A player's single in-flight craft, advanced in world ticks
+  (no client timers). Consuming the cost starts it; after its duration the result
+  is placed on the Shrine as an Offering. At most one per player.
+- **Offering** — A crafted result sitting on a Shrine, waiting to be claimed.
+  Unlike a Loot burst (auto-awarded, cosmetic), an Offering is real pending state:
+  the player must claim it to take the tool.
+- **System NPC** — A non-player character that fronts a game system in the
+  fiction (e.g. Mr Smith fronts Crafting). He is the *voice* of the system,
+  voicing reactions to crafting and progression beats; the physical interaction
+  point is the relevant station, not the NPC. The crafting prompt opens from the
+  Furnace (the forge), while Mr Smith reacts to it.
 
 ## Quests
 
 - **Quest** — A named unit of directed progress with one or more Objectives and
   rewards. Quest progress is personal to a player, even in shared Levels.
 - **Objective** — A single measurable goal within a Quest (e.g. "Pick up the
-  Axe", "Chop Trees 0/3"). Objectives advance from generic gameplay events, not
-  quest-specific hooks.
+  Axe", "Chop Trees 0/3", "Rebuild the Shack"). Objectives advance from generic
+  gameplay events, not quest-specific hooks.
+- **Reward** — What a Quest grants when it is claimed. The prototype rewards
+  Gold (visible); a Quest may also carry XP, authored now but not yet surfaced.
+  A reward may also produce an **Interaction unlock**.
+- **Interaction unlock** — A world-effect a Quest reward applies on Claim:
+  enabling previously locked Entities by tag (a pickup, the furnace, the shrine).
+  This is how the Quest chain opens up new interactions step by step, driven by
+  data in the sim rather than scripted by the client.
+- **Quest chain** — A sequence of Quests linked by prerequisites. Claiming a
+  Quest auto-grants any Quest whose prerequisites are now all claimed, so the
+  chain self-propagates in the sim without client scripting.
+- **Claim** — The player action that collects a completed Quest's Reward. A
+  Quest moves through three states: active, then completed (Reward ready to
+  claim), then claimed (Reward taken).
 - **Quest Tracker** — The HUD element listing a player's active Quests and their
-  Objective progress.
+  Objective progress, and where completed Quests are claimed.
+
+## Building & Prompts
+
+- **Buildable** — An entity that can be constructed or repaired by spending
+  Resources. It has a built look and an unbuilt look; an unbuilt Buildable is
+  inert (not damageable) until built. A Buildable instance may be authored to
+  start built or unbuilt.
+- **Build cost** — The Resources required to build a Buildable. May list several
+  Resources (e.g. the furnace costs Stone and Wood); the player must afford every
+  entry, and all are consumed on Build.
+- **Build** — The act of paying a Build cost to turn an unbuilt Buildable into
+  its built look. Consumes the Resources from the player's Inventory.
+- **World Prompt** — A floating, in-world prompt anchored above an entity and
+  styled like a Speech bubble: it shows an icon plus progress/status, can turn
+  "ready", and may be tapped to act. Generic and reusable, not tutorial-specific.
+- **Build Prompt** — A World Prompt bound to an unbuilt Buildable: it shows
+  progress toward the Build cost (turning ready/green when affordable) and, when
+  tapped while ready, Builds the entity.
 
 ## Onboarding & Presentation Flow
 
@@ -119,9 +225,16 @@ language in the design docs, this file wins and the docs should be reconciled.
   - **Playable tutorial** — The live Level revealed after the cinematic, where
     the player interacts with real Entities (gated by Tools) and follows Quests.
 - **Director** — The client-side controller that scripts the Onboarding: fades,
-  void props, tap-counting, the reveal, NPC dialogue, and granting Quests. It
-  drives the world only through the same commands any player action uses; it is
-  never part of the authoritative simulation.
+  void props, tap-counting, the reveal, and NPC dialogue. It drives the world only
+  through the same commands any player action uses; it is never part of the
+  authoritative simulation. It grants only the first Quest — the rest of the Quest
+  chain self-propagates in the sim (see Quest chain).
+- **Camera** — The presentational viewpoint onto the world: a zoom/pan applied
+  to the world layers (background, ambient, Entities and their Speech bubbles,
+  world effects) as a unit, so the view can focus and reframe. It is pure
+  presentation, driven by the Director for scripted moments; it never changes
+  authoritative world state. The Cursor and HUD live in screen space and are
+  unaffected by the Camera.
 
 ## Audio
 

@@ -1,4 +1,5 @@
-import type { EntityKind, InteractionRule, SkillId, SkillRequirement, ToolType } from './ids';
+import type { EntityKind, InteractionRule, SkillId, SkillRequirement, ToolId, ToolType } from './ids';
+import type { Offering } from './recipe';
 
 /**
  * Visual description of an entity. textureIds are abstract; the client maps
@@ -15,6 +16,11 @@ export interface EntityArt {
   anchorY?: number;
   /** Texture used for hit/deplete particle bursts. */
   hitParticleTextureId?: string;
+  /**
+   * Optional secondary particle emitted alongside the hit burst using a light,
+   * fluttery "drift" physics (slow, floaty, long-lived) — e.g. leaves off a tree.
+   */
+  driftParticleTextureId?: string;
   /** Tint flashed on hit (hex). Default white. */
   hitTint?: number;
 }
@@ -46,10 +52,38 @@ export interface LootComponent {
   lootTableId: string;
 }
 
+/** A quantity of a single inventory item (e.g. a Build cost). */
+export interface ItemCost {
+  itemId: string;
+  quantity: number;
+}
+
+/**
+ * Entity can be constructed/repaired by spending Resources (see CONTEXT.md).
+ * A Buildable shows its base art when built and `unbuiltTextureId` when unbuilt;
+ * building consumes `cost` from the player's inventory and flips it to built.
+ */
+export interface BuildableComponent {
+  /** All resources consumed to build (afford-check spans the whole list). */
+  cost: ItemCost[];
+  /** Texture shown while the entity is unbuilt (e.g. rubble). */
+  unbuiltTextureId: string;
+  /** Anchor Y for the unbuilt sprite. Defaults to the entity's art anchorY. */
+  unbuiltAnchorY?: number;
+  /** Scale for the unbuilt sprite. Defaults to the entity's art scale. */
+  unbuiltScale?: number;
+}
+
 /** Gating to interact with the entity. */
 export interface RequirementsComponent {
   skill?: SkillRequirement;
   toolType?: ToolType;
+  /**
+   * Minimum tool tier required (paired with `toolType`). Defaults to 1. An Oak
+   * Tree, say, declares `{ toolType: 'axe', minTier: 2 }` so only a stone-tier
+   * (or better) axe can damage it (see ADR-0008).
+   */
+  minTier?: number;
 }
 
 /** XP granted (per skill) when the entity is depleted. */
@@ -59,10 +93,22 @@ export interface XpRewardComponent {
 
 /**
  * Tapping this entity collects it: it grants a tool to the player and is then
- * removed from the world. Used for world pickups (e.g. a floating Axe).
+ * removed from the world. Used for world pickups (e.g. a floating Axe). Grants
+ * an identified tool by id (see ADR-0008).
  */
 export interface PickupComponent {
-  grantsToolType: ToolType;
+  grantsToolId: ToolId;
+}
+
+/**
+ * A Shrine where crafted Offerings are placed and claimed (see ADR-0010). A
+ * Shrine authored `locked` starts inactive; the `build_furnace` reward enables
+ * it (undedicated). Dedication ("Shrine of [name]") is presentational once the
+ * player's divine name is set (see ADR-0011).
+ */
+export interface ShrineComponent {
+  /** Reserved for future shrine tuning; presence marks a shrine entity. */
+  dedicable?: boolean;
 }
 
 /**
@@ -81,10 +127,12 @@ export interface EntityDefinition {
   damageable?: DamageableComponent;
   respawns?: RespawnComponent;
   breakable?: BreakableComponent;
+  buildable?: BuildableComponent;
   loot?: LootComponent;
   requirements?: RequirementsComponent;
   xp?: XpRewardComponent;
   pickup?: PickupComponent;
+  shrine?: ShrineComponent;
   interactionRule?: InteractionRule;
   tags?: string[];
 }
@@ -96,7 +144,7 @@ export interface EntityOverrides {
   lootTableId?: string;
 }
 
-export type EntityRuntimeState = 'available' | 'depleted' | 'respawning';
+export type EntityRuntimeState = 'available' | 'depleted' | 'respawning' | 'unbuilt';
 
 /**
  * A single placed entity's live runtime state inside a Level instance. All
@@ -119,4 +167,8 @@ export interface EntityInstance {
   lootTableId?: string;
   /** Seconds remaining until respawn while in the 'respawning' state. */
   respawnRemaining: number;
+  /** A pickup/shrine that exists but is not yet active until enabled. */
+  locked: boolean;
+  /** A Shrine's pending crafted Offering, awaiting claim (see ADR-0010). */
+  pendingOffering?: Offering;
 }
