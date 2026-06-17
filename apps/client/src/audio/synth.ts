@@ -50,7 +50,7 @@ function make(durationSeconds: number, fn: (t: number, i: number) => number): Fl
 const decay = (t: number, rate: number) => Math.exp(-t * rate);
 const sine = (t: number, freq: number) => Math.sin(2 * Math.PI * freq * t);
 
-export type SoundName = 'hitRock' | 'hitTree' | 'deplete' | 'respawn' | 'lock' | 'loot';
+export type SoundName = 'hitRock' | 'hitTree' | 'deplete' | 'respawn' | 'lock' | 'loot' | 'denied';
 
 export function generatePlaceholderSounds(): Record<SoundName, string> {
   // Rock hit: low thock + noise transient.
@@ -88,5 +88,13 @@ export function generatePlaceholderSounds(): Record<SoundName, string> {
     }),
   );
 
-  return { hitRock, hitTree, deplete, respawn, lock, loot };
+  // Denied: low, dull two-tone "thunk" — an interaction was blocked.
+  const denied = encodeWav(
+    make(0.22, (t) => {
+      const f = t < 0.09 ? 180 : 120;
+      return sine(t, f) * decay(t % 0.09, 16) * 0.4;
+    }),
+  );
+
+  return { hitRock, hitTree, deplete, respawn, lock, loot, denied };
 }

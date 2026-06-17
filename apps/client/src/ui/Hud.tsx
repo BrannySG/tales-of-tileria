@@ -1,6 +1,7 @@
 import type { CombatConfig, ToolType } from '@tot/shared';
 import { useHud } from '../state/store';
 import { Hotbar } from './Hotbar';
+import { QuestTracker } from './QuestTracker';
 import { DevPanel } from './DevPanel';
 
 export type HudVariant = 'game' | 'zoo';
@@ -30,17 +31,19 @@ function Currency() {
 
 export function Hud(props: HudProps) {
   const tool = useHud((s) => s.equippedTool);
+  const ownedTools = useHud((s) => s.ownedTools);
   const variant = props.variant ?? 'game';
   const locationName = props.locationName ?? 'The Grass Plains';
 
   return (
     <div className="hud">
       <Currency />
+      <QuestTracker />
       <div className="hud-location">
         <small>Tileria</small>
         <span className="hud-location-name">{locationName}</span>
       </div>
-      <Hotbar active={tool} onSelect={props.onSelectTool} />
+      <Hotbar owned={ownedTools} active={tool} onSelect={props.onSelectTool} />
       {variant === 'zoo' && (
         <DevPanel onCombatChange={props.onCombatChange} onToggleSound={props.onToggleSound} />
       )}

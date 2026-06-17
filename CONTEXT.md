@@ -75,3 +75,56 @@ language in the design docs, this file wins and the docs should be reconciled.
   of an Entity definition (scale, rotation, anchor). Edits apply to every
   instance of that type across all Levels. Concerns *what a type looks like*
   (global), not where instances are placed. Complements the Level Editor.
+
+## Tools & Gating
+
+- **Tool** — A unique held item that unlocks interactions (Axe, Pickaxe,
+  Sword). Tools are not Resources: they are owned, equipped, and gate which
+  entities a player may damage.
+- **Owned tool** — A tool the player has acquired and may equip. The set of a
+  player's owned tools is authoritative state.
+- **Equipped tool** — The single owned tool currently in the player's hand,
+  used to satisfy an entity's tool requirement. Equipping only chooses among
+  owned tools.
+- **Tool requirement** — A gate on an entity declaring the tool type needed to
+  damage it (e.g. a Tree requires an Axe). Tapping without the required tool
+  deals no damage.
+- **Blocked** — The outcome of attempting an interaction whose requirement is
+  unmet (e.g. tapping a Tree with no Axe). The world reports the block so the
+  presentation can explain why nothing happened. (Design-doc cursor "Disabled /
+  Blocked" maps here.)
+
+## Quests
+
+- **Quest** — A named unit of directed progress with one or more Objectives and
+  rewards. Quest progress is personal to a player, even in shared Levels.
+- **Objective** — A single measurable goal within a Quest (e.g. "Pick up the
+  Axe", "Chop Trees 0/3"). Objectives advance from generic gameplay events, not
+  quest-specific hooks.
+- **Quest Tracker** — The HUD element listing a player's active Quests and their
+  Objective progress.
+
+## Onboarding & Presentation Flow
+
+- **Title Screen** — The first surface a player sees: an ethereal holding screen
+  with a "Click/Touch to Start" prompt. Entry point to the rest of the game.
+- **Wisp** — A small, drifting, firefly-like mote of light. Ambient atmosphere
+  (not an Entity, no HP, not interactable), used on the Title Screen and during
+  the Onboarding cinematic.
+- **Onboarding** — A first-time player's introductory experience. It has two
+  distinct phases:
+  - **Void cinematic** — A scripted, non-interactive-world sequence shown over
+    blackness (props unveil and break on cue, Wisps drift). It is presentation,
+    not authoritative world state.
+  - **Playable tutorial** — The live Level revealed after the cinematic, where
+    the player interacts with real Entities (gated by Tools) and follows Quests.
+- **Director** — The client-side controller that scripts the Onboarding: fades,
+  void props, tap-counting, the reveal, NPC dialogue, and granting Quests. It
+  drives the world only through the same commands any player action uses; it is
+  never part of the authoritative simulation.
+
+## Audio
+
+- **Music** — A looping background track for a scene or moment, played on its
+  own channel (separate volume from sound effects), able to fade in and out.
+  Distinct from one-shot sound effects.

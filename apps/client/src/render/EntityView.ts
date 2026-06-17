@@ -5,7 +5,7 @@ import type { TextureMap } from './assets';
 import { resolveArt } from '../content/entityArt';
 import { GAME_FONT_FAMILY } from '../assets/fonts';
 import { createContactShadow, createOutlineFilter } from './entityFx';
-import { SpeechBubble } from './SpeechBubble';
+import { SpeechBubble, type SpeechOptions } from './SpeechBubble';
 
 const HP_BAR_WIDTH = 66;
 const HP_BAR_HEIGHT = 8;
@@ -263,6 +263,24 @@ export class EntityView {
     this.lockGlyph.circle(0, 0.6, 1).fill(0x14161b);
   }
 
+  /** Plays the hit juice (flash/shake/squash) without changing HP — for cinematic props. */
+  hit(source: DamageSource = 'active'): void {
+    this.playHit(source);
+  }
+
+  /** A short no-damage shake — used when an interaction is blocked. */
+  wiggle(): void {
+    const amt = 5;
+    this.shake = amt;
+    this.animator.add(
+      0.32,
+      (v) => {
+        this.shake = amt * (1 - v);
+      },
+      { ease: Easings.outQuad },
+    );
+  }
+
   private playHit(source: DamageSource): void {
     const active = source === 'active';
     this.flash.alpha = active ? 0.9 : 0.5;
@@ -338,14 +356,14 @@ export class EntityView {
   }
 
   /** Floats a speech bubble above the head; replaces any current line. */
-  say(text: string): void {
+  say(text: string, opts?: SpeechOptions): void {
     if (!this.speech) {
       this.speech = new SpeechBubble();
       this.speech.container.y = this.speechAnchorY;
       this.speech.container.zIndex = 10;
       this.container.addChild(this.speech.container);
     }
-    this.speech.say(text);
+    this.speech.say(text, opts);
   }
 
   /**

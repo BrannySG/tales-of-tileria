@@ -12,7 +12,8 @@ export const rockBasic: LootTable = {
 export const treeBasic: LootTable = {
   id: 'tree_basic',
   rolls: [
-    { itemId: 'wood', minQuantity: 1, maxQuantity: 2, chance: 1 },
+    // Each tree yields a flat 4 wood (see plan); coins + a rare branch on top.
+    { itemId: 'wood', minQuantity: 4, maxQuantity: 4, chance: 1 },
     { itemId: 'coins', minQuantity: 1, maxQuantity: 4, chance: 1 },
     { itemId: 'strong_branch', minQuantity: 1, maxQuantity: 1, chance: 0.12 },
   ],

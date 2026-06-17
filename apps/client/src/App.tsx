@@ -4,11 +4,15 @@ import { ZooMode } from './modes/ZooMode';
 import { EditorMode } from './modes/EditorMode';
 import { GameMode } from './modes/GameMode';
 import { EntityEditorMode } from './modes/EntityEditorMode';
+import { TitleMode } from './modes/TitleMode';
+import { OnboardingMode } from './modes/OnboardingMode';
 
-const MODES = ['game', 'zoo', 'editor', 'entities'] as const;
-type Mode = (typeof MODES)[number];
+/** Modes shown in the dev mode-nav. Title + onboarding are intentionally absent. */
+const NAV_MODES = ['game', 'zoo', 'editor', 'entities'] as const;
+const ALL_MODES = ['title', 'onboarding', ...NAV_MODES] as const;
+type Mode = (typeof ALL_MODES)[number];
 
-const MODE_LABEL: Record<Mode, string> = {
+const MODE_LABEL: Record<(typeof NAV_MODES)[number], string> = {
   game: 'Game',
   zoo: 'Zoo',
   editor: 'Editor',
@@ -16,12 +20,13 @@ const MODE_LABEL: Record<Mode, string> = {
 };
 
 function isMode(value: string): value is Mode {
-  return (MODES as readonly string[]).includes(value);
+  return (ALL_MODES as readonly string[]).includes(value);
 }
 
+/** The Title Screen is the default first surface (see CONTEXT.md). */
 function readMode(): Mode {
   const hash = window.location.hash.replace(/^#\/?/, '');
-  return isMode(hash) ? hash : 'game';
+  return isMode(hash) ? hash : 'title';
 }
 
 // Same arrow art as the in-world cursor, used everywhere the OS cursor would
@@ -42,15 +47,22 @@ export function App() {
     window.location.hash = `/${next}`;
   };
 
+  // The Title Screen and onboarding cinematic are full-bleed: no dev nav.
+  const showNav = mode !== 'title' && mode !== 'onboarding';
+
   return (
     <div className="app" style={{ cursor: APP_CURSOR }}>
-      <nav className="mode-nav">
-        {MODES.map((m) => (
-          <button key={m} className={mode === m ? 'active' : ''} onClick={() => navigate(m)}>
-            {MODE_LABEL[m]}
-          </button>
-        ))}
-      </nav>
+      {showNav && (
+        <nav className="mode-nav">
+          {NAV_MODES.map((m) => (
+            <button key={m} className={mode === m ? 'active' : ''} onClick={() => navigate(m)}>
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </nav>
+      )}
+      {mode === 'title' && <TitleMode />}
+      {mode === 'onboarding' && <OnboardingMode />}
       {mode === 'game' && <GameMode />}
       {mode === 'zoo' && <ZooMode />}
       {mode === 'editor' && <EditorMode />}

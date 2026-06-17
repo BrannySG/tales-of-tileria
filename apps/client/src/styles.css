@@ -67,6 +67,73 @@ button {
   color: #1a1d23;
 }
 
+/* ---- Title screen ---- */
+.title-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 38%, #1b2233 0%, #0c0e15 55%, #05060a 100%);
+  display: grid;
+  place-items: center;
+  user-select: none;
+}
+
+.title-wisps {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.title-wisps canvas {
+  display: block;
+}
+
+.title-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  pointer-events: none;
+}
+
+.title-name {
+  margin: 0;
+  font-size: 96px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #f4ecd6;
+  text-shadow:
+    0 0 24px rgba(255, 226, 154, 0.35),
+    0 6px 10px rgba(0, 0, 0, 0.6);
+}
+
+.title-name span {
+  color: var(--accent);
+}
+
+.title-prompt {
+  margin: 28px 0 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #cdd6e4;
+  animation: titlePulse 2.4s ease-in-out infinite;
+}
+
+@keyframes titlePulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
 /* ---- Stage ---- */
 .stage-host {
   position: absolute;
@@ -144,6 +211,80 @@ button {
   color: #fff;
   text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- Quest tracker (top-left, under currency) ---- */
+.hud-quests {
+  position: absolute;
+  top: 104px;
+  left: 40px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.55));
+}
+
+.hud-quests-header {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
+  border-bottom: 3px solid rgba(255, 255, 255, 0.85);
+  padding-bottom: 2px;
+  width: max-content;
+  min-width: 150px;
+}
+
+.quest-card {
+  animation: questPop 0.32s ease-out;
+}
+
+.quest-name {
+  display: inline-block;
+  background: rgba(20, 16, 11, 0.92);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 6px 6px 0 0;
+}
+
+.quest-objective {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: linear-gradient(180deg, #efe2c2 0%, #e2cfa3 100%);
+  color: #2a2017;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 0 8px 8px 8px;
+  border: 2px solid rgba(42, 32, 23, 0.55);
+}
+
+.quest-card.done .quest-objective {
+  color: #3c5a23;
+}
+
+.quest-check {
+  color: var(--accent-2);
+  font-weight: 900;
+}
+
+@keyframes questPop {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ---- Location (bottom-left) ---- */

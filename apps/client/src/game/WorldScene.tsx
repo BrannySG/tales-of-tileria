@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import type { CombatConfig, LevelDefinition, ToolType } from '@tot/shared';
-import { useWorldScene } from './useWorldScene';
+import { useWorldScene, type WorldSession } from './useWorldScene';
 import { useStageScale } from './useStageScale';
 import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
@@ -12,6 +12,12 @@ export interface WorldSceneProps {
   locationName?: string;
   /** 'game' = clean HUD; 'zoo' = HUD + dev tuning panel. */
   variant?: HudVariant;
+  /** Tools owned at start; omit for the sandbox default (all tools). */
+  startingTools?: ToolType[];
+  /** Show the DOM HUD overlay. Hidden during the onboarding void. Default true. */
+  hudVisible?: boolean;
+  /** Invoked once the session is live (e.g. to start the onboarding Director). */
+  onReady?: (session: WorldSession) => (() => void) | void;
 }
 
 /**
@@ -24,18 +30,27 @@ export interface WorldSceneProps {
 export function WorldScene({
   level,
   playerName = 'Branny',
-  tool = 'pickaxe',
+  tool,
   locationName,
   variant = 'game',
+  startingTools,
+  hudVisible = true,
+  onReady,
 }: WorldSceneProps) {
-  const { hostRef, sessionRef, ready } = useWorldScene(level, { playerName, tool });
+  const { hostRef, sessionRef, ready } = useWorldScene(level, {
+    playerName,
+    tool,
+    startingTools,
+    onReady,
+  });
   const stage = useStageScale(hostRef);
 
   const onLock = () => sessionRef.current?.renderer.lockCurrentTarget();
   const onUnlock = () => sessionRef.current?.renderer.unlock();
   const onSelectTool = (next: ToolType) => {
-    useHud.getState().setEquippedTool(next);
-    sessionRef.current?.renderer.setEquippedTool(next);
+    // The sim is authoritative over the equipped tool; it echoes `tool.equipped`,
+    // which updates the HUD store and cursor (see ADR-0006).
+    sessionRef.current?.transport.send({ type: 'tool.equip', toolType: next });
   };
   const onCombatChange = (partial: Partial<CombatConfig>) => {
     sessionRef.current?.transport.setCombatConfig(partial);
@@ -65,7 +80,7 @@ export function WorldScene({
   return (
     <>
       <div className="stage-host" ref={hostRef} />
-      <div className="world-frame-host">
+      <div className="world-frame-host" style={{ display: hudVisible ? undefined : 'none' }}>
         <div className="world-frame" style={{ width: stage.width, height: stage.height }}>
           <div className="hud-layer" style={{ transform: `scale(${stage.scale})` }}>
             <Hud

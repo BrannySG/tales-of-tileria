@@ -58,6 +58,14 @@ export interface XpRewardComponent {
 }
 
 /**
+ * Tapping this entity collects it: it grants a tool to the player and is then
+ * removed from the world. Used for world pickups (e.g. a floating Axe).
+ */
+export interface PickupComponent {
+  grantsToolType: ToolType;
+}
+
+/**
  * Static, reusable content describing an entity TYPE. Authored once (as a
  * typed TS module) and referenced by many placed instances.
  *
@@ -76,6 +84,7 @@ export interface EntityDefinition {
   loot?: LootComponent;
   requirements?: RequirementsComponent;
   xp?: XpRewardComponent;
+  pickup?: PickupComponent;
   interactionRule?: InteractionRule;
   tags?: string[];
 }

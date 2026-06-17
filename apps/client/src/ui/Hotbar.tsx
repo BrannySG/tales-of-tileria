@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { ToolType } from '@tot/shared';
 import { ASSET_URL, TOOL_ICON } from '../assets/manifest';
 
-const TOOLS: ToolType[] = ['sword', 'axe', 'pickaxe'];
-const EMPTY_SLOTS = 3;
+/** Stable display order for owned tools in the hotbar. */
+const TOOL_ORDER: ToolType[] = ['sword', 'axe', 'pickaxe'];
+const SLOT_COUNT = 6;
 
 const TOOL_LABEL: Record<ToolType, string> = {
   sword: 'Stone Sword',
@@ -11,21 +12,30 @@ const TOOL_LABEL: Record<ToolType, string> = {
   pickaxe: 'Stone Pickaxe',
 };
 
+/**
+ * Bottom-center hotbar. Shows only tools the player owns (empty until the first
+ * pickup); the equipped tool is highlighted. Tools are authoritative sim state
+ * (see ADR-0006) — selecting one asks the sim to equip it.
+ */
 export function Hotbar({
+  owned,
   active,
   onSelect,
 }: {
-  active: ToolType;
+  owned: ToolType[];
+  active: ToolType | undefined;
   onSelect: (tool: ToolType) => void;
 }) {
+  const tools = TOOL_ORDER.filter((t) => owned.includes(t));
   const [hovered, setHovered] = useState<ToolType | null>(null);
-  const labelTool = hovered ?? active;
+  const labelTool = hovered ?? active ?? tools[0];
+  const emptySlots = Math.max(0, SLOT_COUNT - tools.length);
 
   return (
     <div className="hotbar">
-      <div className="hotbar-tooltip">{TOOL_LABEL[labelTool]}</div>
+      {labelTool && <div className="hotbar-tooltip">{TOOL_LABEL[labelTool]}</div>}
       <div className="hotbar-slots">
-        {TOOLS.map((tool) => (
+        {tools.map((tool) => (
           <button
             key={tool}
             className={`hotbar-slot ${active === tool ? 'active' : ''}`}
@@ -36,7 +46,7 @@ export function Hotbar({
             <img src={ASSET_URL[TOOL_ICON[tool]]} alt={TOOL_LABEL[tool]} />
           </button>
         ))}
-        {Array.from({ length: EMPTY_SLOTS }, (_, i) => (
+        {Array.from({ length: emptySlots }, (_, i) => (
           <div key={i} className="hotbar-slot empty" />
         ))}
       </div>

@@ -22,7 +22,14 @@ export interface WorldSession {
  */
 export function useWorldScene(
   level: LevelDefinition,
-  options: { playerName: string; tool: ToolType },
+  options: {
+    playerName: string;
+    tool?: ToolType;
+    /** Tools owned at start; omit for the sandbox default (all tools). */
+    startingTools?: ToolType[];
+    /** Invoked once the session is live; return an optional cleanup. */
+    onReady?: (session: WorldSession) => (() => void) | void;
+  },
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<WorldSession | null>(null);
@@ -31,13 +38,18 @@ export function useWorldScene(
   useEffect(() => {
     let cancelled = false;
     let renderer: SceneRenderer | undefined;
+    let onReadyCleanup: (() => void) | void;
 
     const sound = new SoundSystem();
-    const world = new World(level);
+    const world = new World(level, {
+      playerName: options.playerName,
+      equippedTool: options.tool,
+      startingTools: options.startingTools,
+    });
     const transport = new LocalTransport(world);
-    const unbind = bindHud(transport, buildNameLookup(level));
+    // Reset the projection store BEFORE binding so hydration is not clobbered.
     useHud.getState().reset();
-    useHud.getState().setEquippedTool(options.tool);
+    const unbind = bindHud(transport, buildNameLookup(level));
 
     void (async () => {
       const [textures] = await Promise.all([
@@ -54,14 +66,15 @@ export function useWorldScene(
         sound,
         playerName: options.playerName,
         equippedTool: options.tool,
-        onAutoEquip: (tool) => useHud.getState().setEquippedTool(tool),
         tick: (dt) => transport.tick(dt),
       });
       if (cancelled) {
         renderer.destroy();
         return;
       }
-      sessionRef.current = { transport, renderer, sound };
+      const session: WorldSession = { transport, renderer, sound };
+      sessionRef.current = session;
+      onReadyCleanup = options.onReady?.(session);
       if (import.meta.env.DEV) {
         (globalThis as Record<string, unknown>).__tot = {
           snapshot: () => transport.getSnapshot(),
@@ -73,11 +86,13 @@ export function useWorldScene(
 
     return () => {
       cancelled = true;
+      if (onReadyCleanup) onReadyCleanup();
       unbind();
       renderer?.destroy();
       sessionRef.current = null;
       setReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level]);
 
   return { hostRef, sessionRef, ready };

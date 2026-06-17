@@ -74,9 +74,42 @@ export const woodShack: EntityDefinition = {
   tags: ['shack', 'tutorial'],
 };
 
+export const axePickup: EntityDefinition = {
+  id: 'axe_pickup',
+  displayName: 'Axe',
+  kind: 'pickup',
+  art: {
+    // Reuse the HUD icon as the world sprite for now (see plan).
+    textureId: 'icon_axe',
+    scale: 1,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  pickup: { grantsToolType: 'axe' },
+  interactionRule: 'personal',
+  tags: ['pickup', 'tool'],
+};
+
+export const pickaxePickup: EntityDefinition = {
+  id: 'pickaxe_pickup',
+  displayName: 'Pickaxe',
+  kind: 'pickup',
+  art: {
+    textureId: 'icon_pickaxe',
+    scale: 1,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  pickup: { grantsToolType: 'pickaxe' },
+  interactionRule: 'personal',
+  tags: ['pickup', 'tool'],
+};
+
 export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   smallRock,
   basicTree,
   mrSmith,
   woodShack,
+  axePickup,
+  pickaxePickup,
 ];

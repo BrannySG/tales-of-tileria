@@ -26,7 +26,7 @@ export class CursorView {
 
   constructor(
     private readonly textures: TextureMap,
-    toolType: ToolType,
+    toolType?: ToolType,
   ) {
     this.container.eventMode = 'none';
     this.container.zIndex = 1000;
@@ -34,11 +34,12 @@ export class CursorView {
     this.lockRing.zIndex = 0;
     this.drawRing(this.ring, 0xffffff, 0.5);
 
-    const iconTex = this.textures.get(TOOL_ICON[toolType]);
+    const iconTex = toolType ? this.textures.get(TOOL_ICON[toolType]) : undefined;
     this.toolIcon = new Sprite(iconTex);
     this.toolIcon.anchor.set(0.5);
     this.toolIcon.width = 34;
     this.toolIcon.height = 34;
+    this.toolIcon.visible = Boolean(toolType);
 
     // The ring + tool icon are a single fading group, hidden until targeting.
     this.ringGroup.addChild(this.lockRing, this.ring, this.toolIcon);
@@ -64,9 +65,16 @@ export class CursorView {
     this.container.y = y;
   }
 
-  setTool(toolType: ToolType): void {
+  setTool(toolType: ToolType | undefined): void {
+    if (!toolType) {
+      this.toolIcon.visible = false;
+      return;
+    }
     const tex = this.textures.get(TOOL_ICON[toolType]);
-    if (tex) this.toolIcon.texture = tex;
+    if (tex) {
+      this.toolIcon.texture = tex;
+      this.toolIcon.visible = true;
+    }
   }
 
   /** Toggle the hover state that drives the tool ring's fade-in. */

@@ -9,6 +9,13 @@ const TAIL_W = 18;
 const TAIL_H = 11;
 const HOLD_SECONDS = 3.5;
 
+export interface SpeechOptions {
+  /** Angry "shout": larger bold text and a continuous shake (see CONTEXT.md). */
+  shout?: boolean;
+  /** How long to hold before auto-fading. Defaults to HOLD_SECONDS. */
+  holdSeconds?: number;
+}
+
 /**
  * A comic-style speech bubble: parchment rounded body with a downward tail that
  * points at the speaker's head. The container origin (0,0) is the tail tip, so
@@ -23,6 +30,7 @@ export class SpeechBubble {
   private label?: Text;
   private holdRemaining = 0;
   private hiding = false;
+  private shake = 0;
 
   constructor() {
     this.container.visible = false;
@@ -30,23 +38,25 @@ export class SpeechBubble {
     this.container.addChild(this.shadow, this.body);
   }
 
-  say(text: string): void {
+  say(text: string, opts: SpeechOptions = {}): void {
     this.animator.clear();
     if (this.label) {
       this.container.removeChild(this.label);
       this.label.destroy();
     }
 
+    const shout = opts.shout ?? false;
     const label = new Text({
       text,
       style: {
         fontFamily: GAME_FONT_FAMILY,
-        fontSize: 19,
-        fontWeight: '700',
-        fill: 0x241c12,
+        fontSize: shout ? 28 : 19,
+        fontWeight: shout ? '900' : '700',
+        fill: shout ? 0x7a1410 : 0x241c12,
         align: 'center',
         wordWrap: true,
-        wordWrapWidth: MAX_TEXT_WIDTH,
+        wordWrapWidth: shout ? MAX_TEXT_WIDTH + 70 : MAX_TEXT_WIDTH,
+        letterSpacing: shout ? 0.5 : 0,
       },
     });
     label.anchor.set(0.5, 0.5);
@@ -63,16 +73,30 @@ export class SpeechBubble {
     this.container.visible = true;
     this.container.alpha = 1;
     this.hiding = false;
-    this.holdRemaining = HOLD_SECONDS;
+    this.shake = shout ? 3 : 0;
+    this.holdRemaining = opts.holdSeconds ?? HOLD_SECONDS;
 
-    // Grow from the tail tip (container origin) for a lively pop.
-    this.container.scale.set(0.4);
-    this.animator.add(0.28, (v) => this.container.scale.set(v), { ease: Easings.outBack });
+    // Grow from the tail tip (container origin) for a lively pop. Shouts
+    // overshoot harder for an explosive feel.
+    this.container.scale.set(shout ? 0.3 : 0.4);
+    this.animator.add(shout ? 0.32 : 0.28, (v) => this.container.scale.set(v), { ease: Easings.outBack });
   }
 
   update(dt: number): void {
     this.animator.update(dt);
-    if (!this.container.visible || this.hiding) return;
+    if (!this.container.visible) return;
+    // Continuous jitter conveys anger while a shout is held (not while hiding).
+    if (this.shake > 0 && !this.hiding) {
+      this.body.x = (Math.random() * 2 - 1) * this.shake;
+      this.body.y = (Math.random() * 2 - 1) * this.shake;
+      this.shadow.x = this.body.x;
+      this.shadow.y = this.body.y;
+      if (this.label) {
+        this.label.x = this.body.x;
+        this.label.y = -(TAIL_H + (this.label.height + PAD_Y * 2) / 2) + this.body.y;
+      }
+    }
+    if (this.hiding) return;
     if (this.holdRemaining > 0) {
       this.holdRemaining -= dt;
       if (this.holdRemaining <= 0) this.hide();

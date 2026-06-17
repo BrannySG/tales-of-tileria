@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import {
   DEFAULT_COMBAT_CONFIG,
-  type AwardedItem,
   type CombatConfig,
+  type QuestState,
   type SimTransport,
   type ToolType,
 } from '@tot/shared';
@@ -15,51 +15,72 @@ export interface TargetInfo {
 
 interface HudState {
   inventory: Record<string, number>;
+  quests: QuestState[];
+  ownedTools: ToolType[];
+  equippedTool: ToolType | undefined;
   target: TargetInfo | undefined;
   locked: boolean;
   combat: CombatConfig;
   soundEnabled: boolean;
-  equippedTool: ToolType;
-  addItems: (items: AwardedItem[]) => void;
+  setInventory: (inventory: Record<string, number>) => void;
+  upsertQuest: (quest: QuestState) => void;
+  setOwnedTools: (tools: ToolType[]) => void;
+  addOwnedTool: (tool: ToolType) => void;
   setTarget: (target: TargetInfo | undefined) => void;
   setLocked: (locked: boolean) => void;
   setCombat: (partial: Partial<CombatConfig>) => void;
   setSoundEnabled: (enabled: boolean) => void;
-  setEquippedTool: (tool: ToolType) => void;
+  setEquippedTool: (tool: ToolType | undefined) => void;
   reset: () => void;
 }
 
 export const useHud = create<HudState>((set) => ({
   inventory: {},
+  quests: [],
+  ownedTools: [],
+  equippedTool: undefined,
   target: undefined,
   locked: false,
   combat: { ...DEFAULT_COMBAT_CONFIG },
   soundEnabled: true,
-  equippedTool: 'pickaxe',
-  addItems: (items) =>
+  setInventory: (inventory) => set({ inventory: { ...inventory } }),
+  upsertQuest: (quest) =>
     set((state) => {
-      const inventory = { ...state.inventory };
-      for (const item of items) {
-        inventory[item.itemId] = (inventory[item.itemId] ?? 0) + item.quantity;
-      }
-      return { inventory };
+      const i = state.quests.findIndex((q) => q.questId === quest.questId);
+      if (i === -1) return { quests: [...state.quests, quest] };
+      const quests = state.quests.slice();
+      quests[i] = quest;
+      return { quests };
     }),
+  setOwnedTools: (ownedTools) => set({ ownedTools: [...ownedTools] }),
+  addOwnedTool: (tool) =>
+    set((state) => (state.ownedTools.includes(tool) ? state : { ownedTools: [...state.ownedTools, tool] })),
   setTarget: (target) => set({ target }),
   setLocked: (locked) => set({ locked }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
   setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
   setEquippedTool: (equippedTool) => set({ equippedTool }),
-  reset: () => set({ inventory: {}, target: undefined, locked: false }),
+  reset: () =>
+    set({ inventory: {}, quests: [], ownedTools: [], equippedTool: undefined, target: undefined, locked: false }),
 }));
 
 /**
- * Subscribes the HUD store to sim events. Keeps a local cache of entity HP so
- * the target panel can reflect the live target. Returns an unsubscribe fn.
+ * Subscribes the HUD store to sim events as a projection of authoritative state
+ * (see ADR-0006): inventory, owned/equipped tools, and quest progress are
+ * mirrored from sim events, never owned by the client. Returns an unsubscribe fn.
  */
 export function bindHud(transport: SimTransport, nameOf: (instanceId: string) => string): () => void {
   const hp = new Map<string, { hp: number; maxHp: number }>();
-  for (const e of transport.getSnapshot().entities) hp.set(e.instanceId, { hp: e.hp, maxHp: e.maxHp });
+  const snapshot = transport.getSnapshot();
+  for (const e of snapshot.entities) hp.set(e.instanceId, { hp: e.hp, maxHp: e.maxHp });
   let currentTarget: string | undefined;
+
+  // Hydrate player-scoped state from the snapshot.
+  const hud = useHud.getState();
+  hud.setInventory(snapshot.player.inventory);
+  hud.setOwnedTools(snapshot.player.ownedToolTypes);
+  hud.setEquippedTool(snapshot.player.equippedToolType);
+  for (const q of snapshot.player.quests) hud.upsertQuest(q);
 
   const refreshTarget = () => {
     if (!currentTarget) {
@@ -92,8 +113,21 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         refreshTarget();
         break;
       }
-      case 'loot.rolled': {
-        useHud.getState().addItems(event.items);
+      case 'inventory.changed': {
+        useHud.getState().setInventory(event.inventory);
+        break;
+      }
+      case 'pickup.collected': {
+        useHud.getState().addOwnedTool(event.toolType);
+        break;
+      }
+      case 'tool.equipped': {
+        useHud.getState().addOwnedTool(event.toolType);
+        useHud.getState().setEquippedTool(event.toolType);
+        break;
+      }
+      case 'quest.updated': {
+        useHud.getState().upsertQuest(event.quest);
         break;
       }
     }

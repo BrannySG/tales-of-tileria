@@ -22,5 +22,17 @@
     "rotation": 0,
     "anchorX": 0.52,
     "anchorY": 0.85
+  },
+  "axe_pickup": {
+    "scale": 0.42,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.5
+  },
+  "pickaxe_pickup": {
+    "scale": 0.42,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.5
   }
 }
