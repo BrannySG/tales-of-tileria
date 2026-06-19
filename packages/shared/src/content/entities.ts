@@ -34,7 +34,9 @@ export const basicTree: EntityDefinition = {
     driftParticleTextureId: 'fx_leaf',
     hitTint: 0xffffff,
   },
-  damageable: { maxHp: 25 },
+  // 21 HP so the onboarding Smite sequence (two 3-dmg taps + an 18-dmg Smite on
+  // the 3rd) totals 24 and reliably fells the tree instead of leaving it at 1 HP.
+  damageable: { maxHp: 21 },
   respawns: { respawnSeconds: 10 },
   loot: { lootTableId: 'tree_basic' },
   requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', minTier: 1 },

@@ -263,6 +263,13 @@ export class SceneRenderer {
     this.entityLayer.sortableChildren = true;
     this.cinematicContent.sortableChildren = true;
     this.ambientLayer.eventMode = 'none';
+    // World FX (floating damage/smite text, particles, loot pops) are purely
+    // presentational. `fxLayer` sits above `entityLayer`, so leaving its passive
+    // text interactive lets it intercept taps and starve the entity beneath it of
+    // pointer events (e.g. tapping a rock under a big "SMITE!"). Prune the whole
+    // subtree from hit-testing so taps always fall through to entities.
+    this.fxLayer.eventMode = 'none';
+    this.fxLayer.interactiveChildren = false;
     // Ambient atmosphere sits behind the world entities for depth (above bg).
     // World layers ride inside the camera; the blackout and cursor stay fixed
     // in screen space above it.
@@ -490,12 +497,15 @@ export class SceneRenderer {
 
   /**
    * The manifest texture id for the cursor ring's tool icon for a given type:
-   * the player's best-tier owned tool of that type (so a Rusty Axe shows rusty
-   * and a Stone Axe shows the upgrade), falling back to the generic per-type
-   * icon when none is owned yet.
+   * the best tool of that type the player can actually *wield* now (so a Stone
+   * Axe owned before Woodcutting 3 doesn't show as equipped while the usable
+   * Rusty Axe is what actually swings). Falls back to best-owned, then the
+   * generic per-type icon when none is owned yet.
    */
   private toolIconForType(type: ToolType | undefined): string | undefined {
     if (!type) return undefined;
+    const usable = bestUsableTool(this.ownedToolIds, type, (s) => this.skillLevel(s));
+    if (usable) return usable.iconTextureId;
     let best: { tier: number; iconTextureId: string } | undefined;
     for (const id of this.ownedToolIds) {
       const def = getToolDefinition(id);
@@ -684,7 +694,10 @@ export class SceneRenderer {
         break;
       }
       case 'skill.leveledUp': {
-        this.floatText(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.3, `${SKILL_LABEL[event.skillId]} Level ${event.level}!`, {
+        // Centered on the current view: convert the screen anchor to world coords
+        // since `floatText` lives in the pannable world-space `fxLayer`.
+        const lvlPos = this.toWorldPoint(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.3);
+        this.floatText(lvlPos.x, lvlPos.y, `${SKILL_LABEL[event.skillId]} Level ${event.level}!`, {
           color: 0xffe08a,
           size: 40,
           life: 2.2,
@@ -898,9 +911,13 @@ export class SceneRenderer {
 
   /** Floats a small "+N Skill" text at the cursor on an XP gain. */
   private spawnXpFloat(skillId: SkillId, amount: number): void {
-    const x = this.cursorView ? this.cursorView.container.x : VIRTUAL_WIDTH / 2;
-    const y = this.cursorView ? this.cursorView.container.y - 30 : VIRTUAL_HEIGHT / 2;
-    this.floatText(x, y, `+${amount} ${SKILL_LABEL[skillId]}`, { color: 0x9be7ff, size: 20, life: 1.1, vy: -60 });
+    const screenX = this.cursorView ? this.cursorView.container.x : VIRTUAL_WIDTH / 2;
+    const screenY = this.cursorView ? this.cursorView.container.y - 30 : VIRTUAL_HEIGHT / 2;
+    // The cursor lives in screen space but `floatText` parents into the world-space
+    // `fxLayer`; convert so the popup tracks the cursor on large pannable levels
+    // instead of being pinned to the world's top-left viewport region (see ADR-0015).
+    const wp = this.toWorldPoint(screenX, screenY);
+    this.floatText(wp.x, wp.y, `+${amount} ${SKILL_LABEL[skillId]}`, { color: 0x9be7ff, size: 20, life: 1.1, vy: -60 });
   }
 
   /** A world-space particle burst (above the world, below the cinematic layer). */

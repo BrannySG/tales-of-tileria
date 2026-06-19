@@ -1,21 +1,37 @@
 import { useState } from 'react';
-import { getToolDefinition, type ToolDefinition, type ToolId, type ToolType } from '@tot/shared';
+import {
+  bestUsableTool,
+  getToolDefinition,
+  type SkillId,
+  type ToolDefinition,
+  type ToolId,
+  type ToolType,
+} from '@tot/shared';
 import { ASSET_URL } from '../assets/manifest';
+import { useHud } from '../state/store';
 
 /** Stable display order for owned tools in the hotbar. */
 const TYPE_ORDER: ToolType[] = ['sword', 'axe', 'pickaxe'];
 const SLOT_COUNT = 6;
 
 /**
- * Resolves the owned tool ids into one slot per tool *type*, each represented by
- * the highest-tier tool of that type the player owns (auto-replace leaves a
- * single tool per type in normal play; the all-tools Zoo shows the best). The
- * slot's label + icon come from that tool's definition, so the hotbar reflects
- * what the player actually holds — "Rusty Axe", then "Stone Axe" once upgraded.
+ * Resolves the owned tool ids into one slot per tool *type*, represented by the
+ * best tool of that type the player can actually *wield* now (so a Stone Axe
+ * owned before Woodcutting 3 doesn't masquerade as equippable — the still-usable
+ * Rusty Axe shows instead). Falls back to the best owned tier only when no usable
+ * tool of the type exists, so the slot still appears.
  */
-function ownedSlots(ownedToolIds: readonly ToolId[]): ToolDefinition[] {
+function ownedSlots(
+  ownedToolIds: readonly ToolId[],
+  skillLevel: (skillId: SkillId) => number,
+): ToolDefinition[] {
   const slots: ToolDefinition[] = [];
   for (const type of TYPE_ORDER) {
+    const usable = bestUsableTool(ownedToolIds, type, skillLevel);
+    if (usable) {
+      slots.push(usable);
+      continue;
+    }
     const best = ownedToolIds
       .map((id) => getToolDefinition(id))
       .filter((d): d is ToolDefinition => Boolean(d) && d!.toolType === type)
@@ -39,7 +55,8 @@ export function Hotbar({
   active: ToolType | undefined;
   onSelect: (tool: ToolType) => void;
 }) {
-  const slots = ownedSlots(ownedToolIds);
+  const skills = useHud((s) => s.skills);
+  const slots = ownedSlots(ownedToolIds, (skillId) => skills[skillId]?.level ?? 1);
   const [hovered, setHovered] = useState<ToolType | null>(null);
   const labelTool =
     slots.find((s) => s.toolType === hovered) ??

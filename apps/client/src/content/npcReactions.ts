@@ -43,6 +43,14 @@ export interface NpcReaction {
 /** Seconds an NPC stays quiet after speaking, so reactions don't spam. */
 export const NPC_REACTION_COOLDOWN = 4;
 
+/**
+ * Seconds the whole NPC layer stays quiet after ANY ambient reaction. A wider
+ * timeout window than the per-NPC cooldown so back-to-back events (e.g. felling
+ * several trees in a row) don't produce a steady stream of barks. Scripted
+ * one-time beats (`oncePerPlayer`) bypass this so key moments still land.
+ */
+export const NPC_GLOBAL_REACTION_COOLDOWN = 8;
+
 export const NPC_REACTIONS: readonly NpcReaction[] = [
   {
     id: 'tree_depleted',

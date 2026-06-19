@@ -3,6 +3,7 @@ import type { EntityView } from './EntityView';
 import {
   NPC_REACTIONS,
   NPC_REACTION_COOLDOWN,
+  NPC_GLOBAL_REACTION_COOLDOWN,
   depletionTrigger,
   type NpcReaction,
   type ReactionTrigger,
@@ -32,6 +33,8 @@ export class NpcReactionController {
   private readonly byTrigger = new Map<ReactionTrigger, NpcReaction[]>();
   /** Wall-clock-ish accumulator (seconds) used for per-reaction cooldowns. */
   private clock = 0;
+  /** Earliest clock time ANY ambient reaction may fire again (global quiet window). */
+  private globalReadyAt = 0;
   /** Earliest clock time each reaction id may fire again. */
   private readonly reactionReadyAt = new Map<string, number>();
   /** Reaction ids that have already fired their once-per-session line. */
@@ -96,11 +99,17 @@ export class NpcReactionController {
   private fire(trigger: ReactionTrigger, near?: { x: number; y: number }): void {
     const reaction = this.pickReaction(trigger);
     if (!reaction) return;
+    // Honour the global quiet window so the layer doesn't bark on every event in
+    // a rapid sequence; one-time scripted beats may interject through it.
+    if (!reaction.oncePerPlayer && this.clock < this.globalReadyAt) return;
     const npc = this.pickNpc(near);
     if (!npc) return;
 
     npc.view.say(this.pickLine(reaction));
     npc.cooldown = NPC_REACTION_COOLDOWN;
+    // Any bark opens the global quiet window (even a scripted beat's), so chatter
+    // stays spaced out afterwards.
+    this.globalReadyAt = this.clock + NPC_GLOBAL_REACTION_COOLDOWN;
     if (reaction.oncePerPlayer) this.consumedOnce.add(reaction.id);
     if (reaction.cooldownSeconds) {
       this.reactionReadyAt.set(reaction.id, this.clock + reaction.cooldownSeconds);

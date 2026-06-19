@@ -179,9 +179,25 @@ describe('crafting + shrine', () => {
     expect(world.getEntity('shrine1')?.pendingOffering).toBeUndefined();
   });
 
-  it('the crafted Stone Axe supplants the found Rusty Axe (auto-replace)', () => {
+  it('keeps the Rusty Axe as a usable fallback when the crafted Stone Axe is not yet wieldable', () => {
+    const player = craftReadyPlayer();
+    player.ownedTools = ['axe_rusty']; // Woodcutting 1 < 3, so the Stone Axe can't be wielded yet.
+    const world = new World(richLevel(), { seed: 1, player });
+    world.applyCommand({ type: 'craft.start', recipeId: 'stone_axe' });
+    world.tick(10);
+
+    const events = world.applyCommand({ type: 'craft.claim', instanceId: 'shrine1' });
+    const claimed = events.find((e) => e.type === 'craftedItemClaimed');
+    // Nothing is supplanted: the Rusty Axe must remain so the player can keep
+    // chopping to earn the Woodcutting XP needed to wield the Stone Axe (no softlock).
+    expect(claimed?.type === 'craftedItemClaimed' && claimed.replacedToolIds).toBeUndefined();
+    expect(world.getPlayer().ownedTools).toEqual(['axe_rusty', 'axe_stone']);
+  });
+
+  it('the crafted Stone Axe supplants the Rusty Axe once Woodcutting 3 is met', () => {
     const player = craftReadyPlayer();
     player.ownedTools = ['axe_rusty'];
+    player.skills.woodcutting = { xp: xpToReach(3), level: 3 };
     const world = new World(richLevel(), { seed: 1, player });
     world.applyCommand({ type: 'craft.start', recipeId: 'stone_axe' });
     world.tick(10);

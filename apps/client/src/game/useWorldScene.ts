@@ -10,6 +10,10 @@ import { bindHud, useHud } from '../state/store';
 import { buildNameLookup } from './levels';
 import { loadGameFonts } from '../assets/fonts';
 import { loadEntityArtOverlay } from '../content/entityArt';
+import { savePlayerSave } from '../persistence/playerSave';
+
+/** Debounce window (ms) before a player snapshot is written to localStorage. */
+const SAVE_DEBOUNCE_MS = 1000;
 
 export interface WorldSession {
   transport: SimTransport;
@@ -28,6 +32,42 @@ function carriedPlayer(
   if (opts.startingTools) player.ownedTools = [...opts.startingTools];
   if (opts.tool) player.equippedToolType = opts.tool;
   return player;
+}
+
+/**
+ * Assembles a current Player snapshot to persist. The HUD store is the live
+ * projection of authoritative state for BOTH local and networked play (the
+ * WebSocket transport's own snapshot is frozen at the join `welcome`), so we
+ * read progress from it and keep id / divinePowers from the transport's base
+ * snapshot (untracked by the HUD).
+ */
+function snapshotPlayerForSave(transport: SimTransport): Player {
+  const base = transport.getSnapshot().player;
+  const hud = useHud.getState();
+  let craftingJob = base.craftingJob;
+  if (hud.craftingJob) {
+    const elapsed = (performance.now() - hud.craftingJob.startedAt) / 1000;
+    craftingJob = {
+      recipeId: hud.craftingJob.recipeId,
+      totalSeconds: hud.craftingJob.totalSeconds,
+      remainingSeconds: Math.max(0, hud.craftingJob.totalSeconds - elapsed),
+    };
+  } else {
+    craftingJob = undefined;
+  }
+  return {
+    ...base,
+    displayName: hud.displayName || base.displayName,
+    ownedTools: [...hud.ownedToolIds],
+    equippedToolType: hud.equippedTool,
+    inventory: { ...hud.inventory },
+    skills: { ...hud.skills },
+    passiveDamage: hud.passiveDamage,
+    craftingUnlocked: hud.craftingUnlocked,
+    craftingJob,
+    quests: hud.quests.map((q) => ({ ...q })),
+    divinePowers: base.divinePowers,
+  };
 }
 
 /**
@@ -56,6 +96,12 @@ export function useWorldScene(
      * meadow once the world is revealed.
      */
     music?: MusicTrack | null;
+    /**
+     * Persist the player snapshot to localStorage as it changes (see
+     * `playerSave.ts`). Enabled for the real game; left off for the editor/zoo
+     * and the scripted onboarding (which saves once at completion).
+     */
+    persistPlayer?: boolean;
     /** Invoked when the player taps the craft prompt over Mr Smith. */
     onOpenCrafting?: () => void;
     /** Invoked once the session is live; return an optional cleanup. */
@@ -71,6 +117,9 @@ export function useWorldScene(
     let renderer: SceneRenderer | undefined;
     let onReadyCleanup: (() => void) | void;
     let unbind: (() => void) | undefined;
+    let saveUnsub: (() => void) | undefined;
+    let saveTimer: number | undefined;
+    let flushSave: (() => void) | undefined;
 
     const networked = options.networked ?? !!level.multiplayer;
 
@@ -139,6 +188,25 @@ export function useWorldScene(
       }
       const session: WorldSession = { transport, renderer, sound };
       sessionRef.current = session;
+      // Persist progress as the authoritative snapshot changes (debounced so a
+      // burst of events writes once). The latest snapshot reflects server state
+      // in networked play, so saving it captures real progress (see playerSave.ts).
+      if (options.persistPlayer) {
+        flushSave = () => {
+          if (saveTimer !== undefined) {
+            window.clearTimeout(saveTimer);
+            saveTimer = undefined;
+          }
+          savePlayerSave(snapshotPlayerForSave(transport));
+        };
+        saveUnsub = transport.subscribe(() => {
+          if (saveTimer !== undefined) return;
+          saveTimer = window.setTimeout(() => {
+            saveTimer = undefined;
+            savePlayerSave(snapshotPlayerForSave(transport));
+          }, SAVE_DEBOUNCE_MS);
+        });
+      }
       // Default world ambience; `music: null` keeps the session silent (the void).
       if (options.music !== null) {
         sound.unlock();
@@ -155,6 +223,10 @@ export function useWorldScene(
 
     return () => {
       cancelled = true;
+      // Flush a final save before tearing down so end-of-session progress lands.
+      saveUnsub?.();
+      flushSave?.();
+      if (saveTimer !== undefined) window.clearTimeout(saveTimer);
       if (onReadyCleanup) onReadyCleanup();
       unbind?.();
       // Each session owns its own SoundSystem; stop music so it never bleeds

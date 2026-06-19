@@ -5,7 +5,9 @@ import { OnboardingDirector } from '../game/OnboardingDirector';
 import { CouncilDirector } from '../game/CouncilDirector';
 import type { WorldSession } from '../game/useWorldScene';
 import { markOnboarded, setPlayerName } from '../onboarding';
+import { savePlayerSave } from '../persistence/playerSave';
 import { UsernameModal } from '../ui/UsernameModal';
+import { WelcomeNotice } from '../ui/WelcomeNotice';
 
 const TUTORIAL_LEVEL_ID = 'tutorial_01';
 const COUNCIL_LEVEL_ID = 'council_01';
@@ -107,9 +109,12 @@ function OnboardingArc({
           setShowWelcome(true);
           setRevealed(true);
           markOnboarded();
+          // Seed the first persisted save so the next load restores this progress.
+          savePlayerSave(player);
         }, 900);
-        window.setTimeout(() => setShowWelcome(false), 7000);
-        window.setTimeout(() => setFadeBlack(false), 7000);
+        // The welcome now closes on user input (see WelcomeNotice); only the
+        // arrival fade clears on its own once the world is shown.
+        window.setTimeout(() => setFadeBlack(false), 1800);
       },
     });
     void director.run();
@@ -170,27 +175,15 @@ function OnboardingArc({
           variant="game"
           player={carried ?? undefined}
           hudVisible={revealed}
+          persistPlayer
           onReady={onZoneReady}
         />
       )}
 
       {namingOpen && <UsernameModal onConfirm={confirmName} />}
 
-      <div className={`arc-fade ${fadeBlack ? 'on' : ''}`} aria-hidden={!fadeBlack}>
-        {showWelcome && (
-          <div className="arc-welcome">
-            <p className="arc-welcome-kicker">A note from the developer</p>
-            <h2>Welcome to Tales of Tileria!</h2>
-            <p>
-              You’ve reached the end of the private intro and are now entering the first shared
-              prototype space. This game is still early, but the core loop is taking shape: gather
-              resources, level skills, craft upgrades, unlock new interactions, and rebuild your lost
-              divine power.
-            </p>
-            <p>Thanks for playing — feedback genuinely helps shape where this goes next.</p>
-          </div>
-        )}
-      </div>
+      <div className={`arc-fade ${fadeBlack ? 'on' : ''}`} aria-hidden={!fadeBlack} />
+      {showWelcome && <WelcomeNotice variant="intro" onClose={() => setShowWelcome(false)} />}
     </>
   );
 }

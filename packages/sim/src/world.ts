@@ -177,7 +177,9 @@ export class World {
 
     if (opts.passiveDamage !== undefined) player.passiveDamage = opts.passiveDamage;
     player.equippedToolType =
-      opts.equippedTool ?? player.equippedToolType ?? firstOwnedToolType(player);
+      opts.equippedTool ??
+      player.equippedToolType ??
+      defaultEquippedToolType(player, (s) => player.skills[s]?.level ?? 1);
 
     this.defaultPlayerId = player.id;
     const session = this.makeSession(player);
@@ -194,7 +196,8 @@ export class World {
    */
   addPlayer(snapshot: Player): AddressedEvent[] {
     const player = clonePlayer(snapshot);
-    player.equippedToolType = player.equippedToolType ?? firstOwnedToolType(player);
+    player.equippedToolType =
+      player.equippedToolType ?? defaultEquippedToolType(player, (s) => player.skills[s]?.level ?? 1);
     const session = this.makeSession(player);
     this.sessions.set(player.id, session);
     this.reconcileActiveQuests(session);
@@ -465,14 +468,20 @@ export class World {
 
   /**
    * Grants a tool to the player, with a higher-tier tool auto-supplanting any
-   * lower-tier tool of the same type. Returns the ids removed by the upgrade.
+   * lower-tier tool of the same type — but ONLY once the new tool is actually
+   * wieldable. If its skill requirement isn't met yet, the lower-tier tool is
+   * kept as a usable fallback so the player can't be left holding an
+   * unequippable upgrade and softlock (e.g. claiming a Stone Axe before
+   * Woodcutting 3). Returns the ids removed by the upgrade.
    */
   private grantTool(toolId: ToolId, session: PlayerSession): ToolId[] {
     const def = requireToolDefinition(toolId);
+    const wield = def.wieldRequirement;
+    const newToolWieldable = !wield || this.skillLevel(session, wield.skillId) >= wield.level;
     const replaced: ToolId[] = [];
     session.player.ownedTools = session.player.ownedTools.filter((id) => {
       const owned = requireToolDefinition(id);
-      if (owned.toolType === def.toolType && owned.tier < def.tier) {
+      if (owned.toolType === def.toolType && owned.tier < def.tier && newToolWieldable) {
         replaced.push(id);
         return false;
       }
@@ -1031,6 +1040,25 @@ export class World {
 function firstOwnedToolType(player: Player): ToolType | undefined {
   const first = player.ownedTools[0];
   return first ? requireToolDefinition(first).toolType : undefined;
+}
+
+/**
+ * The type to seed `equippedToolType` with: the type of the best tool the player
+ * can actually wield now (so the cursor never defaults to an unequippable
+ * upgrade), falling back to the first owned tool's type when none are wieldable.
+ */
+function defaultEquippedToolType(
+  player: Player,
+  skillLevel: (skillId: SkillId) => number,
+): ToolType | undefined {
+  let best: { tier: number; type: ToolType } | undefined;
+  for (const id of player.ownedTools) {
+    const def = requireToolDefinition(id);
+    const wield = def.wieldRequirement;
+    if (wield && skillLevel(wield.skillId) < wield.level) continue;
+    if (!best || def.tier > best.tier) best = { tier: def.tier, type: def.toolType };
+  }
+  return best?.type ?? firstOwnedToolType(player);
 }
 
 /** Deep-clones a Player so the World owns its own mutable state. */

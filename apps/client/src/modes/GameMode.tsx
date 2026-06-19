@@ -3,16 +3,26 @@ import { createPlayer, emptySkills, getBundledLevel, type LevelDefinition, type 
 import { WorldScene } from '../game/WorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
+import { loadPlayerSave } from '../persistence/playerSave';
+import { WelcomeNotice } from '../ui/WelcomeNotice';
 
 /** The canonical shared open world: every returning player lands here together. */
 const SHARED_ZONE_ID = 'bigworld_01';
 
 /**
- * A returning player's default kit (see ADR-0011: sim state isn't persisted
- * yet). They re-enter the open world owning the basics, with crafting already
- * unlocked and their persisted divine name.
+ * A returning player's seed snapshot. If a persisted save exists (see
+ * `playerSave.ts`) we restore it so progress survives a refresh; otherwise we
+ * fall back to the default starter kit (basics owned, crafting unlocked, the
+ * persisted divine name).
  */
 function buildReturningPlayer(): Player {
+  const saved = loadPlayerSave();
+  if (saved) {
+    saved.id = 'local';
+    const name = getPlayerName();
+    if (name) saved.displayName = name;
+    return saved;
+  }
   const player = createPlayer('local', getPlayerName() ?? 'Wanderer');
   player.ownedTools = ['axe_rusty', 'pickaxe_rusty'];
   player.equippedToolType = 'axe';
@@ -25,6 +35,8 @@ export function GameMode() {
   const [levels, setLevels] = useState<LevelSummary[]>([]);
   const [level, setLevel] = useState<LevelDefinition | null>(getBundledLevel(SHARED_ZONE_ID) ?? null);
   const [error, setError] = useState('');
+  // Returning players see the welcome + update notes on every load (tap to close).
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     // Returning players default straight into the bundled shared open world (it
@@ -93,6 +105,7 @@ export function GameMode() {
             locationName={level.displayName}
             variant="game"
             player={buildReturningPlayer()}
+            persistPlayer
           />
         ) : (
           <WorldScene
@@ -115,6 +128,8 @@ export function GameMode() {
           </div>
         </div>
       )}
+
+      {showWelcome && <WelcomeNotice variant="return" onClose={() => setShowWelcome(false)} />}
     </>
   );
 }

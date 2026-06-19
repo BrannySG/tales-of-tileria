@@ -24,6 +24,8 @@ export interface WorldSceneProps {
   music?: MusicTrack | null;
   /** Show the DOM HUD overlay. Hidden during the onboarding void. Default true. */
   hudVisible?: boolean;
+  /** Persist player progress to localStorage while this session runs (real game). */
+  persistPlayer?: boolean;
   /** Invoked once the session is live (e.g. to start the onboarding Director). */
   onReady?: (session: WorldSession) => (() => void) | void;
 }
@@ -45,6 +47,7 @@ export function WorldScene({
   player,
   music,
   hudVisible = true,
+  persistPlayer,
   onReady,
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
@@ -55,6 +58,7 @@ export function WorldScene({
     startingTools,
     player,
     music,
+    persistPlayer,
     onOpenCrafting: () => setCraftingOpen(true),
     onReady,
   });
