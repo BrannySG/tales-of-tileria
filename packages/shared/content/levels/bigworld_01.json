@@ -263,211 +263,232 @@
         "instanceId": "magic_stone_mqktgw03_1",
         "definitionId": "magic_stone",
         "x": 2876,
-        "y": 1480
+        "y": 1480,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkthr3g_2",
         "definitionId": "magic_stone",
         "x": 2710,
-        "y": 1555
+        "y": 1555,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkthtuv_3",
         "definitionId": "magic_stone",
         "x": 2643,
-        "y": 1685
+        "y": 1685,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkthzqe_4",
         "definitionId": "magic_stone",
         "x": 2722,
-        "y": 1804
+        "y": 1804,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkti1u2_5",
         "definitionId": "magic_stone",
         "x": 2880,
-        "y": 1874
+        "y": 1874,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkti5cv_6",
         "definitionId": "magic_stone",
         "x": 3022,
-        "y": 1803
+        "y": 1803,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqkti80y_7",
         "definitionId": "magic_stone",
         "x": 3105,
-        "y": 1689
+        "y": 1689,
+        "overrides": {}
       },
       {
         "instanceId": "magic_stone_mqktiaxw_8",
         "definitionId": "magic_stone",
         "x": 3042,
-        "y": 1562
+        "y": 1562,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktirsl_9",
         "definitionId": "basic_tree",
         "x": 1862,
-        "y": 1982
+        "y": 1982,
+        "overrides": {}
       },
       {
         "instanceId": "boulder_mqktivn8_10",
         "definitionId": "boulder",
         "x": 1937,
-        "y": 2206
+        "y": 2206,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktizwr_11",
         "definitionId": "basic_tree",
         "x": 2458,
-        "y": 1074
+        "y": 1074,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktj3en_12",
         "definitionId": "small_rock",
         "x": 2098,
-        "y": 761
+        "y": 761,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktj53w_13",
         "definitionId": "basic_tree",
         "x": 4008,
-        "y": 2182
+        "y": 2182,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktj6db_14",
         "definitionId": "basic_tree",
         "x": 4300,
-        "y": 2084
+        "y": 2084,
+        "overrides": {}
       },
       {
         "instanceId": "oak_tree_mqktj85i_15",
         "definitionId": "oak_tree",
         "x": 4241,
-        "y": 2352
+        "y": 2352,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktja22_16",
         "definitionId": "basic_tree",
         "x": 3949,
-        "y": 2435
+        "y": 2435,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktjc7e_17",
         "definitionId": "basic_tree",
         "x": 4612,
-        "y": 2545
+        "y": 2545,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktjenl_18",
         "definitionId": "basic_tree",
         "x": 3918,
-        "y": 726
+        "y": 726,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktji33_19",
         "definitionId": "small_rock",
         "x": 4067,
-        "y": 817
+        "y": 817,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktjkpl_20",
         "definitionId": "small_rock",
         "x": 616,
-        "y": 1583
+        "y": 1583,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktjmaw_21",
         "definitionId": "small_rock",
         "x": 501,
-        "y": 1642
+        "y": 1642,
+        "overrides": {}
       },
       {
         "instanceId": "veined_rock_mqktjoj9_22",
         "definitionId": "veined_rock",
         "x": 371,
-        "y": 1862
+        "y": 1862,
+        "overrides": {}
       },
       {
         "instanceId": "oak_tree_mqktjrw8_23",
         "definitionId": "oak_tree",
         "x": 572,
-        "y": 1950
+        "y": 1950,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktjvib_24",
         "definitionId": "small_rock",
         "x": 658,
-        "y": 1677
+        "y": 1677,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktkrev_25",
         "definitionId": "small_rock",
         "x": 1740,
-        "y": 351
+        "y": 351,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktkvaj_26",
         "definitionId": "small_rock",
         "x": 4664,
-        "y": 1283
+        "y": 1283,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktkx1p_27",
         "definitionId": "small_rock",
         "x": 4801,
-        "y": 1361
+        "y": 1361,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktkzoq_28",
         "definitionId": "basic_tree",
         "x": 3732,
-        "y": 2597
+        "y": 2597,
+        "overrides": {}
       },
       {
         "instanceId": "basic_tree_mqktl31t_29",
         "definitionId": "basic_tree",
         "x": 3583,
-        "y": 2826
+        "y": 2826,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktl69v_30",
         "definitionId": "small_rock",
         "x": 1653,
-        "y": 2056
+        "y": 2056,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktl93c_31",
         "definitionId": "small_rock",
         "x": 824,
-        "y": 2300
+        "y": 2300,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqktlce3_32",
         "definitionId": "small_rock",
         "x": 1305,
-        "y": 1835
+        "y": 1835,
+        "overrides": {}
       },
       {
-        "instanceId": "campfire_demo_01",
-        "definitionId": "campfire",
-        "x": 2780,
-        "y": 1180
-      },
-      {
-        "instanceId": "water_source_demo_01",
-        "definitionId": "water_source",
-        "x": 3060,
-        "y": 1190
-      },
-      {
-        "instanceId": "bucket_pickup_demo_01",
-        "definitionId": "bucket_pickup",
-        "x": 2915,
-        "y": 1320
+        "instanceId": "beacon_mqkzcjfc_1",
+        "definitionId": "beacon",
+        "x": 2876,
+        "y": 1697,
+        "overrides": {}
       }
     ],
     "multiplayer": {

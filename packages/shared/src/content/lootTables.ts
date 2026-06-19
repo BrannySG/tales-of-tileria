@@ -25,13 +25,14 @@ export const oakBasic: LootTable = {
   ],
 };
 
-/** Boulder (tier-2 pickaxe): stone plus an occasional Iron Chunk. */
+/** Boulder (tier-2 pickaxe): stone plus a guaranteed Iron Chunk, rarely a second. */
 export const boulderLoot: LootTable = {
   id: 'boulder',
   rolls: [
     { itemId: 'stone', minQuantity: 1, maxQuantity: 3, chance: 1 },
     { itemId: 'smooth_pebble', minQuantity: 1, maxQuantity: 1, chance: 0.1 },
-    { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 0.25 },
+    { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 1 },
+    { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 0.15 },
   ],
 };
 

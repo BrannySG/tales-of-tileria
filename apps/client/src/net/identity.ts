@@ -31,3 +31,19 @@ export function getServerWsUrl(): string {
   const wsProto = protocol === 'https:' ? 'wss:' : 'ws:';
   return `${wsProto}//${host}`;
 }
+
+/**
+ * The same authoritative server, addressed over HTTP (e.g. `http://localhost:8787`
+ * in dev). Mirrors {@link getServerWsUrl} but maps the WebSocket scheme to http/
+ * https, so leaderboard reads work both co-hosted (same origin) and split-origin
+ * in dev where `VITE_TOT_SERVER_URL` is a `ws(s)://` URL.
+ */
+export function getServerHttpUrl(): string {
+  const configured = import.meta.env.VITE_TOT_SERVER_URL as string | undefined;
+  if (configured) {
+    return configured.replace(/\/$/, '').replace(/^ws(s?):\/\//, 'http$1://');
+  }
+  const { protocol, host } = window.location;
+  const httpProto = protocol === 'https:' ? 'https:' : 'http:';
+  return `${httpProto}//${host}`;
+}

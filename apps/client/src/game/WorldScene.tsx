@@ -39,7 +39,7 @@ export interface WorldSceneProps {
  */
 export function WorldScene({
   level,
-  playerName = 'Branny',
+  playerName = '',
   tool,
   locationName,
   variant = 'game',

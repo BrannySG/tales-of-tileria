@@ -144,7 +144,7 @@ function OnboardingArc({
         <WorldScene
           key={levels.tutorial.id}
           level={levels.tutorial}
-          playerName="Branny"
+          playerName=""
           locationName={levels.tutorial.displayName}
           variant="game"
           startingTools={[]}

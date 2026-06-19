@@ -17,6 +17,7 @@ import shackBroken from '@assets/T_Entity_WoodShack_Destroyed.png';
 import furnace from '@assets/T_Entity_Furnace.png';
 import shrine from '@assets/T_Entity_Shrine.png';
 import waterSource from '@assets/T_Entity_WaterSource.png';
+import beacon from '@assets/T_Entity_Beacon.png';
 import campfire from '@assets/T_Entity_Campfire.png';
 import campfireOut from '@assets/T_Entity_CampfireOut.png';
 import fxRockShard from '@assets/T_FX_RockShard.png';
@@ -67,6 +68,7 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   furnace,
   shrine,
   entity_water_source: waterSource,
+  entity_beacon: beacon,
   entity_campfire: campfire,
   entity_campfire_out: campfireOut,
   fx_rock_shard: fxRockShard,

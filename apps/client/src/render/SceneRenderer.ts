@@ -496,7 +496,7 @@ export class SceneRenderer {
    * trees pause shedding and resume on respawn.
    */
   private registerLeafSource(view: EntityView, inst: EntityInstance): void {
-    const canopyY = inst.y + view.headAnchorY * 0.78;
+    const canopyY = inst.y + view.headAnchorY * 0.55;
     this.fallingLeaves.setSource(inst.instanceId, {
       x: inst.x,
       y: canopyY,

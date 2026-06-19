@@ -74,7 +74,7 @@ export const oakTree: EntityDefinition = {
 
 /**
  * Unlocked by the crafted Stone Pickaxe: needs a tier-2 pickaxe + Mining 3.
- * The entry point to iron — has a chance to drop an Iron Chunk.
+ * The entry point to iron — always drops an Iron Chunk, rarely a second.
  */
 export const boulder: EntityDefinition = {
   id: 'boulder',
@@ -312,6 +312,24 @@ export const campfire: EntityDefinition = {
   tags: ['prop', 'fire'],
 };
 
+/**
+ * A Beacon prop: decorative magical structure for marking points of interest.
+ * No gameplay interactions yet — placeable scenery for level authoring.
+ */
+export const beacon: EntityDefinition = {
+  id: 'beacon',
+  displayName: 'Beacon',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_beacon',
+    scale: 0.75,
+    anchorX: 0.5,
+    anchorY: 0.92,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'beacon'],
+};
+
 /** A world pickup that grants an empty Bucket (see PickupComponent item grant). */
 export const bucketPickup: EntityDefinition = {
   id: 'bucket_pickup',
@@ -402,6 +420,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   pickaxePickup,
   waterSource,
   campfire,
+  beacon,
   bucketPickup,
   councilMember,
   crowdCursor,

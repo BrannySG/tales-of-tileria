@@ -19,7 +19,7 @@ type BagTab = 'items' | 'equipment';
 
 const BAG_OPEN_KEY = 'tot.bagOpen';
 /** Minimum number of slots rendered (padded with empties) for a comfortable grid. */
-const MIN_SLOTS = 24;
+const MIN_SLOTS = 30;
 /** Stable display order for owned tools in the Equipment tab. */
 const TYPE_ORDER: ToolType[] = ['sword', 'axe', 'pickaxe'];
 

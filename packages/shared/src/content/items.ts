@@ -27,7 +27,7 @@ export const gold: ItemDefinition = {
   worldTextureId: 'coin_gold',
 };
 
-/** Iron crafting material: a chance drop from Boulders, plentiful from Veined Rock. */
+/** Iron crafting material: guaranteed from Boulders, plentiful from Veined Rock. */
 export const ironChunk: ItemDefinition = {
   id: 'iron_chunk',
   displayName: 'Iron Chunk',

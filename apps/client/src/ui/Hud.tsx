@@ -4,9 +4,9 @@ import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
 import { Bag } from './Bag';
 import { QuestTracker } from './QuestTracker';
-import { SkillsPanel } from './SkillsPanel';
 import { DevPanel } from './DevPanel';
 import { ProfileModal } from './ProfileModal';
+import { LeaderboardModal } from './LeaderboardModal';
 import { newAchievementIds, newCursorSkinIds } from './cosmetics';
 
 export type HudVariant = 'game' | 'zoo';
@@ -43,6 +43,17 @@ function SettingsGearIcon() {
   );
 }
 
+function TrophyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden focusable="false">
+      <path
+        fill="currentColor"
+        d="M18 4h2.5A1.5 1.5 0 0 1 22 5.5v1A4.5 4.5 0 0 1 17.5 11h-.35A6 6 0 0 1 13 14.91V18h2.5a1 1 0 0 1 .97.76L17 20H7l.53-1.24A1 1 0 0 1 8.5 18H11v-3.09A6 6 0 0 1 6.85 11H6.5A4.5 4.5 0 0 1 2 6.5v-1A1.5 1.5 0 0 1 3.5 4H6V3h12v1ZM6 6H4v.5A2.5 2.5 0 0 0 6.2 9 6 6 0 0 1 6 7.5V6Zm12 0v1.5a6 6 0 0 1-.2 1.5A2.5 2.5 0 0 0 20 6.5V6h-2Z"
+      />
+    </svg>
+  );
+}
+
 /**
  * Top-left profile card: the player's equipped Cursor skin as a circular avatar,
  * their name, a summed-across-all-skills total level, and gold. Clicking the
@@ -58,7 +69,8 @@ function ProfileCard({ onOpen }: { onOpen: () => void }) {
   const seenCursorSkins = useHud((s) => s.seenCursorSkins);
   const seenAchievements = useHud((s) => s.seenAchievements);
   const totalLevel = Object.values(skills).reduce((sum, s) => sum + s.level, 0);
-  const name = displayName.trim() || 'Wanderer';
+  const name = displayName.trim();
+  if (!name) return null;
   const hasNew =
     newCursorSkinIds(unlockedCursorSkins, seenCursorSkins).length > 0 ||
     newAchievementIds(skills, seenAchievements).length > 0;
@@ -85,6 +97,7 @@ export function Hud(props: HudProps) {
   const variant = props.variant ?? 'game';
   const locationName = props.locationName ?? 'The Grass Plains';
   const [profileOpen, setProfileOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
   return (
     <div className="hud">
@@ -92,8 +105,16 @@ export function Hud(props: HudProps) {
       {profileOpen && (
         <ProfileModal onEquip={props.onEquipCursor} onClose={() => setProfileOpen(false)} />
       )}
+      {leaderboardOpen && <LeaderboardModal onClose={() => setLeaderboardOpen(false)} />}
       <QuestTracker onClaim={props.onClaimQuest} />
-      <SkillsPanel />
+      <button
+        className="hud-leaderboard-button"
+        onClick={() => setLeaderboardOpen(true)}
+        aria-label="Leaderboards"
+        title="Leaderboards"
+      >
+        <TrophyIcon />
+      </button>
       <button
         className="hud-settings-button"
         onClick={props.onOpenSettings}

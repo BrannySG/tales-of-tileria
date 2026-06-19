@@ -15,6 +15,7 @@ const TICK_MS = 100;
 interface Conn {
   socket: WebSocket;
   playerId?: PlayerId;
+  name?: string;
 }
 
 /**
@@ -37,10 +38,13 @@ export class InstanceDO {
   private ticker?: ReturnType<typeof setInterval>;
   private lastTickAt = 0;
 
-  // The instance is self-contained: it builds its World from the bundled level
-  // and needs neither persistent storage nor the env bindings (the router owns
-  // assignment). State is intentionally ephemeral (see ADR-0016).
-  constructor(_state: DurableObjectState, _env: Env) {}
+  // The instance builds its World from the bundled level and needs no persistent
+  // storage of its own (state is intentionally ephemeral; see ADR-0016). It does
+  // keep `env` to report ranked skill progress to the global LeaderboardDO.
+  constructor(
+    _state: DurableObjectState,
+    private readonly env: Env,
+  ) {}
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
@@ -98,6 +102,7 @@ export class InstanceDO {
     if (msg.type === 'join') {
       if (conn.playerId) return; // already joined
       conn.playerId = msg.playerId;
+      conn.name = msg.name;
       this.byPlayer.set(msg.playerId, conn.socket);
       const joined = world.addPlayer({ ...msg.player, id: msg.playerId, displayName: msg.name });
       // Tell the newcomer the authoritative state + who's already here.
@@ -109,6 +114,8 @@ export class InstanceDO {
       });
       // Tell everyone else about the newcomer.
       this.fanout(joined, conn.socket);
+      // Seed the leaderboard with the joining player's current ranked levels.
+      this.submitScores(conn);
       this.startTicking();
       return;
     }
@@ -117,7 +124,62 @@ export class InstanceDO {
       if (!conn.playerId) return;
       const addressed = world.applyCommandAddressed(msg.command, conn.playerId);
       this.fanout(addressed);
+      // Any skill progressing can change a ranked board (per-skill or the total),
+      // so this player's leaderboard row is stale.
+      if (this.hasSkillChange(addressed)) this.submitScores(conn);
     }
+  }
+
+  /** True if any addressed event reflects skill progress (level or XP). */
+  private hasSkillChange(events: AddressedEvent[]): boolean {
+    return events.some(
+      (a) => a.event.type === 'skill.xpGained' || a.event.type === 'skill.leveledUp',
+    );
+  }
+
+  /**
+   * Upsert this player's ranked skills into the global LeaderboardDO. Fire-and-
+   * forget and guarded: leaderboard writes must never block or break the socket.
+   * Reports the per-skill boards (woodcutting/mining) plus the `total` board (the
+   * combined level/XP across all skills; see ADR-0019).
+   */
+  private submitScores(conn: Conn): void {
+    const world = this.world;
+    if (!world || !conn.playerId || !conn.name?.trim()) return;
+    const player = world.getSnapshot(conn.playerId).player;
+    const skills = player.skills;
+    const allSkills = Object.values(skills);
+    const totalLevel = allSkills.reduce((sum, s) => sum + s.level, 0);
+    const totalXp = allSkills.reduce((sum, s) => sum + s.xp, 0);
+    const body = {
+      playerId: conn.playerId,
+      displayName: conn.name,
+      skills: {
+        woodcutting: {
+          level: skills.woodcutting?.level ?? 1,
+          xp: skills.woodcutting?.xp ?? 0,
+        },
+        mining: {
+          level: skills.mining?.level ?? 1,
+          xp: skills.mining?.xp ?? 0,
+        },
+        total: {
+          level: totalLevel,
+          xp: totalXp,
+        },
+      },
+    };
+    const id = this.env.LEADERBOARD.idFromName('global');
+    const stub = this.env.LEADERBOARD.get(id);
+    void stub
+      .fetch('https://leaderboard/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      .catch(() => {
+        // Best-effort: a failed leaderboard write must not affect play.
+      });
   }
 
   private onClose(conn: Conn): void {

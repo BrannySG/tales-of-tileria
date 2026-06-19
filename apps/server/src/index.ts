@@ -3,6 +3,14 @@ import type { Env } from './env';
 
 export { InstanceDO } from './InstanceDO';
 export { RouterDO } from './RouterDO';
+export { LeaderboardDO } from './LeaderboardDO';
+
+/** Permissive CORS so the split-origin dev client (:5173) can read leaderboards. */
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
 /**
  * The router Worker (see ADR-0016). A client opens a WebSocket to
@@ -15,6 +23,29 @@ export default {
     const url = new URL(req.url);
 
     if (url.pathname === '/health') return new Response('ok');
+
+    // Read-only leaderboard query (see ADR-0019). Reads route to the single
+    // global LeaderboardDO; writes happen server-side from InstanceDO.
+    if (url.pathname === '/leaderboard') {
+      if (req.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: CORS_HEADERS });
+      }
+      if (req.method !== 'GET') {
+        return new Response('Method not allowed', { status: 405, headers: CORS_HEADERS });
+      }
+      const id = env.LEADERBOARD.idFromName('global');
+      const stub = env.LEADERBOARD.get(id);
+      const skill = url.searchParams.get('skill') ?? '';
+      const limit = url.searchParams.get('limit') ?? '';
+      const me = url.searchParams.get('me') ?? '';
+      const res = await stub.fetch(
+        `https://leaderboard/top?skill=${encodeURIComponent(skill)}&limit=${encodeURIComponent(limit)}&me=${encodeURIComponent(me)}`,
+      );
+      return new Response(res.body, {
+        status: res.status,
+        headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+      });
+    }
 
     if (url.pathname === '/play') {
       if (req.headers.get('Upgrade') !== 'websocket') {

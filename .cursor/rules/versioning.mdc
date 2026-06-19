@@ -8,24 +8,25 @@ alwaysApply: true
 The game shows a build badge in the bottom-right of the screen (e.g. `Dev V0.2.0a`).
 The single source of truth is `GAME_VERSION` in `apps/client/src/version.ts`.
 
-## Rule: bump it whenever you ship a change
+## Rule: bump the PATCH number on every change
 
-After making a meaningful code/content change, increment `GAME_VERSION` to reflect it.
-Format: `MAJOR.MINOR.PATCH<build>` (build letter optional).
+For now we are in early iteration: after making a meaningful code/content change,
+increment ONLY the PATCH (last) number of `GAME_VERSION`.
+Format: `MAJOR.MINOR.PATCH` (e.g. `0.1.4` → `0.1.5` → `0.1.6`).
 
 | Change type | What to bump | Example |
 |-------------|--------------|---------|
-| Big milestone / breaking rework | MAJOR (reset minor+patch) | `0.2.0a` → `1.0.0` |
-| New feature or system | MINOR (reset patch) | `0.2.0a` → `0.3.0` |
-| Fix, tweak, balance, polish | PATCH | `0.2.0a` → `0.2.1` |
-| Quick same-version iteration | build letter | `0.2.0` → `0.2.0a` → `0.2.0b` |
+| Any change (fix, tweak, feature, polish) | PATCH (last number) | `0.1.4` → `0.1.5` |
+
+Do NOT bump MAJOR or MINOR. The repo owner decides when to shift to `0.2`, `0.3`,
+`1.0`, etc. — never do this on your own.
 
 ## How
 
 Edit only the one line in `apps/client/src/version.ts`:
 
 ```typescript
-export const GAME_VERSION = '0.3.0';
+export const GAME_VERSION = '0.1.5';
 ```
 
 Do not hardcode the version anywhere else — import `GAME_VERSION` / `VERSION_LABEL`

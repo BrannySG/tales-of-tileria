@@ -4,4 +4,6 @@ export interface Env {
   INSTANCE: DurableObjectNamespace;
   /** One router per Level id: density-first instance assignment. */
   ROUTER: DurableObjectNamespace;
+  /** The single global leaderboard, addressed by the fixed name `global` (see ADR-0019). */
+  LEADERBOARD: DurableObjectNamespace;
 }

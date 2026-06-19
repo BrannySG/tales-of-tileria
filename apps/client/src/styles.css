@@ -468,16 +468,17 @@ button {
   font-weight: 800;
 }
 
-/* ---- Bag (bottom-right; the window onto the Inventory) ---- */
+/* ---- Bag (bottom-center; the window onto the Inventory) ---- */
 .bag {
   position: absolute;
   bottom: calc(env(safe-area-inset-bottom) + 30px * var(--hud-scale));
-  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
-  transform: scale(var(--hud-scale));
-  transform-origin: bottom right;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%) scale(var(--hud-scale));
+  transform-origin: bottom center;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 12px;
 }
 
@@ -509,7 +510,7 @@ button {
 
 .bag-panel {
   position: relative;
-  width: 408px;
+  width: 460px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
@@ -550,8 +551,8 @@ button {
 
 .bag-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
 }
 
 .bag-slot {
@@ -693,8 +694,35 @@ button.bag-slot:hover {
 .hud-settings-button:hover {
   color: var(--accent);
   border-color: var(--accent);
-  /* Keep the HUD scale while adding the playful tilt. */
-  transform: scale(var(--hud-scale)) rotate(35deg);
+  /* Keep the HUD scale while adding a subtle lift (matches the other buttons). */
+  transform: scale(var(--hud-scale)) translateY(-2px);
+}
+
+/* Leaderboard trophy: sits just left of the settings gear in the top-right. */
+.hud-leaderboard-button {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 34px * var(--hud-scale));
+  right: calc(env(safe-area-inset-right) + 120px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top right;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.hud-leaderboard-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: scale(var(--hud-scale)) translateY(-2px);
 }
 
 /* ---- Dev panel (Zoo only; lives inside the world frame) ---- */
@@ -942,59 +970,6 @@ button.bag-slot:hover {
 .empty-note {
   color: var(--muted);
   font-size: 14px;
-}
-
-/* ---- Skills panel (top-right) ---- */
-.hud-skills {
-  position: absolute;
-  top: calc(env(safe-area-inset-top) + 40px * var(--hud-scale));
-  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
-  transform: scale(var(--hud-scale));
-  transform-origin: top right;
-  width: 240px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
-}
-
-.skill-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: 'name level' 'bar bar';
-  gap: 2px 8px;
-  align-items: center;
-}
-
-.skill-name {
-  grid-area: name;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.skill-level {
-  grid-area: level;
-  font-size: 16px;
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.skill-bar {
-  grid-area: bar;
-  height: 7px;
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-}
-
-.skill-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #6cc24a, #9be05a);
-  transition: width 0.25s ease;
 }
 
 /* ---- Crafting menu ---- */
@@ -1297,6 +1272,142 @@ button.bag-slot:hover {
 .settings-toggle.on .settings-toggle-knob {
   background: var(--accent-2);
   transform: translateX(28px);
+}
+
+/* ---- Leaderboards modal (see ADR-0019) ---- */
+.leaderboard-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 85;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.5);
+  /* Re-enable pointer events disabled by `.world-frame-host`. */
+  pointer-events: auto;
+}
+
+.leaderboard-panel {
+  width: 460px;
+  max-width: 90%;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 16px 22px 22px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24px;
+  font-weight: 800;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.leaderboard-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.leaderboard-close:hover {
+  color: var(--text);
+}
+
+.leaderboard-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.leaderboard-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.leaderboard-tab:hover {
+  color: var(--text);
+}
+
+.leaderboard-tab.active {
+  color: #1a1206;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 120px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.leaderboard-row.me {
+  border-color: var(--accent);
+  background: rgba(255, 210, 74, 0.14);
+}
+
+.leaderboard-rank {
+  font-weight: 800;
+  color: var(--muted);
+  text-align: center;
+}
+
+.leaderboard-row.me .leaderboard-rank {
+  color: var(--accent);
+}
+
+.leaderboard-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-level {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.leaderboard-self {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.leaderboard-note {
+  color: var(--muted);
+  text-align: center;
+  font-size: 15px;
+  padding: 24px 0;
 }
 
 /* ---- Username (divine name) modal ---- */
