@@ -16,6 +16,7 @@ export class CursorView {
   private readonly ring = new Graphics();
   private readonly lockRing = new Graphics();
   private readonly toolIcon: Sprite;
+  private readonly carriedItem: Sprite;
   private readonly arrow: Sprite;
   private readonly arrowShadow: Sprite;
 
@@ -47,6 +48,17 @@ export class CursorView {
     this.ringGroup.alpha = 0;
     this.ringGroup.visible = false;
 
+    // The armed Item the cursor "carries" (see CONTEXT.md: Armed item): shown
+    // just below-right of the pointer tip while an item is armed, independent of
+    // the (hover-only) tool ring so it stays visible as you move toward a target.
+    this.carriedItem = new Sprite();
+    this.carriedItem.anchor.set(0.5);
+    this.carriedItem.width = 40;
+    this.carriedItem.height = 40;
+    this.carriedItem.x = 26;
+    this.carriedItem.y = 30;
+    this.carriedItem.visible = false;
+
     // Anchor at the arrow art's tip (~5% in from the top-left) and place that
     // tip exactly on the container origin, which tracks the true pointer. This
     // keeps the visible pointer aligned with the OS pointer / hit-test point.
@@ -67,7 +79,20 @@ export class CursorView {
     this.arrowShadow.x = CURSOR_SHADOW_OFFSET.x;
     this.arrowShadow.y = CURSOR_SHADOW_OFFSET.y;
 
-    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow);
+    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow, this.carriedItem);
+  }
+
+  /** Shows (or with `undefined`, hides) the armed Item the cursor is carrying. */
+  setCarriedItem(iconTextureId: string | undefined): void {
+    if (!iconTextureId) {
+      this.carriedItem.visible = false;
+      return;
+    }
+    const tex = this.textures.get(iconTextureId);
+    if (tex) {
+      this.carriedItem.texture = tex;
+      this.carriedItem.visible = true;
+    }
   }
 
   setPosition(x: number, y: number): void {

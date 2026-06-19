@@ -111,6 +111,12 @@ interface HudState {
   displayName: string;
   target: TargetInfo | undefined;
   locked: boolean;
+  /**
+   * The Bag item the player has "armed" to use on the world (see CONTEXT.md:
+   * Armed item). Client-only transient intent: the cursor carries it and the
+   * next Entity click sends `item.useOn`. Undefined = nothing armed.
+   */
+  armedItemId: string | undefined;
   combat: CombatConfig;
   /** Player-owned passive damage per tick (mirrors `Player.passiveDamage`). */
   passiveDamage: number;
@@ -142,6 +148,8 @@ interface HudState {
   setDisplayName: (name: string) => void;
   setTarget: (target: TargetInfo | undefined) => void;
   setLocked: (locked: boolean) => void;
+  /** Arms (or with `undefined`, disarms) a Bag item for use-on-world. */
+  setArmedItem: (itemId: string | undefined) => void;
   setCombat: (partial: Partial<CombatConfig>) => void;
   setPassiveDamage: (amount: number) => void;
   setCursorSkin: (cursorSkinId: string) => void;
@@ -183,6 +191,7 @@ export const useHud = create<HudState>((set) => ({
   displayName: '',
   target: undefined,
   locked: false,
+  armedItemId: undefined,
   combat: { ...DEFAULT_COMBAT_CONFIG },
   passiveDamage: 0,
   cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
@@ -230,6 +239,7 @@ export const useHud = create<HudState>((set) => ({
   setDisplayName: (displayName) => set({ displayName }),
   setTarget: (target) => set({ target }),
   setLocked: (locked) => set({ locked }),
+  setArmedItem: (armedItemId) => set({ armedItemId }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
   setPassiveDamage: (passiveDamage) => set({ passiveDamage }),
   setCursorSkin: (cursorSkinId) => set({ cursorSkinId }),
@@ -285,6 +295,7 @@ export const useHud = create<HudState>((set) => ({
       displayName: '',
       target: undefined,
       locked: false,
+      armedItemId: undefined,
       cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
       unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     }),

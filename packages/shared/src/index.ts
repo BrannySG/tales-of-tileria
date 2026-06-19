@@ -1,6 +1,7 @@
 export * from './types/ids';
 export * from './types/loot';
 export * from './types/item';
+export * from './types/itemInteraction';
 export * from './types/tool';
 export * from './types/recipe';
 export * from './types/entity';
@@ -15,6 +16,7 @@ export * from './content/entities';
 export * from './content/entityArt';
 export * from './content/levels';
 export * from './content/items';
+export * from './content/itemInteractions';
 export * from './content/lootTables';
 export * from './content/quests';
 export * from './content/recipes';

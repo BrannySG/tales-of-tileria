@@ -268,6 +268,67 @@ export const pickaxePickup: EntityDefinition = {
 };
 
 /**
+ * A Water Source prop (a small pool/well): non-damageable scenery whose only
+ * interaction is being the target of an Item interaction. Using an empty Bucket
+ * on it fills the bucket (see ADR-0018). Tagged `water` so any future water
+ * prop reuses the same `fill_bucket` rule.
+ */
+export const waterSource: EntityDefinition = {
+  id: 'water_source',
+  displayName: 'Water Source',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_water_source',
+    scale: 0.7,
+    anchorX: 0.5,
+    anchorY: 0.85,
+    hitParticleTextureId: 'fx_bubble',
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'water'],
+};
+
+/**
+ * A Campfire prop: a lit fire that an Item interaction can put out. Using a
+ * Bucket of Water on it extinguishes it (swapping to its `out` look) and it
+ * relights after a short while so the demo stays repeatable (see ADR-0018).
+ */
+export const campfire: EntityDefinition = {
+  id: 'campfire',
+  displayName: 'Campfire',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_campfire',
+    scale: 0.7,
+    anchorX: 0.5,
+    anchorY: 0.85,
+    hitParticleTextureId: 'fx_smoke',
+  },
+  extinguishable: {
+    outTextureId: 'entity_campfire_out',
+    relightSeconds: 20,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'fire'],
+};
+
+/** A world pickup that grants an empty Bucket (see PickupComponent item grant). */
+export const bucketPickup: EntityDefinition = {
+  id: 'bucket_pickup',
+  displayName: 'Bucket',
+  kind: 'pickup',
+  art: {
+    textureId: 'item_bucket',
+    scale: 0.5,
+    anchorX: 0.5,
+    anchorY: 0.5,
+  },
+  pickup: { grantsItemId: 'bucket', grantsItemQuantity: 1 },
+  interactionRule: 'personal',
+  tags: ['pickup', 'bucket'],
+};
+
+/**
  * The Ancient Tree world gate (see CONTEXT.md: Ancient Tree). Imposing and
  * effectively unbreakable (huge HP — it is never actually depleted; the Council
  * cutscene fires first). Ungated, so a divine player's taps/Smite land and react.
@@ -339,6 +400,9 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   shrine,
   axePickup,
   pickaxePickup,
+  waterSource,
+  campfire,
+  bucketPickup,
   councilMember,
   crowdCursor,
 ];

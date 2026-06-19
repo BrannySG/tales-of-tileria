@@ -22,6 +22,18 @@ export type SimCommand =
   | { type: 'entity.lock'; instanceId: string }
   | { type: 'entity.unlock' }
   | { type: 'pickup.collect'; instanceId: string }
+  | {
+      /**
+       * Use a held Item on a world Entity (see CONTEXT.md: Item interaction).
+       * The sim looks up the matching Item interaction rule and applies its
+       * outcome (consume/grant items, optional entity effect). A no-match is a
+       * silent no-op. The client "arms" the item purely as presentation; only
+       * this command crosses the sim boundary.
+       */
+      type: 'item.useOn';
+      itemId: string;
+      targetInstanceId: string;
+    }
   | { type: 'tool.equip'; toolType: ToolType }
   | { type: 'quest.grant'; questId: string }
   | { type: 'quest.claim'; questId: string }
@@ -93,6 +105,16 @@ export type SimEvent =
   | { type: 'entity.spawned'; entity: EntityInstance }
   | { type: 'entity.built'; instanceId: string }
   | { type: 'entity.enabled'; instanceId: string }
+  | {
+      /** A fire/light Entity was extinguished by an Item interaction (swaps its look). */
+      type: 'entity.extinguished';
+      instanceId: string;
+    }
+  | {
+      /** An extinguished Entity relit itself after its relight timer (swaps back). */
+      type: 'entity.relit';
+      instanceId: string;
+    }
   | { type: 'loot.rolled'; instanceId: string; x: number; y: number; items: AwardedItem[] }
   | { type: 'inventory.changed'; inventory: Record<string, number> }
   | {
@@ -113,6 +135,28 @@ export type SimEvent =
       replacedToolIds?: ToolId[];
       x: number;
       y: number;
+    }
+  | {
+      /** A world pickup that grants a stackable Item (not a Tool) was collected. */
+      type: 'pickup.collectedItem';
+      instanceId: string;
+      itemId: string;
+      quantity: number;
+      x: number;
+      y: number;
+    }
+  | {
+      /**
+       * A held Item was successfully used on an Entity (see CONTEXT.md: Item
+       * interaction). Presentation hook for the acting player: float `message`
+       * and a sparkle at the target. The inventory swap rides `inventory.changed`.
+       */
+      type: 'item.used';
+      itemId: string;
+      targetInstanceId: string;
+      x: number;
+      y: number;
+      message?: string;
     }
   | { type: 'tool.equipped'; toolType: ToolType }
   | { type: 'quest.updated'; quest: QuestState }
@@ -210,11 +254,16 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   'entity.spawned': 'world',
   'entity.built': 'world',
   'entity.enabled': 'world',
+  // A fire being put out / relighting is shared world state every player sees.
+  'entity.extinguished': 'world',
+  'entity.relit': 'world',
   'loot.rolled': 'world',
   // Player-scoped: one player's private projection, unicast to its owner.
   'inventory.changed': 'player',
   'entity.blocked': 'player',
   'pickup.collected': 'player',
+  'pickup.collectedItem': 'player',
+  'item.used': 'player',
   'tool.equipped': 'player',
   'quest.updated': 'player',
   'target.changed': 'player',

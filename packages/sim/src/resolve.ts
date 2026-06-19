@@ -26,6 +26,8 @@ export function resolveEntityInstance(
     lootTableId,
     respawnRemaining: 0,
     locked: placed.locked ?? false,
+    extinguished: false,
+    relightRemaining: 0,
     skinId: placed.overrides?.skinId,
   };
 }

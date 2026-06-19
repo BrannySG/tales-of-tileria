@@ -468,56 +468,205 @@ button {
   font-weight: 800;
 }
 
-/* ---- Hotbar (bottom-center) ---- */
-.hotbar {
+/* ---- Bag (bottom-right; the window onto the Inventory) ---- */
+.bag {
   position: absolute;
   bottom: calc(env(safe-area-inset-bottom) + 30px * var(--hud-scale));
-  left: 50%;
-  transform: translateX(-50%) scale(var(--hud-scale));
-  transform-origin: bottom center;
+  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: bottom right;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
 }
 
-.hotbar-tooltip {
-  font-size: 30px;
-  font-weight: 800;
-  color: #fff;
-  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.65);
+.bag-toggle {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+  transition: transform 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.hotbar-slots {
+.bag-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.bag-toggle.open {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.bag-panel {
+  position: relative;
+  width: 408px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 16px;
+  backdrop-filter: blur(4px);
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+}
+
+.bag-tabs {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
-.hotbar-slot {
-  width: 84px;
-  height: 84px;
+.bag-tab {
+  flex: 1;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 8px 0;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.bag-tab:hover {
+  color: var(--text);
+}
+
+.bag-tab.active {
+  color: #1a1206;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.bag-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.bag-slot {
+  position: relative;
+  aspect-ratio: 1;
   border: 3px solid rgba(0, 0, 0, 0.45);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(60, 44, 28, 0.62);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06);
   display: grid;
   place-items: center;
   padding: 0;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
 }
 
-.hotbar-slot.active {
-  border-color: var(--accent);
-  background: rgba(255, 210, 74, 0.2);
+button.bag-slot:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
 }
 
-.hotbar-slot.empty {
+.bag-slot.empty {
   background: rgba(40, 30, 20, 0.5);
+  cursor: default;
 }
 
-.hotbar-slot img {
-  width: 58px;
-  height: 58px;
+.bag-slot.armed {
+  border-color: var(--accent);
+  background: rgba(255, 210, 74, 0.22);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 14px rgba(255, 210, 74, 0.5);
+}
+
+.bag-slot.equipped {
+  border-color: var(--accent);
+  background: rgba(255, 210, 74, 0.18);
+  cursor: default;
+}
+
+.bag-slot img {
+  width: 76%;
+  height: 76%;
+  object-fit: contain;
   image-rendering: pixelated;
+}
+
+.bag-slot-count {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+.bag-empty-note {
+  grid-column: 1 / -1;
+  padding: 18px 6px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+/* Rich item tooltip, floating just above the panel. */
+.bag-tooltip {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(100% + 10px);
+  background: rgba(12, 14, 18, 0.96);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+
+.bag-tooltip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bag-tooltip-name {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.bag-tooltip-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bag-tooltip-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.bag-tooltip-dot {
+  opacity: 0.6;
+}
+
+.bag-tooltip-desc {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 1.35;
+  color: var(--text);
 }
 
 /* ---- Settings gear button (top-right) ---- */

@@ -92,12 +92,33 @@ export interface XpRewardComponent {
 }
 
 /**
- * Tapping this entity collects it: it grants a tool to the player and is then
- * removed from the world. Used for world pickups (e.g. a floating Axe). Grants
- * an identified tool by id (see ADR-0008).
+ * Tapping this entity collects it: it is removed from the world and grants the
+ * player something. A pickup grants EITHER an identified Tool (`grantsToolId`,
+ * see ADR-0008) OR a stackable Item (`grantsItemId`, e.g. a Bucket). Exactly one
+ * should be set.
  */
 export interface PickupComponent {
-  grantsToolId: ToolId;
+  grantsToolId?: ToolId;
+  /** A stackable inventory Item this pickup grants instead of a Tool. */
+  grantsItemId?: string;
+  /** How many of `grantsItemId` to grant (default 1). */
+  grantsItemQuantity?: number;
+}
+
+/**
+ * A fire/light Entity that an Item interaction can extinguish (see ADR-0018).
+ * It shows its base art while lit and `outTextureId` while extinguished, and
+ * relights itself after `relightSeconds` so the interaction stays repeatable.
+ */
+export interface ExtinguishableComponent {
+  /** Texture shown while extinguished (the base art is the lit look). */
+  outTextureId: string;
+  /** Anchor Y for the extinguished sprite. Defaults to the entity's art anchorY. */
+  outAnchorY?: number;
+  /** Scale for the extinguished sprite. Defaults to the entity's art scale. */
+  outScale?: number;
+  /** Seconds until an extinguished entity relights. 0/omitted = stays out. */
+  relightSeconds?: number;
 }
 
 /**
@@ -133,6 +154,8 @@ export interface EntityDefinition {
   xp?: XpRewardComponent;
   pickup?: PickupComponent;
   shrine?: ShrineComponent;
+  /** A fire/light prop an Item interaction can put out (see ADR-0018). */
+  extinguishable?: ExtinguishableComponent;
   interactionRule?: InteractionRule;
   tags?: string[];
 }
@@ -175,6 +198,10 @@ export interface EntityInstance {
   respawnRemaining: number;
   /** A pickup/shrine that exists but is not yet active until enabled. */
   locked: boolean;
+  /** An extinguishable prop's current state: true = put out (see ADR-0018). */
+  extinguished?: boolean;
+  /** Seconds remaining until an extinguished prop relights (0 = not counting). */
+  relightRemaining?: number;
   /** A Shrine's pending crafted Offering, awaiting claim (see ADR-0010). */
   pendingOffering?: Offering;
   /** Per-instance Cursor skin override (see CONTEXT.md: Cursor skin), if any. */

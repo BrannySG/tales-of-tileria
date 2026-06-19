@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cursorSkinTextureId, type CombatConfig, type Rarity, type ToolType } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
-import { Hotbar } from './Hotbar';
+import { Bag } from './Bag';
 import { QuestTracker } from './QuestTracker';
 import { SkillsPanel } from './SkillsPanel';
 import { DevPanel } from './DevPanel';
@@ -82,8 +82,6 @@ function ProfileCard({ onOpen }: { onOpen: () => void }) {
 }
 
 export function Hud(props: HudProps) {
-  const tool = useHud((s) => s.equippedTool);
-  const ownedToolIds = useHud((s) => s.ownedToolIds);
   const variant = props.variant ?? 'game';
   const locationName = props.locationName ?? 'The Grass Plains';
   const [profileOpen, setProfileOpen] = useState(false);
@@ -108,7 +106,7 @@ export function Hud(props: HudProps) {
         <small>Tileria</small>
         <span className="hud-location-name">{locationName}</span>
       </div>
-      <Hotbar ownedToolIds={ownedToolIds} active={tool} onSelect={props.onSelectTool} />
+      <Bag />
       {variant === 'zoo' && (
         <DevPanel
           onCombatChange={props.onCombatChange}

@@ -7,6 +7,7 @@ import {
   createPlayer,
   emptyDivinePowers,
   emptySkills,
+  findItemInteraction,
   getCursorSkin,
   getLootTable,
   listAchievements,
@@ -392,6 +393,9 @@ export class World {
       case 'pickup.collect':
         return this.collectPickup(cmd.instanceId, session);
 
+      case 'item.useOn':
+        return this.useItemOn(cmd.itemId, cmd.targetInstanceId, session);
+
       case 'tool.equip':
         return this.equipTool(cmd.toolType, session);
 
@@ -460,9 +464,10 @@ export class World {
       this.tickPassiveDamage(dtSeconds, session, events);
       for (const e of events) out.push(addressEvent(e, pid));
     }
-    // Respawns are shared world state (no owning player).
+    // Respawns + relights are shared world state (no owning player).
     const respawns: SimEvent[] = [];
     this.tickRespawns(dtSeconds, respawns);
+    this.tickRelights(dtSeconds, respawns);
     for (const e of respawns) out.push({ event: e, scope: 'world' });
     // Crafting is per-player.
     for (const [pid, session] of this.sessions) {
@@ -560,9 +565,10 @@ export class World {
     if (!entity) return [];
     if (entity.locked) return [];
     const def = requireEntityDefinition(entity.definitionId);
-    const toolId = def.pickup?.grantsToolId;
-    if (!toolId) return [];
-    const toolDef = requireToolDefinition(toolId);
+    const pickup = def.pickup;
+    if (!pickup) return [];
+    // A pickup grants EITHER a Tool or a stackable Item (see PickupComponent).
+    if (!pickup.grantsToolId && !pickup.grantsItemId) return [];
 
     this.entities.delete(instanceId);
     if (session.cursor.targetInstanceId === instanceId) {
@@ -570,6 +576,21 @@ export class World {
       session.cursor.mode = 'free';
     }
 
+    if (pickup.grantsItemId) {
+      const itemId = pickup.grantsItemId;
+      const quantity = pickup.grantsItemQuantity ?? 1;
+      const inv = session.player.inventory;
+      inv[itemId] = (inv[itemId] ?? 0) + quantity;
+      const events: SimEvent[] = [
+        { type: 'pickup.collectedItem', instanceId, itemId, quantity, x: entity.x, y: entity.y },
+        { type: 'inventory.changed', inventory: { ...inv } },
+      ];
+      events.push(...this.advanceQuests({ kind: 'itemCollected', itemId, quantity }, session));
+      return events;
+    }
+
+    const toolId = pickup.grantsToolId!;
+    const toolDef = requireToolDefinition(toolId);
     const replacedToolIds = this.grantTool(toolId, session);
     const events: SimEvent[] = [
       {
@@ -586,6 +607,49 @@ export class World {
     session.cursor.equippedToolType = toolDef.toolType;
     events.push({ type: 'tool.equipped', toolType: toolDef.toolType });
     events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }, session));
+    return events;
+  }
+
+  /**
+   * Resolves "use Item on Entity" (see CONTEXT.md: Item interaction). Looks up
+   * the matching Item interaction rule for the held item + target entity; if the
+   * player can afford the cost, swaps the items (emitting `inventory.changed`),
+   * applies any world effect (extinguishing a fire), and emits a presentation
+   * `item.used`. A missing rule or unaffordable cost is a silent no-op.
+   */
+  private useItemOn(itemId: string, targetInstanceId: string, session: PlayerSession): SimEvent[] {
+    const entity = this.entities.get(targetInstanceId);
+    if (!entity) return [];
+    const def = requireEntityDefinition(entity.definitionId);
+    const rule = findItemInteraction(itemId, def);
+    if (!rule) return [];
+    // Don't re-douse an already-extinguished fire.
+    if (rule.extinguishTarget && entity.extinguished) return [];
+    if (!this.canAfford(session.player, rule.consume)) return [];
+
+    const inv = session.player.inventory;
+    for (const c of rule.consume) inv[c.itemId] = (inv[c.itemId] ?? 0) - c.quantity;
+    for (const g of rule.grant) inv[g.itemId] = (inv[g.itemId] ?? 0) + g.quantity;
+
+    const events: SimEvent[] = [{ type: 'inventory.changed', inventory: { ...inv } }];
+
+    if (rule.extinguishTarget && def.extinguishable) {
+      entity.extinguished = true;
+      entity.relightRemaining = def.extinguishable.relightSeconds ?? 0;
+      events.push({ type: 'entity.extinguished', instanceId: entity.instanceId });
+    }
+
+    events.push({
+      type: 'item.used',
+      itemId,
+      targetInstanceId,
+      x: entity.x,
+      y: entity.y,
+      ...(rule.message ? { message: rule.message } : {}),
+    });
+    for (const g of rule.grant) {
+      events.push(...this.advanceQuests({ kind: 'itemCollected', itemId: g.itemId, quantity: g.quantity }, session));
+    }
     return events;
   }
 
@@ -949,6 +1013,19 @@ export class World {
       session.passiveAccumulator -= tickSeconds;
       if (target.state !== 'available') break;
       events.push(...this.applyDamage(target, passiveDamage, 'passive', session));
+    }
+  }
+
+  /** Counts down extinguished props and relights them when their timer elapses. */
+  private tickRelights(dt: number, events: SimEvent[]): void {
+    for (const entity of this.entities.values()) {
+      if (!entity.extinguished || !entity.relightRemaining || entity.relightRemaining <= 0) continue;
+      entity.relightRemaining -= dt;
+      if (entity.relightRemaining <= 0) {
+        entity.extinguished = false;
+        entity.relightRemaining = 0;
+        events.push({ type: 'entity.relit', instanceId: entity.instanceId });
+      }
     }
   }
 

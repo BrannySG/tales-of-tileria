@@ -144,10 +144,34 @@ language in the design docs, this file wins and the docs should be reconciled.
   Stone), collected by damaging Resource entities and held in the Inventory.
   Resources are not Currency.
 - **Inventory** — A player's collection of held items (Resources and other
-  loot), keyed by item id with quantities.
+  loot), keyed by item id with quantities. The authoritative data; the **Bag**
+  is the player-facing window onto it.
 - **Item** — A thing with its own identity that a player can hold: a display
-  name, a Rarity, and (optionally) art. Resources and the Gold coin are Items.
-  An Item is the identity; its count in the Inventory is separate.
+  name, a Rarity, a **Item category**, a hover description, and (optionally) art.
+  Resources and the Gold coin are Items. An Item is the identity; its count in
+  the Inventory is separate. Stateful items are modeled as **separate Item
+  definitions** (e.g. Bucket vs Bucket of Water), never per-instance state (see
+  ADR-0018).
+- **Item category** — A player-facing classification of an Item: `resource`,
+  `consumable`, `quest`, or `currency`. Drives Bag grouping and the tooltip.
+  `currency` Items (Gold) are tracked in the Inventory but shown as the profile
+  Currency total, never as a Bag stack.
+- **Bag** — The docked HUD window onto the Inventory (think RuneScape's
+  inventory). Its Items tab renders held Items as a slot grid (Gold excluded);
+  its Equipment tab shows owned Tools read-only (the sim auto-equips). Open by
+  default, toggled by a button or the I/B hotkey, with the preference persisted
+  per device. The Bag is presentation; the Inventory is the data.
+- **Item interaction** — A data-driven rule for "use Item on Entity" (authored
+  like loot tables / recipes): a held Item + a target Entity (matched by
+  definition id and/or tag) maps to an outcome that consumes/grants Items and
+  may apply a world effect (e.g. Bucket + water → Bucket of Water; Bucket of
+  Water + fire → Bucket, and the fire is extinguished). Resolved sim-side via the
+  `item.useOn` command; a no-match is a silent no-op (see ADR-0018).
+- **Armed item** — A client-only cursor mode: clicking an Item in the Bag arms
+  it (the cursor carries its icon), and the next Entity click sends `item.useOn`
+  for it. Transient presentation intent (like hover) — the sim only ever sees
+  the resulting command. Clicking empty ground, re-clicking the item, or pressing
+  the toggle disarms it.
 - **Rarity** — A tier classifying how scarce/valuable an Item is, surfaced to
   players as a signature color. Ordered common, uncommon, rare, epic,
   legendary. Generic placeholder colors for now.

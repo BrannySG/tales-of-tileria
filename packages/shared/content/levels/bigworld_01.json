@@ -450,6 +450,24 @@
         "definitionId": "small_rock",
         "x": 1305,
         "y": 1835
+      },
+      {
+        "instanceId": "campfire_demo_01",
+        "definitionId": "campfire",
+        "x": 2780,
+        "y": 1180
+      },
+      {
+        "instanceId": "water_source_demo_01",
+        "definitionId": "water_source",
+        "x": 3060,
+        "y": 1190
+      },
+      {
+        "instanceId": "bucket_pickup_demo_01",
+        "definitionId": "bucket_pickup",
+        "x": 2915,
+        "y": 1320
       }
     ],
     "multiplayer": {

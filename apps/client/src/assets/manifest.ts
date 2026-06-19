@@ -16,6 +16,9 @@ import shack from '@assets/T_Entity_WoodShack_Built.png';
 import shackBroken from '@assets/T_Entity_WoodShack_Destroyed.png';
 import furnace from '@assets/T_Entity_Furnace.png';
 import shrine from '@assets/T_Entity_Shrine.png';
+import waterSource from '@assets/T_Entity_WaterSource.png';
+import campfire from '@assets/T_Entity_Campfire.png';
+import campfireOut from '@assets/T_Entity_CampfireOut.png';
 import fxRockShard from '@assets/T_FX_RockShard.png';
 import fxWoodChip from '@assets/T_FX_WoodChip.png';
 import fxLeaf from '@assets/T_FX_Leaf.png';
@@ -37,6 +40,8 @@ import itemIronChunk from '@assets/T_Item_IronChunk.png';
 import itemAetherShard from '@assets/T_Item_AetherShard.png';
 import itemWood from '@assets/T_Item_WoodLogs.png';
 import itemStone from '@assets/T_Item_Stone.png';
+import itemBucket from '@assets/T_Item_Bucket.png';
+import itemBucketWater from '@assets/T_Item_BucketWater.png';
 import coinGold from '@assets/Coin 2 Gold Outline 256.png';
 import coinGoldHud from '@assets/Coin 2 Gold Outline 64.png';
 import type { ToolType } from '@tot/shared';
@@ -61,6 +66,9 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   shack_broken: shackBroken,
   furnace,
   shrine,
+  entity_water_source: waterSource,
+  entity_campfire: campfire,
+  entity_campfire_out: campfireOut,
   fx_rock_shard: fxRockShard,
   fx_wood_chip: fxWoodChip,
   fx_leaf: fxLeaf,
@@ -82,6 +90,8 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   item_aether_shard: itemAetherShard,
   item_wood: itemWood,
   item_stone: itemStone,
+  item_bucket: itemBucket,
+  item_bucket_water: itemBucketWater,
   coin_gold: coinGold,
   coin_gold_hud: coinGoldHud,
 };

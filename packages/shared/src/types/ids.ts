@@ -19,6 +19,11 @@ export type EntityKind =
   | 'questObject'
   | 'shrine'
   /**
+   * Non-damageable interactable scenery (a water source, a campfire): no HP and
+   * no loot, but it can be the target of an Item interaction (see ADR-0018).
+   */
+  | 'prop'
+  /**
    * A celestial/other cursor (Council members, ambient other players): non-
    * damageable, non-reactive, a scriptable speaker a director addresses by
    * instanceId. Distinct from mortal NPCs (see CONTEXT.md: Cursor-being).

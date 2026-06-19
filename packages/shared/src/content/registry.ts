@@ -1,5 +1,6 @@
 import type { EntityDefinition } from '../types/entity';
 import type { ItemDefinition } from '../types/item';
+import type { ItemInteraction } from '../types/itemInteraction';
 import type { LootTable } from '../types/loot';
 import type { QuestDefinition } from '../types/quest';
 import type { RecipeDefinition } from '../types/recipe';
@@ -7,6 +8,7 @@ import type { ToolDefinition } from '../types/tool';
 import type { ToolId, ToolType } from '../types/ids';
 import { ENTITY_DEFINITIONS } from './entities';
 import { ITEM_DEFINITIONS } from './items';
+import { ITEM_INTERACTIONS } from './itemInteractions';
 import { LOOT_TABLES } from './lootTables';
 import { QUEST_DEFINITIONS } from './quests';
 import { RECIPE_DEFINITIONS } from './recipes';
@@ -63,6 +65,29 @@ export function listEntityDefinitions(): readonly EntityDefinition[] {
 
 export function listItemDefinitions(): readonly ItemDefinition[] {
   return ITEM_DEFINITIONS;
+}
+
+export function listItemInteractions(): readonly ItemInteraction[] {
+  return ITEM_INTERACTIONS;
+}
+
+/**
+ * The Item interaction (if any) for using `itemId` on `entityDef` (see
+ * CONTEXT.md: Item interaction). Matches on `usedItemId` plus the target by
+ * definition id and/or a tag the entity carries. The first matching rule wins.
+ */
+export function findItemInteraction(
+  itemId: string,
+  entityDef: EntityDefinition,
+): ItemInteraction | undefined {
+  const tags = entityDef.tags ?? [];
+  return ITEM_INTERACTIONS.find((rule) => {
+    if (rule.usedItemId !== itemId) return false;
+    const { definitionId, tag } = rule.target;
+    if (definitionId !== undefined && definitionId !== entityDef.id) return false;
+    if (tag !== undefined && !tags.includes(tag)) return false;
+    return definitionId !== undefined || tag !== undefined;
+  });
 }
 
 export function listLootTables(): readonly LootTable[] {

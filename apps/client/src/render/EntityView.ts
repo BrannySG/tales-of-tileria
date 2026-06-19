@@ -61,6 +61,13 @@ export class EntityView {
   private unbuiltAnchorY = 0.9;
   /** Buildable entities are inert in the world; their only interaction is the Build Prompt. */
   private readonly isBuildable: boolean;
+  /** Props (water source, campfire) are non-damageable interactable scenery. */
+  private readonly isProp: boolean;
+  /** Resolved 'extinguished' art for a fire prop (e.g. a doused campfire). */
+  private readonly outTexture?: Texture;
+  private outScale = 1;
+  private outAnchorY = 0.9;
+  private extinguished = false;
   /** Y of the speech-bubble tail tip (just above the name plate). */
   private readonly speechAnchorY: number;
   private speech?: SpeechBubble;
@@ -88,7 +95,17 @@ export class EntityView {
     this.anchorY = resolved.anchorY;
     this.isNpc = def.kind === 'npc';
     this.isBuildable = !!def.buildable;
+    this.isProp = def.kind === 'prop';
     this.baseTexture = tex;
+
+    if (def.extinguishable) {
+      const outTex = textures.get(def.extinguishable.outTextureId);
+      if (outTex) {
+        this.outTexture = outTex;
+        this.outScale = def.extinguishable.outScale ?? this.baseScale;
+        this.outAnchorY = def.extinguishable.outAnchorY ?? this.anchorY;
+      }
+    }
 
     if (def.breakable) {
       const brokenTex = textures.get(def.breakable.brokenTextureId);
@@ -157,6 +174,7 @@ export class EntityView {
     this.ui.addChild(this.nameLabel, this.hpBg, this.hpFill, this.lockButton);
 
     if (this.state === 'unbuilt') this.applyUnbuiltArt();
+    if (instance.extinguished) this.applyOutArt();
 
     this.redrawHp();
     this.updateUiVisibility();
@@ -390,6 +408,16 @@ export class EntityView {
       this.ui.visible = true;
       return;
     }
+    if (this.isProp) {
+      // Props (water/fire): no HP bar or lock; show the name only while hovered
+      // so the player can tell what they're about to use an item on.
+      this.hpBg.visible = false;
+      this.hpFill.visible = false;
+      this.nameLabel.visible = this.targeted;
+      this.lockButton.visible = false;
+      this.ui.visible = this.targeted;
+      return;
+    }
     const damaged = this.hp < this.maxHp;
     const available = this.state === 'available';
     const showBar = available && (this.targeted || damaged);
@@ -405,8 +433,52 @@ export class EntityView {
     this.art.visible = visible;
     this.shadow.visible = visible;
     // NPCs and Buildables never participate in combat interactions (the Build
-    // Prompt is the Buildable's only interaction).
+    // Prompt is the Buildable's only interaction). Props are interactive (the
+    // armed-item tap is wired by SceneRenderer) but have no combat behavior.
     this.setInteractive(this.state === 'available' && !this.isNpc && !this.isBuildable);
+  }
+
+  /** Swaps the sprite to its extinguished (out) look. */
+  private applyOutArt(): void {
+    if (!this.outTexture) return;
+    this.extinguished = true;
+    const ax = this.sprite.anchor.x;
+    this.sprite.texture = this.outTexture;
+    this.flash.texture = this.outTexture;
+    this.sprite.anchor.set(ax, this.outAnchorY);
+    this.flash.anchor.set(ax, this.outAnchorY);
+    this.sprite.scale.set(this.outScale);
+    this.flash.scale.set(this.outScale);
+    this.flash.alpha = 0;
+  }
+
+  /** Extinguish a fire prop: swap to the out look with a brief settle (see ADR-0018). */
+  onExtinguished(): void {
+    if (this.extinguished || !this.outTexture) return;
+    this.applyOutArt();
+    this.flash.tint = 0x6fc3ff;
+    this.flash.alpha = 0.7;
+    this.animator.add(0.4, (v) => {
+      this.flash.alpha = 0.7 * (1 - v);
+    });
+  }
+
+  /** Relight a previously extinguished fire prop: swap back to its lit art with a pop. */
+  onRelit(): void {
+    if (!this.extinguished) return;
+    this.extinguished = false;
+    const ax = this.sprite.anchor.x;
+    this.sprite.texture = this.baseTexture;
+    this.flash.texture = this.baseTexture;
+    this.sprite.anchor.set(ax, this.anchorY);
+    this.flash.anchor.set(ax, this.anchorY);
+    this.sprite.scale.set(this.baseScale);
+    this.flash.scale.set(this.baseScale);
+    this.flash.tint = 0xffd9a0;
+    this.flash.alpha = 0.8;
+    this.animator.add(0.45, (v) => {
+      this.flash.alpha = 0.8 * (1 - v);
+    });
   }
 
   /** Swaps the sprite to its unbuilt (rubble) look. Used at construction. */

@@ -163,6 +163,8 @@ export class LootDropSystem {
       id: `__test_${rarity}`,
       displayName: rarity,
       rarity,
+      category: 'resource',
+      description: '',
       worldTextureId: this.textures.has('coin_gold') ? 'coin_gold' : 'item_stone',
     };
     const drops = 3 + Math.floor(Math.random() * 3);

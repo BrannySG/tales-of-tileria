@@ -141,6 +141,8 @@ export class SceneRenderer {
   private currentTargetId: string | undefined;
   private locked = false;
   private unsubscribe?: () => void;
+  /** Unsubscribe for the armed-item -> cursor carried-icon binding. */
+  private hudUnsubscribe?: () => void;
   private resizeObserver?: ResizeObserver;
   private readonly cineAnimator = new Animator();
   private readonly updatables = new Set<Updatable>();
@@ -256,7 +258,14 @@ export class SceneRenderer {
       bg.height = this.worldHeight;
       bg.eventMode = 'static';
       bg.on('pointertap', () => {
-        if (this.opts.interactive !== false) this.opts.transport.send({ type: 'entity.unlock' });
+        if (this.opts.interactive === false) return;
+        // Clicking empty ground disarms a held Item first (see CONTEXT.md: Armed
+        // item); otherwise it clears the current lock/target as before.
+        if (useHud.getState().armedItemId) {
+          useHud.getState().setArmedItem(undefined);
+          return;
+        }
+        this.opts.transport.send({ type: 'entity.unlock' });
       });
       this.worldCamera.addChild(bg);
     }
@@ -386,6 +395,14 @@ export class SceneRenderer {
 
     this.unsubscribe = this.opts.transport.subscribe((event) => this.handleEvent(event));
 
+    // Mirror the armed Item (client-only intent) onto the cursor as a carried
+    // icon (see CONTEXT.md: Armed item). Only reacts to actual changes.
+    this.hudUnsubscribe = useHud.subscribe((state, prev) => {
+      if (state.armedItemId === prev.armedItemId) return;
+      const texId = state.armedItemId ? getItemDefinition(state.armedItemId)?.worldTextureId : undefined;
+      this.cursorView?.setCarriedItem(texId);
+    });
+
     app.ticker.add((ticker) => {
       const dt = Math.min(0.05, ticker.deltaMS / 1000);
       this.opts.tick?.(dt);
@@ -450,6 +467,10 @@ export class SceneRenderer {
       // A locked shrine stays hidden until enabled, then appears on cue.
       if (inst.locked) view.container.visible = false;
       if (this.opts.interactive !== false) this.prompts.wireShrine(view, inst.instanceId);
+    } else if (def.kind === 'prop') {
+      // Props (water/fire) are non-combat scenery; their only interaction is
+      // being the target of an armed Item (see CONTEXT.md: Item interaction).
+      if (this.opts.interactive !== false) this.wireProp(view, inst.instanceId);
     } else if (this.opts.interactive !== false) {
       if (def.buildable) {
         // Buildables are inert; their only interaction is the Build Prompt,
@@ -541,6 +562,9 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      // An armed Item intercepts the tap: use it on this entity instead of the
+      // normal collect/attack (see CONTEXT.md: Armed item).
+      if (this.tryUseArmedItemOn(instanceId)) return;
       if (isPickup) {
         this.opts.transport.send({ type: 'pickup.collect', instanceId });
       } else {
@@ -560,6 +584,41 @@ export class SceneRenderer {
         }
       };
     }
+  }
+
+  /**
+   * Wires a prop (water source, campfire): hovering shows its name + cursor
+   * targeting; tapping uses the armed Item on it (no-op when nothing is armed).
+   * Props have no combat behavior, so we drive the name purely client-side
+   * rather than through the sim's hover/target path.
+   */
+  private wireProp(view: EntityView, instanceId: string): void {
+    const target = view.hitTarget;
+    target.on('pointerover', () => {
+      this.cursorView?.setTargeting(true);
+      view.setTargeted(true);
+    });
+    target.on('pointerout', () => {
+      this.cursorView?.setTargeting(false);
+      view.setTargeted(false);
+    });
+    target.on('pointertap', (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      this.tryUseArmedItemOn(instanceId);
+    });
+  }
+
+  /**
+   * If an Item is armed (see CONTEXT.md: Armed item), sends `item.useOn` for it
+   * against `instanceId`, disarms, and returns true. Returns false when nothing
+   * is armed so the caller can fall back to the normal tap.
+   */
+  private tryUseArmedItemOn(instanceId: string): boolean {
+    const armed = useHud.getState().armedItemId;
+    if (!armed) return false;
+    this.opts.transport.send({ type: 'item.useOn', itemId: armed, targetInstanceId: instanceId });
+    useHud.getState().setArmedItem(undefined);
+    return true;
   }
 
   /** Locks the current target (used by the HUD lock button / hotkey). */
@@ -817,6 +876,47 @@ export class SceneRenderer {
             view.setInteractive(true);
           }
         }
+        break;
+      }
+      case 'pickup.collectedItem': {
+        // Item count is projected by the HUD store (inventory.changed); here we
+        // only animate the pickup floating away + a confirming float.
+        this.collectPickupView(event.instanceId);
+        this.opts.sound?.play('loot');
+        const def = getItemDefinition(event.itemId);
+        const label = def ? `+${event.quantity} ${def.displayName}` : 'Collected';
+        this.floatText(event.x, event.y - 60, label, { color: 0xbfe9ff, size: 26, life: 1.4 });
+        break;
+      }
+      case 'item.used': {
+        const view = this.views.get(event.targetInstanceId);
+        const x = view ? view.container.x : event.x;
+        const y = view ? view.container.y + view.hitOffsetY : event.y;
+        if (event.message) this.floatText(x, y - 70, event.message, { color: 0xbfe9ff, size: 26, life: 1.6 });
+        this.particleBurstWorld('fx_bubble', x, y, { count: 14, speed: 220, scale: 0.6 });
+        this.opts.sound?.play('loot');
+        break;
+      }
+      case 'entity.extinguished': {
+        const view = this.views.get(event.instanceId);
+        view?.onExtinguished();
+        const x = view ? view.container.x : 0;
+        const y = view ? view.container.y + view.hitOffsetY : 0;
+        if (view) this.particleBurstWorld('fx_smoke', x, y, { count: 16, speed: 160, scale: 0.7 });
+        this.opts.sound?.play('deplete');
+        break;
+      }
+      case 'entity.relit': {
+        const view = this.views.get(event.instanceId);
+        view?.onRelit();
+        if (view) {
+          this.particleBurstWorld('fx_sparkle', view.container.x, view.container.y + view.hitOffsetY, {
+            count: 12,
+            speed: 200,
+            scale: 0.6,
+          });
+        }
+        this.opts.sound?.play('respawn');
         break;
       }
     }
@@ -1202,6 +1302,7 @@ export class SceneRenderer {
 
   destroy(): void {
     this.unsubscribe?.();
+    this.hudUnsubscribe?.();
     this.resizeObserver?.disconnect();
     if (this.camera) {
       this.updatables.delete(this.camera);
