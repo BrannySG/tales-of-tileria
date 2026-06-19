@@ -17,8 +17,8 @@
       {
         "instanceId": "basic_tree_mqhadrgd_2",
         "definitionId": "basic_tree",
-        "x": 592,
-        "y": 322,
+        "x": 542,
+        "y": 330,
         "overrides": {}
       },
       {
@@ -52,8 +52,8 @@
       {
         "instanceId": "small_rock_mqhaehn7_8",
         "definitionId": "small_rock",
-        "x": 711,
-        "y": 945,
+        "x": 724,
+        "y": 954,
         "overrides": {}
       },
       {
@@ -66,7 +66,7 @@
       {
         "instanceId": "basic_tree_mqhaghaa_10",
         "definitionId": "basic_tree",
-        "x": 1408,
+        "x": 1433,
         "y": 302,
         "overrides": {}
       },
@@ -80,8 +80,8 @@
       {
         "instanceId": "small_rock_mqhagm63_12",
         "definitionId": "small_rock",
-        "x": 1296,
-        "y": 956,
+        "x": 1295,
+        "y": 948,
         "overrides": {}
       },
       {
@@ -95,14 +95,14 @@
         "instanceId": "basic_tree_mqhck0dg_1",
         "definitionId": "basic_tree",
         "x": 584,
-        "y": 857,
+        "y": 861,
         "overrides": {}
       },
       {
         "instanceId": "wood_shack_tutorial_1",
         "definitionId": "wood_shack",
-        "x": 952,
-        "y": 590,
+        "x": 949,
+        "y": 599,
         "initialState": "unbuilt",
         "overrides": {}
       },
@@ -142,8 +142,8 @@
       {
         "instanceId": "ancient_tree_tutorial_1",
         "definitionId": "ancient_tree",
-        "x": 960,
-        "y": 250,
+        "x": 963,
+        "y": 178,
         "overrides": {}
       }
     ]

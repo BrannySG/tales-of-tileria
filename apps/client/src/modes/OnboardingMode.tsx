@@ -1,58 +1,50 @@
-import { useEffect, useRef, useState } from 'react';
-import type { LevelDefinition, Player } from '@tot/shared';
+import { useRef, useState } from 'react';
+import { getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
 import { OnboardingDirector } from '../game/OnboardingDirector';
 import { CouncilDirector } from '../game/CouncilDirector';
 import type { WorldSession } from '../game/useWorldScene';
-import { loadLevel } from '../game/levelApi';
 import { markOnboarded, setPlayerName } from '../onboarding';
 import { UsernameModal } from '../ui/UsernameModal';
 
 const TUTORIAL_LEVEL_ID = 'tutorial_01';
 const COUNCIL_LEVEL_ID = 'council_01';
-const MORTAL_REALM_LEVEL_ID = 'mortal_realm_01';
+/** The networked shared open world the arc drops the player into (see ADR-0016). */
+const SHARED_ZONE_ID = 'bigworld_01';
 
 /**
- * First-time player onboarding — the Banishment Arc (see ADR-0005/0011/0013):
+ * First-time player onboarding — the Banishment Arc (see ADR-0005/0011/0013/0016):
  * the scripted void cinematic and divine-power tutorial on `tutorial_01`, then
  * the Ancient Tree gate that ascends the player to the authored Council of
  * Clickers (`council_01`) where Smite is stripped, and finally the banishment
- * into the shared mortal realm (`mortal_realm_01`). The Player snapshot is
- * carried across all three Levels, so gear/skills/name survive while the Council
- * revokes Smite as a real sim command.
+ * into the shared, networked open world (`bigworld_01`). The tutorial + council
+ * stay single-player; only the final zone is multiplayer. The Player snapshot is
+ * carried across all three Levels, so gear/skills/name survive (and seed the
+ * server on join) while the Council revokes Smite as a real sim command.
  */
 export function OnboardingMode() {
-  const [levels, setLevels] = useState<{
-    tutorial: LevelDefinition;
-    council: LevelDefinition;
-    mortal: LevelDefinition;
-  } | null>(null);
-  const [error, setError] = useState('');
+  // All three arc Levels are bundled (see ADR-0016), so the onboarding flow works
+  // in the shipped build with no dev middleware. Resolve them synchronously.
+  const tutorial = getBundledLevel(TUTORIAL_LEVEL_ID);
+  const council = getBundledLevel(COUNCIL_LEVEL_ID);
+  const shared = getBundledLevel(SHARED_ZONE_ID);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const [tutorial, council, mortal] = await Promise.all([
-          loadLevel(TUTORIAL_LEVEL_ID),
-          loadLevel(COUNCIL_LEVEL_ID),
-          loadLevel(MORTAL_REALM_LEVEL_ID),
-        ]);
-        setLevels({ tutorial, council, mortal });
-      } catch (err) {
-        setError(String(err));
-      }
-    })();
-  }, []);
-
-  if (!levels) {
+  if (!tutorial || !council || !shared) {
+    const missing = [
+      !tutorial && TUTORIAL_LEVEL_ID,
+      !council && COUNCIL_LEVEL_ID,
+      !shared && SHARED_ZONE_ID,
+    ]
+      .filter(Boolean)
+      .join(', ');
     return (
       <div className="stage-host">
-        <div className="empty-note">{error ? `Could not load the world: ${error}` : 'Loading…'}</div>
+        <div className="empty-note">{`Could not load the world: missing bundled Level(s): ${missing}`}</div>
       </div>
     );
   }
 
-  return <OnboardingArc levels={levels} />;
+  return <OnboardingArc levels={{ tutorial, council, shared }} />;
 }
 
 type Phase = 'tutorial' | 'council' | 'zone';
@@ -60,7 +52,7 @@ type Phase = 'tutorial' | 'council' | 'zone';
 function OnboardingArc({
   levels,
 }: {
-  levels: { tutorial: LevelDefinition; council: LevelDefinition; mortal: LevelDefinition };
+  levels: { tutorial: LevelDefinition; council: LevelDefinition; shared: LevelDefinition };
 }) {
   const [phase, setPhase] = useState<Phase>('tutorial');
   const [revealed, setRevealed] = useState(false);
@@ -171,10 +163,10 @@ function OnboardingArc({
       )}
       {phase === 'zone' && (
         <WorldScene
-          key={levels.mortal.id}
-          level={levels.mortal}
+          key={levels.shared.id}
+          level={levels.shared}
           playerName={carried?.displayName ?? 'You'}
-          locationName={levels.mortal.displayName}
+          locationName={levels.shared.displayName}
           variant="game"
           player={carried ?? undefined}
           hudVisible={revealed}

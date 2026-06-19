@@ -184,12 +184,11 @@ export const shrine: EntityDefinition = {
 
 export const axePickup: EntityDefinition = {
   id: 'axe_pickup',
-  displayName: 'Axe',
+  displayName: 'Rusty Axe',
   kind: 'pickup',
   art: {
-    // Reuse the HUD icon as the world sprite for now (see plan).
-    textureId: 'icon_axe',
-    scale: 1,
+    textureId: 'item_axe_rusty',
+    scale: 0.5,
     anchorX: 0.5,
     anchorY: 0.5,
   },
@@ -200,11 +199,11 @@ export const axePickup: EntityDefinition = {
 
 export const pickaxePickup: EntityDefinition = {
   id: 'pickaxe_pickup',
-  displayName: 'Pickaxe',
+  displayName: 'Rusty Pickaxe',
   kind: 'pickup',
   art: {
-    textureId: 'icon_pickaxe',
-    scale: 1,
+    textureId: 'item_pickaxe_rusty',
+    scale: 0.5,
     anchorX: 0.5,
     anchorY: 0.5,
   },

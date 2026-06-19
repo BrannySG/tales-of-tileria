@@ -55,6 +55,12 @@ export interface Player {
   inventory: Record<string, number>;
   /** Per-skill XP + derived level. `level` is recomputed from `xp` on gain. */
   skills: Record<SkillId, SkillState>;
+  /**
+   * Passive damage dealt per tick to the current Target (see CONTEXT.md). A
+   * player-owned progression stat: new players start at 0 (passive is off) and
+   * raise it via a later upgrade. Portable across Levels (see ADR-0011).
+   */
+  passiveDamage: number;
   /** Crafting is gated until the shrine is dedicated via `player.setName`. */
   craftingUnlocked: boolean;
   /** The single in-flight craft, if any (advanced in `World.tick`). */
@@ -81,6 +87,7 @@ export function createPlayer(id: string, displayName: string): Player {
     ownedTools: [],
     inventory: {},
     skills: emptySkills(),
+    passiveDamage: 0,
     craftingUnlocked: false,
     quests: [],
     divinePowers: emptyDivinePowers(),

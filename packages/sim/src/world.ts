@@ -1,5 +1,6 @@
 import {
   DEFAULT_COMBAT_CONFIG,
+  addressEvent,
   bestOwnedToolTier,
   bestUsableTool,
   createPlayer,
@@ -15,6 +16,7 @@ import {
   requireToolDefinition,
   xpToLevel,
   xpToReach,
+  type AddressedEvent,
   type AwardedItem,
   type BlockReason,
   type CombatConfig,
@@ -22,9 +24,12 @@ import {
   type DamageSource,
   type DivinePowerId,
   type EntityInstance,
+  type InteractionRule,
   type ItemCost,
   type LevelDefinition,
   type Player,
+  type PlayerId,
+  type PresenceInfo,
   type SimCommand,
   type SimEvent,
   type SkillId,
@@ -33,13 +38,15 @@ import {
   type ZoneSnapshot,
 } from '@tot/shared';
 import { rollLoot } from './loot';
-import { applySignal, type QuestSignal } from './questEngine';
+import { applySignal, initialProgress, type QuestSignal, type QuestWorldView } from './questEngine';
 import { mulberry32, type Rng } from './rng';
 import { resolveEntityInstance } from './resolve';
 
 const ALL_TOOL_IDS: ToolId[] = listToolDefinitions().map((t) => t.id);
 /** Sandbox skill level granted when no explicit starting tools/player are set. */
 const SANDBOX_SKILL_LEVEL = 10;
+/** Passive damage granted to the sandbox player so the Content Zoo stays lively. */
+const SANDBOX_PASSIVE_DAMAGE = 1;
 const MAX_NAME_LENGTH = 16;
 
 /** Structured reason an interaction was blocked (see ADR-0008). */
@@ -49,6 +56,32 @@ interface BlockInfo {
   requiredTier?: number;
   requiredSkillId?: SkillId;
   requiredSkillLevel?: number;
+}
+
+/**
+ * One player's slice of a Level instance (see ADR-0014 §3). Everything here is
+ * partitioned per player; entities and the respawn/loot systems stay world-owned
+ * and shared across all sessions.
+ */
+interface PlayerSession {
+  player: Player;
+  cursor: CursorState;
+  /** Accumulated time toward the next passive-damage tick on this player's target. */
+  passiveAccumulator: number;
+  /** The entity this player's last active tap landed on (transient Smite counter). */
+  lastSmiteTargetId?: string;
+  /** Consecutive active taps on `lastSmiteTargetId` (resets on target change). */
+  smiteCount: number;
+}
+
+/** Per-entity contention bookkeeping for the claim/credit model (see ADR-0014/0016). */
+interface EntityContention {
+  /** The most recent damager (drives `lastHit` credit). */
+  lastBy?: PlayerId;
+  /** Total damage dealt per player (reserved for `sharedContribution`). */
+  byPlayer: Map<PlayerId, number>;
+  /** Owner that locked this entity under the `claimed` rule, if any. */
+  claimedBy?: PlayerId;
 }
 
 export interface WorldOptions {
@@ -68,65 +101,186 @@ export interface WorldOptions {
   /** Tool type the cursor ring shows at start (defaults to the first owned). */
   equippedTool?: ToolType;
   /**
+   * Overrides the player's starting passive damage (the per-tick amount). Omit
+   * to keep the player's own value: 0 for a fresh player, the sandbox default,
+   * or whatever a carried snapshot already holds.
+   */
+  passiveDamage?: number;
+  /**
    * A carried Player snapshot (see ADR-0011): seeds a new World with existing
    * progress (name/tools/skills/inventory/quests) instead of `createPlayer`,
    * so the onboarding → Zone 1 swap preserves the player.
    */
   player?: Player;
+  /**
+   * Server mode (see ADR-0016): start with NO players. The authoritative
+   * `InstanceDO` adds each connecting player via {@link World.addPlayer}, so it
+   * must not carry a phantom default player. Single-player hosts omit this.
+   */
+  headless?: boolean;
 }
 
 /**
  * The authoritative game simulation for a single Level instance. Pure logic:
  * no Pixi, no DOM, no timers. Commands and a fixed-step `tick` drive it; it
  * returns domain events describing what changed. The same class is intended to
- * run inside a Durable Object later.
+ * run inside a Durable Object server-side (see ADR-0016).
  *
- * The World also owns authoritative Player state — owned tools, skills,
- * inventory, crafting, and quest progress — so tool-gating, skills, and quest
- * tracking have a single source of truth (see ADR-0006). A Player is portable
- * across Level instances via the `player` option (see ADR-0011).
+ * It is **multi-tenant** (see ADR-0014 §3): per-player state lives in a
+ * `PlayerSession` map while entities + respawn/loot stay world-owned and shared.
+ * A single-player host (the local client, the Content Zoo, the onboarding)
+ * simply uses the one default session, so the legacy single-arg API is intact:
+ * `applyCommand(cmd)` / `getPlayer()` / `tick(dt)` all target the sole player.
  */
 export class World {
   private readonly entities = new Map<string, EntityInstance>();
-  private cursor: CursorState = { x: 0, y: 0, mode: 'free' };
+  private readonly sessions = new Map<PlayerId, PlayerSession>();
+  /** The sole player for single-player hosts; the default target of unaddressed calls. */
+  private readonly defaultPlayerId: PlayerId;
   private combat: CombatConfig;
   private readonly rng: Rng;
-  private passiveAccumulator = 0;
-  private readonly player: Player;
-  /** Transient Smite counter: the entity the last active tap landed on... */
-  private lastSmiteTargetId?: string;
-  /** ...and how many consecutive active taps have landed on it (resets on change). */
-  private smiteCount = 0;
+  /** Zone-wide interaction override (see ADR-0016); takes precedence over entity rules. */
+  private readonly interactionDefault?: InteractionRule;
+  /** Per-entity claim/credit state, cleared when an entity depletes. */
+  private readonly contention = new Map<string, EntityContention>();
 
   constructor(level: LevelDefinition, opts: WorldOptions = {}) {
     this.combat = { ...DEFAULT_COMBAT_CONFIG, ...opts.combat };
     this.rng = opts.rng ?? (opts.seed !== undefined ? mulberry32(opts.seed) : Math.random);
+    this.interactionDefault = level.multiplayer?.interactionDefault;
     for (const placed of level.entities) {
       const def = requireEntityDefinition(placed.definitionId);
       this.entities.set(placed.instanceId, resolveEntityInstance(placed, def));
     }
 
+    if (opts.headless) {
+      // Server instance: players join later via addPlayer; no default player.
+      this.defaultPlayerId = '';
+      return;
+    }
+
+    let player: Player;
     if (opts.player) {
       // Carried snapshot: deep-clone so the new World owns its own state.
-      this.player = clonePlayer(opts.player);
+      player = clonePlayer(opts.player);
     } else {
-      this.player = createPlayer(opts.playerId ?? 'local', opts.playerName ?? 'You');
+      player = createPlayer(opts.playerId ?? 'local', opts.playerName ?? 'You');
       const sandbox = opts.startingTools === undefined;
-      this.player.ownedTools = [...(opts.startingTools ?? ALL_TOOL_IDS)];
+      player.ownedTools = [...(opts.startingTools ?? ALL_TOOL_IDS)];
       if (sandbox) {
-        for (const id of Object.keys(this.player.skills) as SkillId[]) {
-          this.player.skills[id] = {
-            xp: xpToReach(SANDBOX_SKILL_LEVEL),
-            level: SANDBOX_SKILL_LEVEL,
-          };
+        for (const id of Object.keys(player.skills) as SkillId[]) {
+          player.skills[id] = { xp: xpToReach(SANDBOX_SKILL_LEVEL), level: SANDBOX_SKILL_LEVEL };
         }
+        player.passiveDamage = SANDBOX_PASSIVE_DAMAGE;
       }
     }
 
-    this.player.equippedToolType =
-      opts.equippedTool ?? this.player.equippedToolType ?? this.firstOwnedToolType();
-    this.cursor.equippedToolType = this.player.equippedToolType;
+    if (opts.passiveDamage !== undefined) player.passiveDamage = opts.passiveDamage;
+    player.equippedToolType =
+      opts.equippedTool ?? player.equippedToolType ?? firstOwnedToolType(player);
+
+    this.defaultPlayerId = player.id;
+    const session = this.makeSession(player);
+    this.sessions.set(player.id, session);
+    this.reconcileActiveQuests(session);
   }
+
+  // --- Multi-tenant membership (see ADR-0014/0016) ---
+
+  /**
+   * Adds a player to the instance from a carried snapshot (the server seeds this
+   * from the client's `join`, see ADR-0016). Returns the `presence.joined` event
+   * (world-scoped) so other players learn about the newcomer.
+   */
+  addPlayer(snapshot: Player): AddressedEvent[] {
+    const player = clonePlayer(snapshot);
+    player.equippedToolType = player.equippedToolType ?? firstOwnedToolType(player);
+    const session = this.makeSession(player);
+    this.sessions.set(player.id, session);
+    this.reconcileActiveQuests(session);
+    return [
+      {
+        event: {
+          type: 'presence.joined',
+          playerId: player.id,
+          name: player.displayName,
+          x: session.cursor.x,
+          y: session.cursor.y,
+          equippedToolType: player.equippedToolType,
+        },
+        scope: 'world',
+      },
+    ];
+  }
+
+  /**
+   * Removes a player (disconnect). Releases any entities they had claimed and
+   * returns the `presence.left` event so others drop their remote cursor.
+   */
+  removePlayer(playerId: PlayerId): AddressedEvent[] {
+    if (!this.sessions.delete(playerId)) return [];
+    for (const rec of this.contention.values()) {
+      if (rec.claimedBy === playerId) rec.claimedBy = undefined;
+    }
+    return [{ event: { type: 'presence.left', playerId }, scope: 'world' }];
+  }
+
+  hasPlayer(playerId: PlayerId): boolean {
+    return this.sessions.has(playerId);
+  }
+
+  playerCount(): number {
+    return this.sessions.size;
+  }
+
+  getPlayerIds(): PlayerId[] {
+    return [...this.sessions.keys()];
+  }
+
+  /** Presence records for every player currently in the instance (for join welcome). */
+  getPresence(): PresenceInfo[] {
+    return [...this.sessions.values()].map((s) => ({
+      playerId: s.player.id,
+      name: s.player.displayName,
+      x: s.cursor.x,
+      y: s.cursor.y,
+      mode: s.cursor.mode,
+      equippedToolType: s.player.equippedToolType,
+    }));
+  }
+
+  private makeSession(player: Player): PlayerSession {
+    return {
+      player,
+      cursor: { x: 0, y: 0, mode: 'free', equippedToolType: player.equippedToolType },
+      passiveAccumulator: 0,
+      smiteCount: 0,
+    };
+  }
+
+  /**
+   * One-time heal pass over a session's already-active quests (carried snapshot):
+   * bumps each quest's progress up to what the current world state implies and
+   * flips it to 'completed' when met (see ADR-0009).
+   */
+  private reconcileActiveQuests(session: PlayerSession): void {
+    const view = this.questWorldView(session);
+    const quests = session.player.quests;
+    for (let i = 0; i < quests.length; i++) {
+      const state = quests[i]!;
+      if (state.status !== 'active') continue;
+      const def = requireQuestDefinition(state.questId);
+      const progress = Math.min(state.goal, Math.max(state.progress, initialProgress(def.objective, view)));
+      if (progress === state.progress) continue;
+      quests[i] = { ...state, progress, status: progress >= state.goal ? 'completed' : 'active' };
+    }
+  }
+
+  private requireSession(playerId: PlayerId): PlayerSession | undefined {
+    return this.sessions.get(playerId);
+  }
+
+  // --- Snapshots / accessors (default player for single-player hosts) ---
 
   getEntities(): EntityInstance[] {
     return [...this.entities.values()].map((e) => ({ ...e }));
@@ -137,16 +291,21 @@ export class World {
     return e ? { ...e } : undefined;
   }
 
-  getCursor(): CursorState {
-    return { ...this.cursor };
+  getCursor(playerId: PlayerId = this.defaultPlayerId): CursorState {
+    return { ...(this.sessions.get(playerId)?.cursor ?? { x: 0, y: 0, mode: 'free' }) };
   }
 
-  getPlayer(): Player {
-    return clonePlayer(this.player);
+  getPlayer(playerId: PlayerId = this.defaultPlayerId): Player {
+    const session = this.sessions.get(playerId);
+    return clonePlayer(session ? session.player : createPlayer(playerId, 'You'));
   }
 
-  getSnapshot(): ZoneSnapshot {
-    return { entities: this.getEntities(), cursor: this.getCursor(), player: this.getPlayer() };
+  getSnapshot(playerId: PlayerId = this.defaultPlayerId): ZoneSnapshot {
+    return {
+      entities: this.getEntities(),
+      cursor: this.getCursor(playerId),
+      player: this.getPlayer(playerId),
+    };
   }
 
   getCombatConfig(): CombatConfig {
@@ -157,67 +316,80 @@ export class World {
     this.combat = { ...this.combat, ...partial };
   }
 
-  applyCommand(cmd: SimCommand): SimEvent[] {
+  // --- Commands ---
+
+  /**
+   * Applies a command on behalf of `playerId` (defaults to the sole player), and
+   * returns the resulting events as a flat list (single-player / local use). For
+   * server fan-out use {@link applyCommandAddressed}, which tags routing.
+   */
+  applyCommand(cmd: SimCommand, playerId: PlayerId = this.defaultPlayerId): SimEvent[] {
+    const session = this.requireSession(playerId);
+    // A command addressed to an unknown player is a no-op (see ADR-0014).
+    if (!session) return [];
     switch (cmd.type) {
-      case 'cursor.move':
-        this.cursor.x = cmd.x;
-        this.cursor.y = cmd.y;
-        return [];
+      case 'cursor.move': {
+        session.cursor.x = cmd.x;
+        session.cursor.y = cmd.y;
+        // Broadcast so other players' clients can render this cursor's movement.
+        return [{ type: 'cursor.moved', playerId, x: cmd.x, y: cmd.y, mode: session.cursor.mode }];
+      }
 
       case 'entity.tap': {
         const entity = this.entities.get(cmd.instanceId);
         if (!entity || entity.state !== 'available' || entity.maxHp <= 0) return [];
-        const block = this.blockedReason(entity);
+        const block = this.blockedReason(entity, session);
         if (block) {
           return [{ type: 'entity.blocked', instanceId: entity.instanceId, ...block }];
         }
-        return this.applyActiveTap(entity);
+        if (this.claimBlocked(entity, playerId)) return [];
+        return this.applyActiveTap(entity, session);
       }
 
       case 'entity.hoverStart': {
-        if (this.cursor.mode === 'locked') return [];
+        if (session.cursor.mode === 'locked') return [];
         if (!this.entities.has(cmd.instanceId)) return [];
-        this.cursor.targetInstanceId = cmd.instanceId;
-        this.cursor.mode = 'hovering';
-        this.passiveAccumulator = 0;
+        session.cursor.targetInstanceId = cmd.instanceId;
+        session.cursor.mode = 'hovering';
+        session.passiveAccumulator = 0;
         return [{ type: 'target.changed', instanceId: cmd.instanceId, locked: false }];
       }
 
       case 'entity.hoverEnd': {
-        if (this.cursor.mode === 'hovering' && this.cursor.targetInstanceId === cmd.instanceId) {
-          this.cursor.mode = 'free';
+        if (session.cursor.mode === 'hovering' && session.cursor.targetInstanceId === cmd.instanceId) {
+          session.cursor.mode = 'free';
         }
         return [];
       }
 
       case 'entity.lock': {
         if (!this.entities.has(cmd.instanceId)) return [];
-        this.cursor.targetInstanceId = cmd.instanceId;
-        this.cursor.mode = 'locked';
-        this.passiveAccumulator = 0;
+        session.cursor.targetInstanceId = cmd.instanceId;
+        session.cursor.mode = 'locked';
+        session.passiveAccumulator = 0;
         return [{ type: 'target.changed', instanceId: cmd.instanceId, locked: true }];
       }
 
       case 'entity.unlock': {
-        this.cursor.mode = 'free';
-        this.cursor.targetInstanceId = undefined;
+        session.cursor.mode = 'free';
+        session.cursor.targetInstanceId = undefined;
         return [{ type: 'target.changed', instanceId: undefined, locked: false }];
       }
 
       case 'pickup.collect':
-        return this.collectPickup(cmd.instanceId);
+        return this.collectPickup(cmd.instanceId, session);
 
       case 'tool.equip':
-        return this.equipTool(cmd.toolType);
+        return this.equipTool(cmd.toolType, session);
 
       case 'quest.grant':
-        return this.grantQuest(cmd.questId);
+        return this.grantQuest(cmd.questId, session);
 
       case 'quest.claim':
-        return this.claimQuest(cmd.questId);
+        return this.claimQuest(cmd.questId, session);
 
       case 'entity.build':
-        return this.buildEntity(cmd.instanceId);
+        return this.buildEntity(cmd.instanceId, session);
 
       case 'entity.enable':
         return this.enableEntity(cmd.instanceId);
@@ -226,39 +398,88 @@ export class World {
         return this.spawnEntity(cmd);
 
       case 'craft.start':
-        return this.startCraft(cmd.recipeId);
+        return this.startCraft(cmd.recipeId, session);
 
       case 'craft.claim':
-        return this.claimOffering(cmd.instanceId);
+        return this.claimOffering(cmd.instanceId, session);
 
       case 'player.setName':
-        return this.setName(cmd.name);
+        return this.setName(cmd.name, session);
 
       case 'player.setDivinePower':
-        return this.setDivinePower(cmd.power, cmd.unlocked);
+        return this.setDivinePower(cmd.power, cmd.unlocked, session);
+
+      case 'player.setPassiveDamage':
+        return this.setPassiveDamage(cmd.amount, session);
 
       default:
         return [];
     }
   }
 
+  /**
+   * Server entry point: applies a command and returns events tagged with their
+   * routing (see ADR-0016). Player-scoped events address the acting player; the
+   * open world's `lastHit` rule makes the depleting player the acting player, so
+   * loot/XP route correctly.
+   */
+  applyCommandAddressed(cmd: SimCommand, playerId: PlayerId = this.defaultPlayerId): AddressedEvent[] {
+    return this.applyCommand(cmd, playerId).map((e) => addressEvent(e, playerId));
+  }
+
+  // --- Ticking ---
+
+  /** Advance the simulation by `dtSeconds`, returning events as a flat list. */
   tick(dtSeconds: number): SimEvent[] {
-    const events: SimEvent[] = [];
-    this.tickPassiveDamage(dtSeconds, events);
-    this.tickRespawns(dtSeconds, events);
-    this.tickCrafting(dtSeconds, events);
-    return events;
+    return this.tickAddressed(dtSeconds).map((a) => a.event);
+  }
+
+  /** Server tick: advances the simulation and returns routed events (see ADR-0016). */
+  tickAddressed(dtSeconds: number): AddressedEvent[] {
+    const out: AddressedEvent[] = [];
+    // Passive damage is per-player: each session ticks on its own target, and
+    // any deplete it causes credits that session's player (lastHit).
+    for (const [pid, session] of this.sessions) {
+      const events: SimEvent[] = [];
+      this.tickPassiveDamage(dtSeconds, session, events);
+      for (const e of events) out.push(addressEvent(e, pid));
+    }
+    // Respawns are shared world state (no owning player).
+    const respawns: SimEvent[] = [];
+    this.tickRespawns(dtSeconds, respawns);
+    for (const e of respawns) out.push({ event: e, scope: 'world' });
+    // Crafting is per-player.
+    for (const [pid, session] of this.sessions) {
+      const events: SimEvent[] = [];
+      this.tickCrafting(dtSeconds, session, events);
+      for (const e of events) out.push(addressEvent(e, pid));
+    }
+    return out;
   }
 
   // --- Player / tools / skills ---
 
-  private skillLevel(skillId: SkillId): number {
-    return this.player.skills[skillId]?.level ?? 1;
+  private skillLevel(session: PlayerSession, skillId: SkillId): number {
+    return session.player.skills[skillId]?.level ?? 1;
   }
 
-  private firstOwnedToolType(): ToolType | undefined {
-    const first = this.player.ownedTools[0];
-    return first ? requireToolDefinition(first).toolType : undefined;
+  /**
+   * Grants a tool to the player, with a higher-tier tool auto-supplanting any
+   * lower-tier tool of the same type. Returns the ids removed by the upgrade.
+   */
+  private grantTool(toolId: ToolId, session: PlayerSession): ToolId[] {
+    const def = requireToolDefinition(toolId);
+    const replaced: ToolId[] = [];
+    session.player.ownedTools = session.player.ownedTools.filter((id) => {
+      const owned = requireToolDefinition(id);
+      if (owned.toolType === def.toolType && owned.tier < def.tier) {
+        replaced.push(id);
+        return false;
+      }
+      return true;
+    });
+    if (!session.player.ownedTools.includes(toolId)) session.player.ownedTools.push(toolId);
+    return replaced;
   }
 
   /**
@@ -266,27 +487,27 @@ export class World {
    * undefined (see ADR-0008). Checks tool ownership / tier / wield, then the
    * entity's own skill requirement.
    */
-  private blockedReason(entity: EntityInstance): BlockInfo | undefined {
+  private blockedReason(entity: EntityInstance, session: PlayerSession): BlockInfo | undefined {
     const def = requireEntityDefinition(entity.definitionId);
     const req = def.requirements;
     if (!req) return undefined;
+    const player = session.player;
 
     if (req.toolType) {
       const toolType = req.toolType;
       const minTier = req.minTier ?? 1;
-      const owned = this.player.ownedTools
+      const owned = player.ownedTools
         .map((id) => requireToolDefinition(id))
         .filter((t) => t.toolType === toolType);
 
       if (owned.length === 0) {
         return { reason: 'missingTool', requiredToolType: toolType, requiredTier: minTier };
       }
-      if (bestOwnedToolTier(this.player.ownedTools, toolType) < minTier) {
+      if (bestOwnedToolTier(player.ownedTools, toolType) < minTier) {
         return { reason: 'toolTierTooLow', requiredToolType: toolType, requiredTier: minTier };
       }
-      const usable = bestUsableTool(this.player.ownedTools, toolType, (s) => this.skillLevel(s));
+      const usable = bestUsableTool(player.ownedTools, toolType, (s) => this.skillLevel(session, s));
       if (!usable || usable.tier < minTier) {
-        // Owns a tier-ok tool but cannot wield it: report the easiest wield gate.
         const blocked = owned
           .filter((t) => t.tier >= minTier && t.wieldRequirement)
           .sort((a, b) => a.wieldRequirement!.level - b.wieldRequirement!.level)[0];
@@ -301,7 +522,7 @@ export class World {
       }
     }
 
-    if (req.skill && this.skillLevel(req.skill.skillId) < req.skill.level) {
+    if (req.skill && this.skillLevel(session, req.skill.skillId) < req.skill.level) {
       return {
         reason: 'skillLevel',
         requiredSkillId: req.skill.skillId,
@@ -312,7 +533,7 @@ export class World {
     return undefined;
   }
 
-  private collectPickup(instanceId: string): SimEvent[] {
+  private collectPickup(instanceId: string, session: PlayerSession): SimEvent[] {
     const entity = this.entities.get(instanceId);
     if (!entity) return [];
     if (entity.locked) return [];
@@ -322,28 +543,36 @@ export class World {
     const toolDef = requireToolDefinition(toolId);
 
     this.entities.delete(instanceId);
-    if (this.cursor.targetInstanceId === instanceId) {
-      this.cursor.targetInstanceId = undefined;
-      this.cursor.mode = 'free';
+    if (session.cursor.targetInstanceId === instanceId) {
+      session.cursor.targetInstanceId = undefined;
+      session.cursor.mode = 'free';
     }
 
+    const replacedToolIds = this.grantTool(toolId, session);
     const events: SimEvent[] = [
-      { type: 'pickup.collected', instanceId, toolId, toolType: toolDef.toolType, x: entity.x, y: entity.y },
+      {
+        type: 'pickup.collected',
+        instanceId,
+        toolId,
+        toolType: toolDef.toolType,
+        ...(replacedToolIds.length ? { replacedToolIds } : {}),
+        x: entity.x,
+        y: entity.y,
+      },
     ];
-    if (!this.player.ownedTools.includes(toolId)) this.player.ownedTools.push(toolId);
-    this.player.equippedToolType = toolDef.toolType;
-    this.cursor.equippedToolType = toolDef.toolType;
+    session.player.equippedToolType = toolDef.toolType;
+    session.cursor.equippedToolType = toolDef.toolType;
     events.push({ type: 'tool.equipped', toolType: toolDef.toolType });
-    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }));
+    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }, session));
     return events;
   }
 
-  private equipTool(toolType: ToolType): SimEvent[] {
-    const owns = this.player.ownedTools.some((id) => requireToolDefinition(id).toolType === toolType);
+  private equipTool(toolType: ToolType, session: PlayerSession): SimEvent[] {
+    const owns = session.player.ownedTools.some((id) => requireToolDefinition(id).toolType === toolType);
     if (!owns) return [];
-    if (this.player.equippedToolType === toolType) return [];
-    this.player.equippedToolType = toolType;
-    this.cursor.equippedToolType = toolType;
+    if (session.player.equippedToolType === toolType) return [];
+    session.player.equippedToolType = toolType;
+    session.cursor.equippedToolType = toolType;
     return [{ type: 'tool.equipped', toolType }];
   }
 
@@ -368,76 +597,78 @@ export class World {
 
   // --- Building ---
 
-  private canAfford(cost: readonly ItemCost[]): boolean {
-    return cost.every((c) => (this.player.inventory[c.itemId] ?? 0) >= c.quantity);
+  private canAfford(player: Player, cost: readonly ItemCost[]): boolean {
+    return cost.every((c) => (player.inventory[c.itemId] ?? 0) >= c.quantity);
   }
 
-  /**
-   * Builds an unbuilt Buildable entity: validates the player can afford all
-   * Build costs, consumes them, flips the entity to built, and advances any
-   * 'buildEntity' quests.
-   */
-  private buildEntity(instanceId: string): SimEvent[] {
+  private buildEntity(instanceId: string, session: PlayerSession): SimEvent[] {
     const entity = this.entities.get(instanceId);
     if (!entity || entity.state !== 'unbuilt') return [];
     const def = requireEntityDefinition(entity.definitionId);
     const cost = def.buildable?.cost;
-    if (!cost || !this.canAfford(cost)) return [];
+    if (!cost || !this.canAfford(session.player, cost)) return [];
 
-    for (const c of cost) this.player.inventory[c.itemId] = (this.player.inventory[c.itemId] ?? 0) - c.quantity;
+    const inv = session.player.inventory;
+    for (const c of cost) inv[c.itemId] = (inv[c.itemId] ?? 0) - c.quantity;
     entity.state = 'available';
 
     const events: SimEvent[] = [
-      { type: 'inventory.changed', inventory: { ...this.player.inventory } },
+      { type: 'inventory.changed', inventory: { ...inv } },
       { type: 'entity.built', instanceId },
     ];
     events.push(
-      ...this.advanceQuests({ kind: 'entityBuilt', definitionId: entity.definitionId, tags: def.tags ?? [] }),
+      ...this.advanceQuests({ kind: 'entityBuilt', definitionId: entity.definitionId, tags: def.tags ?? [] }, session),
     );
     return events;
   }
 
   // --- Quests ---
 
-  private grantQuest(questId: string): SimEvent[] {
-    if (this.player.quests.some((q) => q.questId === questId)) return [];
+  private grantQuest(questId: string, session: PlayerSession): SimEvent[] {
+    if (session.player.quests.some((q) => q.questId === questId)) return [];
     const def = requireQuestDefinition(questId);
-    const state = {
-      questId,
-      status: 'active' as const,
-      progress: 0,
-      goal: objectiveGoal(def.objective),
-    };
-    this.player.quests.push(state);
+    const goal = objectiveGoal(def.objective);
+    const progress = Math.min(goal, initialProgress(def.objective, this.questWorldView(session)));
+    const status = progress >= goal ? ('completed' as const) : ('active' as const);
+    const state = { questId, status, progress, goal };
+    session.player.quests.push(state);
     return [{ type: 'quest.updated', quest: { ...state } }];
   }
 
-  /**
-   * Claims a completed Quest's Reward: grants Gold, applies any world unlock
-   * (`enableEntityTag`), marks the Quest claimed, and auto-grants any quest
-   * whose prerequisites are now all claimed (data-driven chaining, ADR-0009).
-   */
-  private claimQuest(questId: string): SimEvent[] {
-    const i = this.player.quests.findIndex((q) => q.questId === questId);
+  /** Snapshots the world facts a quest objective can be reconciled against. */
+  private questWorldView(session: PlayerSession): QuestWorldView {
+    const builtEntities: { definitionId: string; tags: string[] }[] = [];
+    for (const entity of this.entities.values()) {
+      const def = requireEntityDefinition(entity.definitionId);
+      if (def.buildable && entity.state !== 'unbuilt') {
+        builtEntities.push({ definitionId: entity.definitionId, tags: def.tags ?? [] });
+      }
+    }
+    return { ownedTools: session.player.ownedTools, inventory: session.player.inventory, builtEntities };
+  }
+
+  private claimQuest(questId: string, session: PlayerSession): SimEvent[] {
+    const quests = session.player.quests;
+    const i = quests.findIndex((q) => q.questId === questId);
     if (i === -1) return [];
-    const state = this.player.quests[i]!;
+    const state = quests[i]!;
     if (state.status !== 'completed') return [];
     const def = requireQuestDefinition(questId);
 
     const events: SimEvent[] = [];
     const gold = def.rewards?.gold ?? 0;
     if (gold > 0) {
-      this.player.inventory.gold = (this.player.inventory.gold ?? 0) + gold;
-      events.push({ type: 'inventory.changed', inventory: { ...this.player.inventory } });
+      session.player.inventory.gold = (session.player.inventory.gold ?? 0) + gold;
+      events.push({ type: 'inventory.changed', inventory: { ...session.player.inventory } });
     }
     const claimed = { ...state, status: 'claimed' as const };
-    this.player.quests[i] = claimed;
+    quests[i] = claimed;
     events.push({ type: 'quest.updated', quest: { ...claimed } });
 
     const enableTag = def.rewards?.enableEntityTag;
     if (enableTag) events.push(...this.enableEntitiesByTag(enableTag));
 
-    events.push(...this.autoGrantChained());
+    events.push(...this.autoGrantChained(session));
     return events;
   }
 
@@ -456,7 +687,7 @@ export class World {
   }
 
   /** Grants any quest whose prerequisites are all claimed (cascades). */
-  private autoGrantChained(): SimEvent[] {
+  private autoGrantChained(session: PlayerSession): SimEvent[] {
     const events: SimEvent[] = [];
     let granted = true;
     while (granted) {
@@ -464,26 +695,27 @@ export class World {
       for (const def of QUEST_DEFS_FOR_CHAINING) {
         const prereqs = def.prerequisiteQuestIds;
         if (!prereqs || prereqs.length === 0) continue;
-        if (this.player.quests.some((q) => q.questId === def.id)) continue;
+        if (session.player.quests.some((q) => q.questId === def.id)) continue;
         const ok = prereqs.every((pid) =>
-          this.player.quests.some((q) => q.questId === pid && q.status === 'claimed'),
+          session.player.quests.some((q) => q.questId === pid && q.status === 'claimed'),
         );
         if (!ok) continue;
-        events.push(...this.grantQuest(def.id));
+        events.push(...this.grantQuest(def.id, session));
         granted = true;
       }
     }
     return events;
   }
 
-  private advanceQuests(signal: QuestSignal): SimEvent[] {
+  private advanceQuests(signal: QuestSignal, session: PlayerSession): SimEvent[] {
     const events: SimEvent[] = [];
-    for (let i = 0; i < this.player.quests.length; i++) {
-      const state = this.player.quests[i]!;
+    const quests = session.player.quests;
+    for (let i = 0; i < quests.length; i++) {
+      const state = quests[i]!;
       const def = requireQuestDefinition(state.questId);
       const next = applySignal(state, def, signal);
       if (next) {
-        this.player.quests[i] = next;
+        quests[i] = next;
         events.push({ type: 'quest.updated', quest: { ...next } });
       }
     }
@@ -492,33 +724,32 @@ export class World {
 
   // --- Crafting / shrine ---
 
-  private startCraft(recipeId: string): SimEvent[] {
-    if (!this.player.craftingUnlocked || this.player.craftingJob) return [];
+  private startCraft(recipeId: string, session: PlayerSession): SimEvent[] {
+    if (!session.player.craftingUnlocked || session.player.craftingJob) return [];
     const recipe = requireRecipeDefinition(recipeId);
-    if (!this.canAfford(recipe.cost)) return [];
+    if (!this.canAfford(session.player, recipe.cost)) return [];
 
-    for (const c of recipe.cost) {
-      this.player.inventory[c.itemId] = (this.player.inventory[c.itemId] ?? 0) - c.quantity;
-    }
-    this.player.craftingJob = {
+    const inv = session.player.inventory;
+    for (const c of recipe.cost) inv[c.itemId] = (inv[c.itemId] ?? 0) - c.quantity;
+    session.player.craftingJob = {
       recipeId,
       remainingSeconds: recipe.craftSeconds,
       totalSeconds: recipe.craftSeconds,
     };
     return [
-      { type: 'inventory.changed', inventory: { ...this.player.inventory } },
+      { type: 'inventory.changed', inventory: { ...inv } },
       { type: 'craftingJobStarted', recipeId, totalSeconds: recipe.craftSeconds },
     ];
   }
 
-  private tickCrafting(dt: number, events: SimEvent[]): void {
-    const job = this.player.craftingJob;
+  private tickCrafting(dt: number, session: PlayerSession, events: SimEvent[]): void {
+    const job = session.player.craftingJob;
     if (!job) return;
     job.remainingSeconds -= dt;
     if (job.remainingSeconds > 0) return;
 
     const recipe = requireRecipeDefinition(job.recipeId);
-    this.player.craftingJob = undefined;
+    session.player.craftingJob = undefined;
     events.push({ type: 'craftingJobCompleted', recipeId: recipe.id });
 
     const shrine = this.findShrine();
@@ -530,21 +761,27 @@ export class World {
         grantsToolId: recipe.result.grantsToolId,
       });
     }
-    if (recipe.xp) events.push(...this.awardSkillXp(recipe.xp));
+    if (recipe.xp) events.push(...this.awardSkillXp(recipe.xp, session));
   }
 
-  /** Claims a Shrine's pending Offering: grants the tool id and clears it. */
-  private claimOffering(instanceId: string): SimEvent[] {
+  private claimOffering(instanceId: string, session: PlayerSession): SimEvent[] {
     const shrine = this.entities.get(instanceId);
     if (!shrine || !shrine.pendingOffering) return [];
     const toolId = shrine.pendingOffering.grantsToolId;
     shrine.pendingOffering = undefined;
 
-    if (!this.player.ownedTools.includes(toolId)) this.player.ownedTools.push(toolId);
+    const replacedToolIds = this.grantTool(toolId, session);
     const events: SimEvent[] = [
-      { type: 'craftedItemClaimed', instanceId, toolId, x: shrine.x, y: shrine.y },
+      {
+        type: 'craftedItemClaimed',
+        instanceId,
+        toolId,
+        ...(replacedToolIds.length ? { replacedToolIds } : {}),
+        x: shrine.x,
+        y: shrine.y,
+      },
     ];
-    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }));
+    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }, session));
     return events;
   }
 
@@ -559,19 +796,14 @@ export class World {
     return fallback;
   }
 
-  // --- Divine name (Phase 8) ---
+  // --- Divine name ---
 
-  private setName(rawName: string): SimEvent[] {
+  private setName(rawName: string, session: PlayerSession): SimEvent[] {
     const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
     if (!name) return [];
-    this.player.displayName = name;
-    const wasUnlocked = this.player.craftingUnlocked;
-    this.player.craftingUnlocked = true;
-    const events: SimEvent[] = [{ type: 'player.nameChanged', name }];
-    // (No separate event for unlocking crafting; the client reads craftingUnlocked
-    // from the snapshot / nameChanged beat.)
-    void wasUnlocked;
-    return events;
+    session.player.displayName = name;
+    session.player.craftingUnlocked = true;
+    return [{ type: 'player.nameChanged', name }];
   }
 
   // --- Divine powers (Smite) ---
@@ -579,74 +811,81 @@ export class World {
   /**
    * Applies one active tap, upgrading every Nth consecutive same-target tap to a
    * Smite (a single Active hit multiplied by `damageMultiplier`) while the Smite
-   * divine power is unlocked (see CONTEXT.md: Smite). The per-target counter is
-   * transient and resets whenever the tapped target changes.
+   * divine power is unlocked. The per-target counter is transient and per player.
    */
-  private applyActiveTap(entity: EntityInstance): SimEvent[] {
-    const smite = this.player.divinePowers.smite;
+  private applyActiveTap(entity: EntityInstance, session: PlayerSession): SimEvent[] {
+    const playerId = session.player.id;
+    const smite = session.player.divinePowers.smite;
     if (!smite.unlocked || smite.everyNthClick <= 0) {
-      this.smiteCount = 0;
-      this.lastSmiteTargetId = entity.instanceId;
-      return this.applyDamage(entity, this.combat.activeDamage, 'active');
+      session.smiteCount = 0;
+      session.lastSmiteTargetId = entity.instanceId;
+      return this.applyDamage(entity, this.combat.activeDamage, 'active', session);
     }
 
-    if (this.lastSmiteTargetId !== entity.instanceId) {
-      this.lastSmiteTargetId = entity.instanceId;
-      this.smiteCount = 0;
+    if (session.lastSmiteTargetId !== entity.instanceId) {
+      session.lastSmiteTargetId = entity.instanceId;
+      session.smiteCount = 0;
     }
-    this.smiteCount += 1;
+    session.smiteCount += 1;
 
-    if (this.smiteCount % smite.everyNthClick !== 0) {
-      return this.applyDamage(entity, this.combat.activeDamage, 'active');
+    if (session.smiteCount % smite.everyNthClick !== 0) {
+      return this.applyDamage(entity, this.combat.activeDamage, 'active', session);
     }
 
-    // The Nth tap IS the Smite — one big Active hit, not an extra swing.
     const amount = this.combat.activeDamage * smite.damageMultiplier;
     const events: SimEvent[] = [
-      { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount },
+      { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount, by: playerId },
     ];
-    events.push(...this.applyDamage(entity, amount, 'active'));
+    events.push(...this.applyDamage(entity, amount, 'active', session));
     return events;
   }
 
-  /** Grants/revokes a divine power (the Council revokes Smite at banishment). */
-  private setDivinePower(power: DivinePowerId, unlocked: boolean): SimEvent[] {
-    const current = this.player.divinePowers[power];
+  private setDivinePower(power: DivinePowerId, unlocked: boolean, session: PlayerSession): SimEvent[] {
+    const current = session.player.divinePowers[power];
     if (!current || current.unlocked === unlocked) return [];
     current.unlocked = unlocked;
     if (!unlocked) {
-      this.smiteCount = 0;
-      this.lastSmiteTargetId = undefined;
+      session.smiteCount = 0;
+      session.lastSmiteTargetId = undefined;
     }
     return [{ type: 'divinePowerChanged', power, unlocked }];
   }
 
+  private setPassiveDamage(amount: number, session: PlayerSession): SimEvent[] {
+    const next = Math.max(0, amount);
+    if (session.player.passiveDamage === next) return [];
+    session.player.passiveDamage = next;
+    return [{ type: 'passiveDamageChanged', amount: next }];
+  }
+
   // --- Damage / depletion / loot / XP ---
 
-  private tickPassiveDamage(dt: number, events: SimEvent[]): void {
-    const targetId = this.cursor.targetInstanceId;
+  private tickPassiveDamage(dt: number, session: PlayerSession, events: SimEvent[]): void {
+    const targetId = session.cursor.targetInstanceId;
     const target = targetId ? this.entities.get(targetId) : undefined;
     const tickSeconds = this.combat.passiveTickSeconds;
-    const ticking = this.cursor.mode === 'hovering' || this.cursor.mode === 'locked';
+    const passiveDamage = session.player.passiveDamage;
+    const ticking = session.cursor.mode === 'hovering' || session.cursor.mode === 'locked';
 
     if (
       !ticking ||
       !target ||
       target.state !== 'available' ||
       target.maxHp <= 0 ||
-      this.blockedReason(target) !== undefined ||
-      this.combat.passiveDamagePerTick <= 0 ||
+      this.blockedReason(target, session) !== undefined ||
+      this.claimBlocked(target, session.player.id) ||
+      passiveDamage <= 0 ||
       tickSeconds <= 0
     ) {
-      this.passiveAccumulator = 0;
+      session.passiveAccumulator = 0;
       return;
     }
 
-    this.passiveAccumulator += dt;
-    while (this.passiveAccumulator >= tickSeconds) {
-      this.passiveAccumulator -= tickSeconds;
+    session.passiveAccumulator += dt;
+    while (session.passiveAccumulator >= tickSeconds) {
+      session.passiveAccumulator -= tickSeconds;
       if (target.state !== 'available') break;
-      events.push(...this.applyDamage(target, this.combat.passiveDamagePerTick, 'passive'));
+      events.push(...this.applyDamage(target, passiveDamage, 'passive', session));
     }
   }
 
@@ -663,7 +902,42 @@ export class World {
     }
   }
 
-  private applyDamage(entity: EntityInstance, amount: number, source: DamageSource): SimEvent[] {
+  // --- Interaction rule (claim / credit) ---
+
+  /** The effective interaction rule for an entity (zone default wins; see ADR-0016). */
+  private resolveRule(entity: EntityInstance): InteractionRule {
+    if (this.interactionDefault) return this.interactionDefault;
+    return requireEntityDefinition(entity.definitionId).interactionRule ?? 'lastHit';
+  }
+
+  private contentionFor(instanceId: string): EntityContention {
+    let rec = this.contention.get(instanceId);
+    if (!rec) {
+      rec = { byPlayer: new Map() };
+      this.contention.set(instanceId, rec);
+    }
+    return rec;
+  }
+
+  /** Under the `claimed` rule, a player who isn't the owner cannot damage it. */
+  private claimBlocked(entity: EntityInstance, playerId: PlayerId): boolean {
+    if (this.resolveRule(entity) !== 'claimed') return false;
+    const rec = this.contention.get(entity.instanceId);
+    return !!rec?.claimedBy && rec.claimedBy !== playerId;
+  }
+
+  private applyDamage(
+    entity: EntityInstance,
+    amount: number,
+    source: DamageSource,
+    session: PlayerSession,
+  ): SimEvent[] {
+    const playerId = session.player.id;
+    const rec = this.contentionFor(entity.instanceId);
+    rec.lastBy = playerId;
+    rec.byPlayer.set(playerId, (rec.byPlayer.get(playerId) ?? 0) + amount);
+    if (this.resolveRule(entity) === 'claimed' && !rec.claimedBy) rec.claimedBy = playerId;
+
     entity.hp = Math.max(0, entity.hp - amount);
     const events: SimEvent[] = [
       {
@@ -673,16 +947,25 @@ export class World {
         maxHp: entity.maxHp,
         amount,
         source,
+        by: playerId,
       },
     ];
-    if (entity.hp <= 0) events.push(...this.deplete(entity));
+    if (entity.hp <= 0) events.push(...this.deplete(entity, session));
     return events;
   }
 
-  private deplete(entity: EntityInstance): SimEvent[] {
+  private deplete(entity: EntityInstance, depletingSession: PlayerSession): SimEvent[] {
     const def = requireEntityDefinition(entity.definitionId);
     entity.state = 'depleted';
     entity.hp = 0;
+    // Credit (loot/XP) goes to the depleting player: `lastHit` (the open world
+    // default) and `claimed`/`personal` all credit the final blow. The contention
+    // map tracks per-player damage so `sharedContribution` (top damager) can be
+    // wired here later (see ADR-0014/0016).
+    const credited = depletingSession;
+    // Contention resets with the entity; respawn starts a fresh contest.
+    this.contention.delete(entity.instanceId);
+
     const events: SimEvent[] = [
       {
         type: 'entity.depleted',
@@ -694,7 +977,7 @@ export class World {
       },
     ];
 
-    if (def.xp) events.push(...this.awardSkillXp(def.xp.rewards));
+    if (def.xp) events.push(...this.awardSkillXp(def.xp.rewards, credited));
 
     if (entity.lootTableId) {
       const table = getLootTable(entity.lootTableId);
@@ -702,12 +985,14 @@ export class World {
         const items = rollLoot(table, this.rng);
         if (items.length > 0) {
           events.push({ type: 'loot.rolled', instanceId: entity.instanceId, x: entity.x, y: entity.y, items });
-          events.push(...this.awardItems(items));
+          events.push(...this.awardItems(items, credited));
         }
       }
     }
 
-    events.push(...this.advanceQuests({ kind: 'entityDepleted', definitionId: entity.definitionId, tags: def.tags ?? [] }));
+    events.push(
+      ...this.advanceQuests({ kind: 'entityDepleted', definitionId: entity.definitionId, tags: def.tags ?? [] }, credited),
+    );
 
     if (entity.respawnSeconds > 0) {
       entity.state = 'respawning';
@@ -717,38 +1002,41 @@ export class World {
     return events;
   }
 
-  /** Adds XP per skill, recomputes the level, and emits gain/level-up events. */
-  private awardSkillXp(rewards: Partial<Record<SkillId, number>>): SimEvent[] {
+  private awardSkillXp(rewards: Partial<Record<SkillId, number>>, session: PlayerSession): SimEvent[] {
     const events: SimEvent[] = [];
     for (const [skillId, amount] of Object.entries(rewards) as [SkillId, number][]) {
       if (!amount || amount <= 0) continue;
-      const prev = this.player.skills[skillId] ?? { xp: 0, level: 1 };
+      const prev = session.player.skills[skillId] ?? { xp: 0, level: 1 };
       const totalXp = prev.xp + amount;
       const level = xpToLevel(totalXp);
-      this.player.skills[skillId] = { xp: totalXp, level };
+      session.player.skills[skillId] = { xp: totalXp, level };
       events.push({ type: 'skill.xpGained', skillId, amount, totalXp, level });
       if (level > prev.level) events.push({ type: 'skill.leveledUp', skillId, level });
     }
     return events;
   }
 
-  private awardItems(items: AwardedItem[]): SimEvent[] {
+  private awardItems(items: AwardedItem[], session: PlayerSession): SimEvent[] {
+    const inv = session.player.inventory;
+    for (const item of items) inv[item.itemId] = (inv[item.itemId] ?? 0) + item.quantity;
+    const events: SimEvent[] = [{ type: 'inventory.changed', inventory: { ...inv } }];
     for (const item of items) {
-      this.player.inventory[item.itemId] = (this.player.inventory[item.itemId] ?? 0) + item.quantity;
-    }
-    const events: SimEvent[] = [{ type: 'inventory.changed', inventory: { ...this.player.inventory } }];
-    for (const item of items) {
-      events.push(...this.advanceQuests({ kind: 'itemCollected', itemId: item.itemId, quantity: item.quantity }));
+      events.push(...this.advanceQuests({ kind: 'itemCollected', itemId: item.itemId, quantity: item.quantity }, session));
     }
     return events;
   }
+}
+
+/** First owned tool's type, or undefined if the player owns none. */
+function firstOwnedToolType(player: Player): ToolType | undefined {
+  const first = player.ownedTools[0];
+  return first ? requireToolDefinition(first).toolType : undefined;
 }
 
 /** Deep-clones a Player so the World owns its own mutable state. */
 function clonePlayer(player: Player): Player {
   const skills = {} as Player['skills'];
   for (const id of Object.keys(player.skills) as SkillId[]) skills[id] = { ...player.skills[id] };
-  // Backfill any skills missing from a partial carried snapshot.
   const base = emptySkills();
   for (const id of Object.keys(base) as SkillId[]) if (!skills[id]) skills[id] = { ...base[id] };
   const divinePowers = player.divinePowers
@@ -756,6 +1044,7 @@ function clonePlayer(player: Player): Player {
     : emptyDivinePowers();
   return {
     ...player,
+    passiveDamage: player.passiveDamage ?? 0,
     ownedTools: [...player.ownedTools],
     inventory: { ...player.inventory },
     skills,

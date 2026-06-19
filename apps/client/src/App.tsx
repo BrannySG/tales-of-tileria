@@ -7,13 +7,23 @@ import { EntityEditorMode } from './modes/EntityEditorMode';
 import { TitleMode } from './modes/TitleMode';
 import { OnboardingMode } from './modes/OnboardingMode';
 import { OnboardingDevControl } from './ui/OnboardingDevControl';
+import { hasOnboarded } from './onboarding';
 
-/** Modes shown in the dev mode-nav. Title + onboarding are intentionally absent. */
-const NAV_MODES = ['game', 'zoo', 'editor', 'entities'] as const;
-const ALL_MODES = ['title', 'onboarding', ...NAV_MODES] as const;
-type Mode = (typeof ALL_MODES)[number];
+type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding';
 
-const MODE_LABEL: Record<(typeof NAV_MODES)[number], string> = {
+/**
+ * Dev tools (Editor/Zoo/Entities) and the standalone onboarding route exist only
+ * in local dev: the shipped build is Title -> Game, with onboarding folded into
+ * the game entry for first-time players. Gating at build time means the public
+ * build literally cannot reach them (nav hidden and hashes rejected).
+ */
+const DEV_MODES = ['zoo', 'editor', 'entities', 'onboarding'] as const;
+const NAV_MODES: Mode[] = import.meta.env.DEV ? ['game', 'zoo', 'editor', 'entities'] : [];
+const ALLOWED_MODES: readonly Mode[] = import.meta.env.DEV
+  ? ['title', 'game', ...DEV_MODES]
+  : ['title', 'game'];
+
+const MODE_LABEL: Record<string, string> = {
   game: 'Game',
   zoo: 'Zoo',
   editor: 'Editor',
@@ -21,7 +31,7 @@ const MODE_LABEL: Record<(typeof NAV_MODES)[number], string> = {
 };
 
 function isMode(value: string): value is Mode {
-  return (ALL_MODES as readonly string[]).includes(value);
+  return (ALLOWED_MODES as readonly string[]).includes(value);
 }
 
 /** The Title Screen is the default first surface (see CONTEXT.md). */
@@ -48,8 +58,10 @@ export function App() {
     window.location.hash = `/${next}`;
   };
 
-  // The Title Screen and onboarding cinematic are full-bleed: no dev nav.
-  const showNav = mode !== 'title' && mode !== 'onboarding';
+  // The dev mode-nav only exists in local dev; the public build is full-bleed
+  // (Title -> Game). The Title Screen and onboarding cinematic never show nav.
+  const showNav =
+    import.meta.env.DEV && mode !== 'title' && mode !== 'onboarding';
   // Onboarding dev controls live on the title screen only; Zoo keeps them in DevPanel.
   const showGlobalDev = import.meta.env.DEV && mode === 'title';
 
@@ -70,11 +82,13 @@ export function App() {
         </nav>
       )}
       {mode === 'title' && <TitleMode />}
-      {mode === 'onboarding' && <OnboardingMode />}
-      {mode === 'game' && <GameMode />}
-      {mode === 'zoo' && <ZooMode />}
-      {mode === 'editor' && <EditorMode />}
-      {mode === 'entities' && <EntityEditorMode />}
+      {/* Onboarding is part of the game entry: first-time players run the arc,
+          returning players drop straight into the world. */}
+      {mode === 'game' && (hasOnboarded() ? <GameMode /> : <OnboardingMode />)}
+      {import.meta.env.DEV && mode === 'onboarding' && <OnboardingMode />}
+      {import.meta.env.DEV && mode === 'zoo' && <ZooMode />}
+      {import.meta.env.DEV && mode === 'editor' && <EditorMode />}
+      {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}
     </div>
   );
 }

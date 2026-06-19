@@ -26,6 +26,44 @@ export interface CraftingJobView {
   startedAt: number;
 }
 
+/** Player-tunable audio settings, persisted across sessions and reloads. */
+export interface AudioSettings {
+  musicVolume: number;
+  sfxVolume: number;
+  soundEnabled: boolean;
+}
+
+const AUDIO_SETTINGS_KEY = 'tot.audioSettings';
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = { musicVolume: 0.5, sfxVolume: 1, soundEnabled: true };
+
+const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+
+/** Reads persisted audio settings, falling back to defaults on any error. */
+function loadAudioSettings(): AudioSettings {
+  if (typeof localStorage === 'undefined') return { ...DEFAULT_AUDIO_SETTINGS };
+  try {
+    const raw = localStorage.getItem(AUDIO_SETTINGS_KEY);
+    if (!raw) return { ...DEFAULT_AUDIO_SETTINGS };
+    const parsed = JSON.parse(raw) as Partial<AudioSettings>;
+    return {
+      musicVolume: clamp01(parsed.musicVolume ?? DEFAULT_AUDIO_SETTINGS.musicVolume),
+      sfxVolume: clamp01(parsed.sfxVolume ?? DEFAULT_AUDIO_SETTINGS.sfxVolume),
+      soundEnabled: parsed.soundEnabled ?? DEFAULT_AUDIO_SETTINGS.soundEnabled,
+    };
+  } catch {
+    return { ...DEFAULT_AUDIO_SETTINGS };
+  }
+}
+
+function persistAudioSettings(settings: AudioSettings): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Storage unavailable (private mode / quota): settings simply won't persist.
+  }
+}
+
 interface HudState {
   inventory: Record<string, number>;
   quests: QuestState[];
@@ -41,11 +79,19 @@ interface HudState {
   target: TargetInfo | undefined;
   locked: boolean;
   combat: CombatConfig;
+  /** Player-owned passive damage per tick (mirrors `Player.passiveDamage`). */
+  passiveDamage: number;
   soundEnabled: boolean;
+  /** Music channel volume (0–1), persisted across sessions. */
+  musicVolume: number;
+  /** One-shot SFX volume (0–1), persisted across sessions. */
+  sfxVolume: number;
   setInventory: (inventory: Record<string, number>) => void;
   upsertQuest: (quest: QuestState) => void;
   setOwnedToolIds: (ids: ToolId[]) => void;
   addOwnedToolId: (id: ToolId) => void;
+  /** Grants `id` and drops any tools it supplanted, in one update. */
+  replaceOwnedTool: (id: ToolId, replaced?: ToolId[]) => void;
   setEquippedTool: (tool: ToolType | undefined) => void;
   setSkill: (skillId: SkillId, skill: SkillState) => void;
   setSkills: (skills: Record<SkillId, SkillState>) => void;
@@ -56,7 +102,10 @@ interface HudState {
   setTarget: (target: TargetInfo | undefined) => void;
   setLocked: (locked: boolean) => void;
   setCombat: (partial: Partial<CombatConfig>) => void;
+  setPassiveDamage: (amount: number) => void;
   setSoundEnabled: (enabled: boolean) => void;
+  setMusicVolume: (volume: number) => void;
+  setSfxVolume: (volume: number) => void;
   reset: () => void;
 }
 
@@ -69,6 +118,8 @@ function toolTypesOf(ids: readonly ToolId[]): ToolType[] {
   }
   return types;
 }
+
+const initialAudio = loadAudioSettings();
 
 export const useHud = create<HudState>((set) => ({
   inventory: {},
@@ -84,7 +135,10 @@ export const useHud = create<HudState>((set) => ({
   target: undefined,
   locked: false,
   combat: { ...DEFAULT_COMBAT_CONFIG },
-  soundEnabled: true,
+  passiveDamage: 0,
+  soundEnabled: initialAudio.soundEnabled,
+  musicVolume: initialAudio.musicVolume,
+  sfxVolume: initialAudio.sfxVolume,
   setInventory: (inventory) => set({ inventory: { ...inventory } }),
   upsertQuest: (quest) =>
     set((state) => {
@@ -99,6 +153,13 @@ export const useHud = create<HudState>((set) => ({
     set((state) => {
       if (state.ownedToolIds.includes(id)) return state;
       const ownedToolIds = [...state.ownedToolIds, id];
+      return { ownedToolIds, ownedTools: toolTypesOf(ownedToolIds) };
+    }),
+  replaceOwnedTool: (id, replaced) =>
+    set((state) => {
+      const drop = new Set(replaced ?? []);
+      const ownedToolIds = state.ownedToolIds.filter((t) => !drop.has(t));
+      if (!ownedToolIds.includes(id)) ownedToolIds.push(id);
       return { ownedToolIds, ownedTools: toolTypesOf(ownedToolIds) };
     }),
   setEquippedTool: (equippedTool) => set({ equippedTool }),
@@ -117,7 +178,24 @@ export const useHud = create<HudState>((set) => ({
   setTarget: (target) => set({ target }),
   setLocked: (locked) => set({ locked }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
-  setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
+  setPassiveDamage: (passiveDamage) => set({ passiveDamage }),
+  setSoundEnabled: (soundEnabled) =>
+    set((state) => {
+      persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: state.sfxVolume, soundEnabled });
+      return { soundEnabled };
+    }),
+  setMusicVolume: (musicVolume) =>
+    set((state) => {
+      const next = clamp01(musicVolume);
+      persistAudioSettings({ musicVolume: next, sfxVolume: state.sfxVolume, soundEnabled: state.soundEnabled });
+      return { musicVolume: next };
+    }),
+  setSfxVolume: (sfxVolume) =>
+    set((state) => {
+      const next = clamp01(sfxVolume);
+      persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: next, soundEnabled: state.soundEnabled });
+      return { sfxVolume: next };
+    }),
   reset: () =>
     set({
       inventory: {},
@@ -154,6 +232,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setEquippedTool(snapshot.player.equippedToolType);
   hud.setSkills(snapshot.player.skills);
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
+  hud.setPassiveDamage(snapshot.player.passiveDamage);
   hud.setDisplayName(snapshot.player.displayName);
   for (const e of snapshot.entities) if (e.pendingOffering) hud.setOffering(e.instanceId, e.pendingOffering.grantsToolId);
   for (const q of snapshot.player.quests) hud.upsertQuest(q);
@@ -194,7 +273,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         break;
       }
       case 'pickup.collected': {
-        useHud.getState().addOwnedToolId(event.toolId);
+        useHud.getState().replaceOwnedTool(event.toolId, event.replacedToolIds);
         break;
       }
       case 'tool.equipped': {
@@ -225,12 +304,16 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'craftedItemClaimed': {
         useHud.getState().setOffering(event.instanceId, undefined);
-        useHud.getState().addOwnedToolId(event.toolId);
+        useHud.getState().replaceOwnedTool(event.toolId, event.replacedToolIds);
         break;
       }
       case 'player.nameChanged': {
         useHud.getState().setDisplayName(event.name);
         useHud.getState().setCraftingUnlocked(true);
+        break;
+      }
+      case 'passiveDamageChanged': {
+        useHud.getState().setPassiveDamage(event.amount);
         break;
       }
     }

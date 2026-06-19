@@ -9,8 +9,11 @@ export * from './types/cursor';
 export * from './types/quest';
 export * from './types/player';
 export * from './types/protocol';
+export * from './types/net';
 
 export * from './content/entities';
+export * from './content/entityArt';
+export * from './content/levels';
 export * from './content/items';
 export * from './content/lootTables';
 export * from './content/quests';

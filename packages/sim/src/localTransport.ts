@@ -1,5 +1,6 @@
 import type {
   CombatConfig,
+  PlayerId,
   SimCommand,
   SimEvent,
   SimEventHandler,
@@ -22,8 +23,10 @@ export class LocalTransport implements SimTransport {
 
   constructor(private readonly world: World) {}
 
-  send(command: SimCommand): void {
-    this.emitAll(this.world.applyCommand(command));
+  send(command: SimCommand, playerId?: PlayerId): void {
+    // Single player locally: the world defaults the id to its sole player and
+    // every event is broadcast to all subscribers (see ADR-0014).
+    this.emitAll(this.world.applyCommand(command, playerId));
   }
 
   subscribe(handler: SimEventHandler): () => void {

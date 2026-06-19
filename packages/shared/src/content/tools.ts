@@ -6,7 +6,7 @@ export const axeRusty: ToolDefinition = {
   toolType: 'axe',
   tier: 1,
   displayName: 'Rusty Axe',
-  iconTextureId: 'icon_axe',
+  iconTextureId: 'item_axe_rusty',
 };
 
 /**
@@ -28,7 +28,7 @@ export const pickaxeRusty: ToolDefinition = {
   toolType: 'pickaxe',
   tier: 1,
   displayName: 'Rusty Pickaxe',
-  iconTextureId: 'icon_pickaxe',
+  iconTextureId: 'item_pickaxe_rusty',
 };
 
 /**

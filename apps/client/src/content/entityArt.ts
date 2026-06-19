@@ -1,18 +1,6 @@
-import type { EntityDefinition } from '@tot/shared';
+import { getBundledEntityArt, type ArtOverride, type EntityDefinition } from '@tot/shared';
 
-/**
- * Editable, global visual-transform overrides for an Entity definition. These
- * apply to every instance of that type across all Levels (see CONTEXT.md:
- * Entity Editor). Behavior/loot stay in the typed TS definition; only the
- * visual transform lives in this editable layer, authored via the Entity
- * Editor and persisted to `packages/shared/content/entity-art.json`.
- */
-export interface ArtOverride {
-  scale?: number;
-  rotation?: number;
-  anchorX?: number;
-  anchorY?: number;
-}
+export type { ArtOverride };
 
 /** Fully-resolved art used by the renderer (definition defaults + overlay). */
 export interface ResolvedArt {
@@ -27,23 +15,27 @@ export interface ResolvedArt {
 
 type Overlay = Record<string, ArtOverride>;
 
-let overlay: Overlay = {};
+// Seed from the bundled overlay so the shipped build renders authored transforms
+// without a dev server. In dev, loadEntityArtOverlay() refreshes from the live file.
+let overlay: Overlay = { ...getBundledEntityArt() };
 let loadPromise: Promise<void> | null = null;
 
 const ENDPOINT = '/api/entity-art';
 
 /**
- * Loads the global art overlay once. In production (no dev middleware) this
- * fails silently and the renderer falls back to the typed definition defaults.
+ * Refreshes the global art overlay from the dev middleware so the Entity Editor
+ * sees live, unsaved edits. In production there is no dev middleware, so the
+ * bundled overlay (seeded above) is authoritative and we skip the fetch.
  */
 export function loadEntityArtOverlay(): Promise<void> {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
+    if (!import.meta.env.DEV) return;
     try {
       const res = await fetch(ENDPOINT);
       if (res.ok) overlay = ((await res.json()) as Overlay) ?? {};
     } catch {
-      // No dev middleware (e.g. production build) — use definition defaults.
+      // Dev middleware unavailable — keep the bundled overlay.
     }
   })();
   return loadPromise;

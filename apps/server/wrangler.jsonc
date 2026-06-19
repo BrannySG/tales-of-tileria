@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tot-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Co-host the client SPA on the same Worker (ADR-0016): static assets are
+  // served for everything except the game endpoints, which the Worker handles.
+  // SPA fallback serves index.html for unknown routes (client-side routing).
+  "assets": {
+    "directory": "../client/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/play", "/health"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "INSTANCE", "class_name": "InstanceDO" },
+      { "name": "ROUTER", "class_name": "RouterDO" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["InstanceDO", "RouterDO"]
+    }
+  ],
+  "dev": {
+    "port": 8787
+  }
+}

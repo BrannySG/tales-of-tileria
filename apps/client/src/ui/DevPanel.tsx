@@ -32,14 +32,17 @@ function Slider({ label, value, min, max, step, onChange, format }: SliderProps)
 
 export function DevPanel({
   onCombatChange,
+  onPassiveDamageChange,
   onToggleSound,
   onTestLootBurst,
 }: {
   onCombatChange: (partial: Partial<CombatConfig>) => void;
+  onPassiveDamageChange: (amount: number) => void;
   onToggleSound: (enabled: boolean) => void;
   onTestLootBurst: (rarity: Rarity) => void;
 }) {
   const combat = useHud((s) => s.combat);
+  const passiveDamage = useHud((s) => s.passiveDamage);
   const soundEnabled = useHud((s) => s.soundEnabled);
 
   return (
@@ -55,11 +58,11 @@ export function DevPanel({
       />
       <Slider
         label="Passive dmg"
-        value={combat.passiveDamagePerTick}
+        value={passiveDamage}
         min={0}
         max={20}
         step={1}
-        onChange={(v) => onCombatChange({ passiveDamagePerTick: v })}
+        onChange={(v) => onPassiveDamageChange(v)}
       />
       <Slider
         label="Tick (s)"

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LevelDefinition, Player, ToolId, ToolType } from '@tot/shared';
+import { createPlayer, type LevelDefinition, type Player, type SimTransport, type ToolId, type ToolType } from '@tot/shared';
 import { LocalTransport, World } from '@tot/sim';
 import { SceneRenderer } from '../render/SceneRenderer';
+import { WebSocketTransport } from '../net/WebSocketTransport';
+import { getOrCreatePlayerId, getServerWsUrl } from '../net/identity';
 import { loadTextures } from '../render/assets';
 import { SoundSystem, type MusicTrack } from '../audio/SoundSystem';
 import { bindHud, useHud } from '../state/store';
@@ -10,9 +12,22 @@ import { loadGameFonts } from '../assets/fonts';
 import { loadEntityArtOverlay } from '../content/entityArt';
 
 export interface WorldSession {
-  transport: LocalTransport;
+  transport: SimTransport;
   renderer: SceneRenderer;
   sound: SoundSystem;
+}
+
+/** Builds the carried Player snapshot the server is seeded with on join. */
+function carriedPlayer(
+  id: string,
+  name: string,
+  opts: { player?: Player; startingTools?: ToolId[]; tool?: ToolType },
+): Player {
+  if (opts.player) return { ...opts.player, id, displayName: name };
+  const player = createPlayer(id, name);
+  if (opts.startingTools) player.ownedTools = [...opts.startingTools];
+  if (opts.tool) player.equippedToolType = opts.tool;
+  return player;
 }
 
 /**
@@ -29,6 +44,12 @@ export function useWorldScene(
     startingTools?: ToolId[];
     /** A carried Player snapshot to seed the World with (see ADR-0011). */
     player?: Player;
+    /**
+     * Force networked (server-authoritative) play. Defaults to whether the Level
+     * declares a `multiplayer` block (see ADR-0016). Pass `false` to preview a
+     * shared Level locally (e.g. the editor), `true` to require the server.
+     */
+    networked?: boolean;
     /**
      * Music track to loop while this session is mounted (default `ambient_meadow`).
      * Pass `null` for silence — e.g. the onboarding void, which only finds its
@@ -49,26 +70,55 @@ export function useWorldScene(
     let cancelled = false;
     let renderer: SceneRenderer | undefined;
     let onReadyCleanup: (() => void) | void;
+    let unbind: (() => void) | undefined;
+
+    const networked = options.networked ?? !!level.multiplayer;
 
     const sound = new SoundSystem();
-    const world = new World(level, {
-      playerName: options.playerName,
-      equippedTool: options.tool,
-      startingTools: options.startingTools,
-      player: options.player,
-    });
-    const transport = new LocalTransport(world);
-    // Reset the projection store BEFORE binding so hydration is not clobbered.
-    useHud.getState().reset();
-    const unbind = bindHud(transport, buildNameLookup(level));
+    // Apply persisted player audio settings before any music/SFX plays.
+    const audio = useHud.getState();
+    sound.setMusicVolume(audio.musicVolume);
+    sound.setSfxVolume(audio.sfxVolume);
+    sound.setEnabled(audio.soundEnabled);
+
+    // Local play owns its World in-process; networked play defers authority to
+    // the server (see ADR-0016) and only ticks via inbound events.
+    let transport: SimTransport;
+    let wsTransport: WebSocketTransport | undefined;
+    if (networked) {
+      const playerId = getOrCreatePlayerId();
+      wsTransport = new WebSocketTransport({
+        serverUrl: getServerWsUrl(),
+        levelId: level.id,
+        playerId,
+        name: options.playerName,
+        player: carriedPlayer(playerId, options.playerName, options),
+      });
+      transport = wsTransport;
+    } else {
+      const world = new World(level, {
+        playerName: options.playerName,
+        equippedTool: options.tool,
+        startingTools: options.startingTools,
+        player: options.player,
+      });
+      transport = new LocalTransport(world);
+    }
 
     void (async () => {
       const [textures] = await Promise.all([
         loadTextures(),
         loadGameFonts(),
         loadEntityArtOverlay(),
+        // Wait for the authoritative welcome before hydrating the scene.
+        wsTransport ? wsTransport.whenReady() : Promise.resolve(),
       ]);
       if (cancelled || !hostRef.current) return;
+
+      // Reset + bind the projection store once the snapshot is available.
+      useHud.getState().reset();
+      unbind = bindHud(transport, buildNameLookup(level));
+
       renderer = await SceneRenderer.create({
         host: hostRef.current,
         level,
@@ -77,7 +127,10 @@ export function useWorldScene(
         sound,
         playerName: options.playerName,
         equippedTool: options.tool,
-        tick: (dt) => transport.tick(dt),
+        tick: networked ? undefined : (dt) => transport.tick(dt),
+        networked,
+        localPlayerId: networked ? wsTransport!.playerId : transport.getSnapshot().player.id,
+        initialPresence: wsTransport?.getPresence(),
         onOpenCrafting: options.onOpenCrafting,
       });
       if (cancelled) {
@@ -95,7 +148,6 @@ export function useWorldScene(
       if (import.meta.env.DEV) {
         (globalThis as Record<string, unknown>).__tot = {
           snapshot: () => transport.getSnapshot(),
-          combat: () => transport.getCombatConfig(),
         };
       }
       setReady(true);
@@ -104,15 +156,15 @@ export function useWorldScene(
     return () => {
       cancelled = true;
       if (onReadyCleanup) onReadyCleanup();
-      unbind();
+      unbind?.();
       // Each session owns its own SoundSystem; stop music so it never bleeds
       // across level swaps (e.g. tutorial -> Council -> mortal realm).
       sound.stopMusic();
       renderer?.destroy();
+      wsTransport?.close();
       sessionRef.current = null;
       setReady(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level]);
 
   return { hostRef, sessionRef, ready };

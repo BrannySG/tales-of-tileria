@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LevelDefinition, SimEvent } from '@tot/shared';
+import { createPlayer, type LevelDefinition, type SimEvent } from '@tot/shared';
 import { World } from '../src/index';
 
 /** A level with a tree (requires an axe) and a floating axe pickup. */
@@ -61,7 +61,8 @@ describe('World — tool gating', () => {
     const world = new World(makeLevel(), {
       seed: 1,
       startingTools: [],
-      combat: { passiveDamagePerTick: 2, passiveTickSeconds: 0.5 },
+      passiveDamage: 2,
+      combat: { passiveTickSeconds: 0.5 },
     });
     world.applyCommand({ type: 'entity.hoverStart', instanceId: 't1' });
     world.tick(2);
@@ -202,6 +203,42 @@ describe('World — building', () => {
     expect(world.getPlayer().quests.find((q) => q.questId === 'rebuild_shack')?.status).toBe(
       'completed',
     );
+  });
+
+  it('grants rebuild_shack already completed when the shack is already built', () => {
+    const level = makeBuildLevel();
+    // A buildable authored without initialState resolves to built ('available').
+    level.entities = level.entities.map((e) =>
+      e.instanceId === 'shack1' ? { ...e, initialState: undefined } : e,
+    );
+    const world = new World(level, { seed: 1, startingTools: ['axe_rusty'] });
+    const events = world.applyCommand({ type: 'quest.grant', questId: 'rebuild_shack' });
+    expect(typesOf(events)).toContain('quest.updated');
+    expect(world.getPlayer().quests.find((q) => q.questId === 'rebuild_shack')?.status).toBe(
+      'completed',
+    );
+  });
+});
+
+describe('World — quest reconcile on grant', () => {
+  it('grants an acquireTool quest completed when the tool is already owned', () => {
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['axe_rusty'] });
+    world.applyCommand({ type: 'quest.grant', questId: 'pickup_axe' });
+    expect(world.getPlayer().quests.find((q) => q.questId === 'pickup_axe')?.status).toBe(
+      'completed',
+    );
+  });
+
+  it('seeds a collectItem quest from existing inventory on grant', () => {
+    // Player already holds some stone before mine_stone (collect 10) is granted.
+    const player = createPlayer('local', 'Hero');
+    player.ownedTools = ['pickaxe_rusty'];
+    player.inventory = { stone: 4 };
+    const world = new World(makeLevel(), { seed: 1, player });
+    world.applyCommand({ type: 'quest.grant', questId: 'mine_stone' });
+    const quest = world.getPlayer().quests.find((q) => q.questId === 'mine_stone');
+    expect(quest?.progress).toBe(4);
+    expect(quest?.status).toBe('active');
   });
 });
 

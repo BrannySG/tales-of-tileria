@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { CombatConfig, LevelDefinition, Player, Rarity, ToolId, ToolType } from '@tot/shared';
+import { LocalTransport } from '@tot/sim';
 import { useWorldScene, type WorldSession } from './useWorldScene';
 import type { MusicTrack } from '../audio/SoundSystem';
 import { useStageScale } from './useStageScale';
 import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
 import { CraftingMenu } from '../ui/CraftingMenu';
+import { SettingsMenu } from '../ui/SettingsMenu';
 
 export interface WorldSceneProps {
   level: LevelDefinition;
@@ -46,6 +48,7 @@ export function WorldScene({
   onReady,
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
@@ -73,12 +76,28 @@ export function WorldScene({
     sessionRef.current?.transport.send({ type: 'quest.claim', questId });
   };
   const onCombatChange = (partial: Partial<CombatConfig>) => {
-    sessionRef.current?.transport.setCombatConfig(partial);
+    // Combat tuning is a Content-Zoo (local) dev affordance; networked play has
+    // no client-side combat authority.
+    const transport = sessionRef.current?.transport;
+    if (transport instanceof LocalTransport) transport.setCombatConfig(partial);
     useHud.getState().setCombat(partial);
+  };
+  // Passive damage is authoritative player state: send the command and let the
+  // echoed `passiveDamageChanged` event update the HUD store (see ADR-0006).
+  const onPassiveDamageChange = (amount: number) => {
+    sessionRef.current?.transport.send({ type: 'player.setPassiveDamage', amount });
   };
   const onToggleSound = (enabled: boolean) => {
     sessionRef.current?.sound.setEnabled(enabled);
     useHud.getState().setSoundEnabled(enabled);
+  };
+  const onMusicVolumeChange = (volume: number) => {
+    sessionRef.current?.sound.setMusicVolume(volume);
+    useHud.getState().setMusicVolume(volume);
+  };
+  const onSfxVolumeChange = (volume: number) => {
+    sessionRef.current?.sound.setSfxVolume(volume);
+    useHud.getState().setSfxVolume(volume);
   };
   const onTestLootBurst = (rarity: Rarity) => {
     sessionRef.current?.renderer.testLootBurst(rarity);
@@ -114,10 +133,20 @@ export function WorldScene({
               onSelectTool={onSelectTool}
               onClaimQuest={onClaimQuest}
               onCombatChange={onCombatChange}
+              onPassiveDamageChange={onPassiveDamageChange}
               onToggleSound={onToggleSound}
+              onOpenSettings={() => setSettingsOpen(true)}
               onTestLootBurst={onTestLootBurst}
             />
             {craftingOpen && <CraftingMenu onCraft={onCraft} onClose={() => setCraftingOpen(false)} />}
+            {settingsOpen && (
+              <SettingsMenu
+                onMusicVolumeChange={onMusicVolumeChange}
+                onSfxVolumeChange={onSfxVolumeChange}
+                onToggleSound={onToggleSound}
+                onClose={() => setSettingsOpen(false)}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -11,17 +11,21 @@ Active vs Passive damage, Lock, Level vs Level instance, etc.).
 ## Architecture
 
 ```
-packages/shared   Types + content definitions (entities, loot tables) + the
-                  command/event protocol. No runtime deps.
-packages/sim      Headless, deterministic game logic (World, systems,
-                  LocalTransport). Depends only on `shared`. Browser/DOM-free.
+packages/shared   Types + content definitions (entities, loot tables, bundled
+                  levels) + the command/event/net protocol. No runtime deps.
+packages/sim      Headless, deterministic game logic (multi-tenant World,
+                  systems, LocalTransport). Depends only on `shared`. DOM-free.
 apps/client       Vite + React + PixiJS. React owns all DOM UI; Pixi owns the
                   world canvas. Modes: /zoo, /editor, /game.
+apps/server       Cloudflare Worker + Durable Objects: the authoritative
+                  multiplayer runtime (one InstanceDO per Level instance + a
+                  per-Level RouterDO). Runs the same `@tot/sim` World server-side.
 ```
 
 Logic and rendering are separated by a transport boundary (commands in, events
-out) so the same simulation can run on a server later. See
-[`docs/adr`](docs/adr) for the key decisions.
+out): the same `World` runs in-process via `LocalTransport` (single-player) or
+server-side in a Durable Object reached via `WebSocketTransport` (multiplayer).
+See [`docs/adr`](docs/adr) for the key decisions (multiplayer is ADR-0014/0016).
 
 ## Requirements
 
@@ -34,6 +38,28 @@ out) so the same simulation can run on a server later. See
 pnpm install
 pnpm dev        # start the client dev server (http://localhost:5173)
 ```
+
+### Multiplayer (two processes)
+
+The shared open world (`#/game`, and the end of onboarding) is server-authoritative.
+Run the game server alongside the client in a second terminal:
+
+```bash
+pnpm dev:server   # wrangler dev (Miniflare) on http://localhost:8787
+pnpm dev          # Vite client on http://localhost:5173
+```
+
+In local dev the client reads the server WebSocket URL from `VITE_TOT_SERVER_URL`
+(`apps/client/.env.development` defaults it to `ws://localhost:8787`, since Vite and
+the server run on different ports). Single-player modes (Content Zoo, Editor, the
+tutorial/Council) need only `pnpm dev`.
+
+In production the client and server are **co-hosted on one Worker**: `pnpm deploy:server`
+builds the client and serves it as static assets from the same Worker that owns the
+multiplayer endpoints (`/play`, `/health`); everything else falls back to the SPA. The
+client derives its WebSocket URL from the page origin, so no env var is needed. It is
+live at `https://tot-server.branny.workers.dev` (and the custom domain
+`tileria.saucegames.io`). Deploying requires `wrangler login`.
 
 Then open one of the modes (also reachable from the top nav):
 
@@ -48,12 +74,14 @@ Then open one of the modes (also reachable from the top nav):
 ## Scripts
 
 ```bash
-pnpm dev          # run the client
-pnpm build        # production build of the client
-pnpm test         # run sim unit tests (Vitest)
-pnpm typecheck    # typecheck all packages
-pnpm lint         # ESLint
-pnpm format       # Prettier
+pnpm dev            # run the client
+pnpm dev:server     # run the multiplayer game server (wrangler dev)
+pnpm build          # production build of the client
+pnpm deploy:server  # deploy the game server to Cloudflare (needs wrangler login)
+pnpm test           # run sim unit tests (Vitest)
+pnpm typecheck      # typecheck all packages
+pnpm lint           # ESLint
+pnpm format         # Prettier
 ```
 
 ## Notes / deviations

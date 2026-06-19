@@ -22,6 +22,9 @@ export interface EditorSceneOptions {
   host: HTMLElement;
   textures: TextureMap;
   backgroundTextureId: string;
+  /** Initial world bounds; defaults to the viewport size. */
+  worldWidth?: number;
+  worldHeight?: number;
   onChange: (entities: PlacedEntity[]) => void;
   onSelect: (instanceId: string | null) => void;
 }
@@ -43,7 +46,19 @@ export class EditorScene {
   private counter = 0;
   private resizeObserver?: ResizeObserver;
 
-  private constructor(private readonly opts: EditorSceneOptions) {}
+  /**
+   * The authored World bounds (the editable area). The Pixi canvas is sized to
+   * this and CSS-scaled to fit the host, so the whole World is always visible
+   * (fit-to-view). Never smaller than the viewport, so the in-game camera clamp
+   * stays valid.
+   */
+  private worldWidth: number;
+  private worldHeight: number;
+
+  private constructor(private readonly opts: EditorSceneOptions) {
+    this.worldWidth = Math.max(VIRTUAL_WIDTH, opts.worldWidth ?? VIRTUAL_WIDTH);
+    this.worldHeight = Math.max(VIRTUAL_HEIGHT, opts.worldHeight ?? VIRTUAL_HEIGHT);
+  }
 
   static async create(opts: EditorSceneOptions): Promise<EditorScene> {
     const scene = new EditorScene(opts);
@@ -54,8 +69,8 @@ export class EditorScene {
   private async init(): Promise<void> {
     const app = new Application();
     await app.init({
-      width: VIRTUAL_WIDTH,
-      height: VIRTUAL_HEIGHT,
+      width: this.worldWidth,
+      height: this.worldHeight,
       background: 0x101216,
       antialias: true,
     });
@@ -63,11 +78,11 @@ export class EditorScene {
     this.opts.host.appendChild(app.canvas);
 
     app.stage.eventMode = 'static';
-    app.stage.hitArea = new Rectangle(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    app.stage.hitArea = new Rectangle(0, 0, this.worldWidth, this.worldHeight);
 
     const bg = new Sprite();
-    bg.width = VIRTUAL_WIDTH;
-    bg.height = VIRTUAL_HEIGHT;
+    bg.width = this.worldWidth;
+    bg.height = this.worldHeight;
     bg.eventMode = 'static';
     bg.on('pointerdown', () => this.select(null));
     app.stage.addChild(bg);
@@ -94,8 +109,36 @@ export class EditorScene {
     const tex = this.opts.textures.get(textureId);
     if (!tex) return;
     this.bg.texture = tex;
-    this.bg.width = VIRTUAL_WIDTH;
-    this.bg.height = VIRTUAL_HEIGHT;
+    this.bg.width = this.worldWidth;
+    this.bg.height = this.worldHeight;
+  }
+
+  /**
+   * Resizes the editable World (the authored width/height). Clamped to a minimum
+   * of the viewport so the in-game camera clamp never inverts. Resizes the
+   * canvas + background, pulls any now-out-of-bounds entities back inside, and
+   * re-fits the whole World into the host.
+   */
+  setWorldSize(width: number, height: number): void {
+    this.worldWidth = Math.max(VIRTUAL_WIDTH, Math.round(width));
+    this.worldHeight = Math.max(VIRTUAL_HEIGHT, Math.round(height));
+    this.app.renderer.resize(this.worldWidth, this.worldHeight);
+    this.app.stage.hitArea = new Rectangle(0, 0, this.worldWidth, this.worldHeight);
+    if (this.bg) {
+      this.bg.width = this.worldWidth;
+      this.bg.height = this.worldHeight;
+    }
+    // Keep every placed entity inside the (possibly smaller) bounds.
+    for (const entry of this.entities.values()) {
+      const x = clamp(entry.container.x, 0, this.worldWidth);
+      const y = clamp(entry.container.y, 0, this.worldHeight);
+      entry.container.x = entry.placed.x = Math.round(x);
+      entry.container.y = entry.placed.y = Math.round(y);
+      entry.container.zIndex = entry.container.y;
+    }
+    this.redrawOutline();
+    this.fitToHost();
+    this.emitChange();
   }
 
   /** Replaces all placed entities (e.g. on load / new level). */
@@ -114,8 +157,8 @@ export class EditorScene {
     const placed: PlacedEntity = {
       instanceId,
       definitionId,
-      x: Math.round(clamp(x, 0, VIRTUAL_WIDTH)),
-      y: Math.round(clamp(y, 0, VIRTUAL_HEIGHT)),
+      x: Math.round(clamp(x, 0, this.worldWidth)),
+      y: Math.round(clamp(y, 0, this.worldHeight)),
     };
     this.spawn(placed);
     this.select(instanceId);
@@ -141,8 +184,8 @@ export class EditorScene {
   /** Converts DOM client coordinates (e.g. a drop event) to world coords. */
   worldFromClient(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.app.canvas.getBoundingClientRect();
-    const x = ((clientX - rect.left) / rect.width) * VIRTUAL_WIDTH;
-    const y = ((clientY - rect.top) / rect.height) * VIRTUAL_HEIGHT;
+    const x = ((clientX - rect.left) / rect.width) * this.worldWidth;
+    const y = ((clientY - rect.top) / rect.height) * this.worldHeight;
     return { x, y };
   }
 
@@ -195,8 +238,8 @@ export class EditorScene {
     if (!this.dragging) return;
     const entry = this.entities.get(this.dragging.id);
     if (!entry) return;
-    entry.container.x = clamp(e.global.x - this.dragging.offsetX, 0, VIRTUAL_WIDTH);
-    entry.container.y = clamp(e.global.y - this.dragging.offsetY, 0, VIRTUAL_HEIGHT);
+    entry.container.x = clamp(e.global.x - this.dragging.offsetX, 0, this.worldWidth);
+    entry.container.y = clamp(e.global.y - this.dragging.offsetY, 0, this.worldHeight);
     entry.container.zIndex = entry.container.y;
     this.redrawOutline();
   }
@@ -236,9 +279,9 @@ export class EditorScene {
   private fitToHost(): void {
     const { clientWidth: w, clientHeight: h } = this.opts.host;
     if (!w || !h) return;
-    const scale = Math.min(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
-    this.app.canvas.style.width = `${Math.round(VIRTUAL_WIDTH * scale)}px`;
-    this.app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
+    const scale = Math.min(w / this.worldWidth, h / this.worldHeight);
+    this.app.canvas.style.width = `${Math.round(this.worldWidth * scale)}px`;
+    this.app.canvas.style.height = `${Math.round(this.worldHeight * scale)}px`;
   }
 }
 

@@ -29,6 +29,7 @@ export function EditorMode() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [meta, setMeta] = useState<LevelMeta>({ id: 'my_level', displayName: 'My Level' });
   const [backgroundId, setBackgroundId] = useState(DEFAULT_BACKGROUND_ID);
+  const [size, setSize] = useState({ width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT });
   const [saved, setSaved] = useState<LevelSummary[]>([]);
   const [status, setStatus] = useState('');
 
@@ -46,6 +47,8 @@ export function EditorMode() {
         host: hostRef.current,
         textures,
         backgroundTextureId: DEFAULT_BACKGROUND_ID,
+        worldWidth: VIRTUAL_WIDTH,
+        worldHeight: VIRTUAL_HEIGHT,
         onChange: setEntities,
         onSelect: setSelectedId,
       });
@@ -84,13 +87,20 @@ export function EditorMode() {
     sceneRef.current?.setBackground(id);
   };
 
+  const onChangeSize = (width: number, height: number) => {
+    const w = Math.max(VIRTUAL_WIDTH, Math.round(width) || VIRTUAL_WIDTH);
+    const h = Math.max(VIRTUAL_HEIGHT, Math.round(height) || VIRTUAL_HEIGHT);
+    setSize({ width: w, height: h });
+    sceneRef.current?.setWorldSize(w, h);
+  };
+
   const onSave = async () => {
     const level: LevelDefinition = {
       id: meta.id.trim() || 'untitled',
       displayName: meta.displayName.trim() || 'Untitled',
       backgroundTextureId: backgroundId,
-      width: VIRTUAL_WIDTH,
-      height: VIRTUAL_HEIGHT,
+      width: size.width,
+      height: size.height,
       entities,
     };
     try {
@@ -108,6 +118,10 @@ export function EditorMode() {
       const level = await loadLevel(id);
       setMeta({ id: level.id, displayName: level.displayName });
       setBackgroundId(level.backgroundTextureId);
+      const w = Math.max(VIRTUAL_WIDTH, level.width || VIRTUAL_WIDTH);
+      const h = Math.max(VIRTUAL_HEIGHT, level.height || VIRTUAL_HEIGHT);
+      setSize({ width: w, height: h });
+      sceneRef.current?.setWorldSize(w, h);
       sceneRef.current?.setBackground(level.backgroundTextureId);
       sceneRef.current?.loadEntities(level.entities);
       setStatus(`Loaded "${level.id}"`);
@@ -120,6 +134,7 @@ export function EditorMode() {
     sceneRef.current?.loadEntities([]);
     setMeta({ id: 'my_level', displayName: 'My Level' });
     onChangeBackground(DEFAULT_BACKGROUND_ID);
+    onChangeSize(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
     setStatus('New level');
   };
 
@@ -171,6 +186,42 @@ export function EditorMode() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="field">
+          <label>World size (min {VIRTUAL_WIDTH}x{VIRTUAL_HEIGHT})</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              type="number"
+              aria-label="World width"
+              step={VIRTUAL_WIDTH}
+              min={VIRTUAL_WIDTH}
+              value={size.width}
+              onChange={(e) => onChangeSize(Number(e.target.value), size.height)}
+            />
+            <input
+              type="number"
+              aria-label="World height"
+              step={VIRTUAL_HEIGHT}
+              min={VIRTUAL_HEIGHT}
+              value={size.height}
+              onChange={(e) => onChangeSize(size.width, Number(e.target.value))}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            {[1, 2, 3].map((mult) => {
+              const active = size.width === VIRTUAL_WIDTH * mult && size.height === VIRTUAL_HEIGHT * mult;
+              return (
+                <button
+                  key={mult}
+                  className="btn secondary"
+                  style={{ flex: 1, opacity: active ? 1 : 0.7 }}
+                  onClick={() => onChangeSize(VIRTUAL_WIDTH * mult, VIRTUAL_HEIGHT * mult)}
+                >
+                  {mult}x
+                </button>
+              );
+            })}
+          </div>
         </div>
         <button className="btn" onClick={onSave}>
           Save

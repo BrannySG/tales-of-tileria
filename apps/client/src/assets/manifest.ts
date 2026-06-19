@@ -23,6 +23,8 @@ import fxSmite from '@assets/FX/T_FX_Smite.png';
 import iconAxe from '@assets/T_Item_Axe_Icon.png';
 import iconPickaxe from '@assets/T_Item_Pickaxe_Icon.png';
 import iconSword from '@assets/T_Item_Sword_Icon.png';
+import itemAxeRusty from '@assets/T_Item_RustyAxe.png';
+import itemPickaxeRusty from '@assets/T_Item_RustyPickaxe.png';
 import itemWood from '@assets/T_Item_WoodLogs.png';
 import itemStone from '@assets/T_Item_Stone.png';
 import coinGold from '@assets/Coin 2 Gold Outline 256.png';
@@ -56,6 +58,8 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   icon_axe: iconAxe,
   icon_pickaxe: iconPickaxe,
   icon_sword: iconSword,
+  item_axe_rusty: itemAxeRusty,
+  item_pickaxe_rusty: itemPickaxeRusty,
   item_wood: itemWood,
   item_stone: itemStone,
   coin_gold: coinGold,

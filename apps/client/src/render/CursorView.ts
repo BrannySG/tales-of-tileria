@@ -1,6 +1,4 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
-import type { ToolType } from '@tot/shared';
-import { TOOL_ICON } from '../assets/manifest';
 import { CURSOR_SHADOW_OFFSET, createCursorShadow } from './entityFx';
 import type { TextureMap } from './assets';
 
@@ -28,7 +26,7 @@ export class CursorView {
 
   constructor(
     private readonly textures: TextureMap,
-    toolType?: ToolType,
+    iconTextureId?: string,
   ) {
     this.container.eventMode = 'none';
     this.container.zIndex = 1000;
@@ -36,12 +34,12 @@ export class CursorView {
     this.lockRing.zIndex = 0;
     this.drawRing(this.ring, 0xffffff, 0.5);
 
-    const iconTex = toolType ? this.textures.get(TOOL_ICON[toolType]) : undefined;
+    const iconTex = iconTextureId ? this.textures.get(iconTextureId) : undefined;
     this.toolIcon = new Sprite(iconTex);
     this.toolIcon.anchor.set(0.5);
     this.toolIcon.width = 34;
     this.toolIcon.height = 34;
-    this.toolIcon.visible = Boolean(toolType);
+    this.toolIcon.visible = Boolean(iconTex);
 
     // The ring + tool icon are a single fading group, hidden until targeting.
     this.ringGroup.addChild(this.lockRing, this.ring, this.toolIcon);
@@ -76,12 +74,12 @@ export class CursorView {
     this.container.y = y;
   }
 
-  setTool(toolType: ToolType | undefined): void {
-    if (!toolType) {
+  setTool(iconTextureId: string | undefined): void {
+    if (!iconTextureId) {
       this.toolIcon.visible = false;
       return;
     }
-    const tex = this.textures.get(TOOL_ICON[toolType]);
+    const tex = this.textures.get(iconTextureId);
     if (tex) {
       this.toolIcon.texture = tex;
       this.toolIcon.visible = true;

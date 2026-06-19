@@ -1,6 +1,5 @@
 import {
   Application,
-  Circle,
   Container,
   Graphics,
   Rectangle,
@@ -19,6 +18,7 @@ import {
   type EntityDefinition,
   type EntityInstance,
   type LevelDefinition,
+  type PresenceInfo,
   type Rarity,
   type SimEvent,
   type SimTransport,
@@ -26,34 +26,26 @@ import {
   type ToolId,
   type ToolType,
 } from '@tot/shared';
-import { CINEMATIC_CAMERA, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
+import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
 import { EntityView } from './EntityView';
 import { CursorView } from './CursorView';
+import { RemoteCursorManager } from './RemoteCursorManager';
 import { ParticleSystem, driftBurstOptions, type BurstOptions } from './particles';
 import { LootDropSystem } from './LootDropSystem';
 import { DamageNumbers } from './damageNumbers';
 import { WispSystem, type WispOptions } from './WispSystem';
 import { FallingLeavesSystem } from './FallingLeavesSystem';
-import { WorldPrompt } from './WorldPrompt';
 import { Animator, Easings } from './juice';
+import { CinematicController } from './CinematicController';
+import { CameraController } from './CameraController';
+import { WorldPromptManager } from './WorldPromptManager';
+import { NpcReactionController } from './NpcReactionController';
+import type { Updatable } from './Updatable';
 import { GAME_FONT_FAMILY } from '../assets/fonts';
+import { TOOL_ICON } from '../assets/manifest';
 import type { TextureMap } from './assets';
 import type { SoundSystem } from '../audio/SoundSystem';
-import { pickLine, type ReactionTrigger } from '../content/npcLines';
-
-/** Seconds an NPC stays quiet after speaking, so reactions don't spam. */
-const NPC_REACTION_COOLDOWN = 4;
-/** Build prompts should sit close to the unbuilt prop, not high above its art. */
-const BUILD_PROMPT_DOWNWARD_OFFSET_RATIO = 0.28;
-/** Small lift so the craft prompt floats just clear of the furnace's roof. */
-const CRAFT_PROMPT_FURNACE_OFFSET = 16;
-
-interface NpcEntry {
-  view: EntityView;
-  x: number;
-  y: number;
-  cooldown: number;
-}
+import { useHud } from '../state/store';
 
 interface FloatingText {
   text: Text;
@@ -80,16 +72,6 @@ function indefiniteArticle(word: string): string {
   return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }
 
-/** Maps a depleted entity to a reaction trigger (or null = no reaction). */
-function reactionTriggerFor(def: EntityDefinition): ReactionTrigger | null {
-  const tags = def.tags ?? [];
-  if (tags.includes('shack')) return 'shack_broken';
-  if (tags.includes('oak')) return 'oak_chopped';
-  if (tags.includes('tree')) return 'tree_depleted';
-  if (tags.includes('rock')) return 'rock_depleted';
-  return null;
-}
-
 export interface SceneRendererOptions {
   host: HTMLElement;
   level: LevelDefinition;
@@ -102,31 +84,38 @@ export interface SceneRendererOptions {
   showCursor?: boolean;
   /** Enable entity pointer interactions (hover/tap). Default true. */
   interactive?: boolean;
-  /** Drives the sim clock each frame (e.g. LocalTransport.tick bound). */
+  /** Drives the sim clock each frame (e.g. LocalTransport.tick bound). Omit when networked (the server ticks). */
   tick?: (dt: number) => void;
   /** Invoked when the player taps the craft prompt over Mr Smith. */
   onOpenCrafting?: () => void;
+  /**
+   * Networked session (see ADR-0016): enables remote cursors, optimistic local
+   * hit feedback, and world-space cursor broadcasting. Requires `localPlayerId`.
+   */
+  networked?: boolean;
+  /** This client's player id, used to tell self events from other players'. */
+  localPlayerId?: string;
+  /** Players already present on join, to spawn their remote cursors immediately. */
+  initialPresence?: PresenceInfo[];
 }
 
-/** Something the renderer ticks each frame (wisps, director props, captions). */
-export interface Updatable {
-  update(dt: number): void;
-}
+export type { Updatable };
 
 /**
  * Owns the Pixi application and translates the transport's domain events into
  * on-screen feedback (entity juice, particles, floating numbers, sound). Pure
  * presentation: it never mutates game state, only sends commands.
  *
- * It also exposes a small "cinematic" API (blackout, wisps, captions, prop
- * layer, speak-at) used by the onboarding Director (see ADR-0005); the Director
- * still drives the world only through transport commands.
+ * It delegates focused concerns to collaborators: cinematic presentation (the
+ * Director-facing blackout/camera/wisps API, `CinematicController`), in-world
+ * prompts + the shrine offering glow (`WorldPromptManager`), and NPC reactions
+ * (`NpcReactionController`). It re-exposes the cinematic API as thin delegating
+ * methods so the Directors' call sites are unchanged (see ADR-0005).
  */
 export class SceneRenderer {
   private app!: Application;
   private readonly views = new Map<string, EntityView>();
   private readonly defs = new Map<string, EntityDefinition>();
-  private readonly npcs: NpcEntry[] = [];
   /**
    * Presentation-only camera: parents the world visual layers (background,
    * ambient, entities + their speech bubbles, world FX) so they can be zoomed
@@ -146,6 +135,8 @@ export class SceneRenderer {
   private lootDrops!: LootDropSystem;
   private damageNumbers!: DamageNumbers;
   private cursorView?: CursorView;
+  /** Other players' cursors in this Level instance (networked sessions only). */
+  private remoteCursors?: RemoteCursorManager;
   private currentTargetId: string | undefined;
   private locked = false;
   private unsubscribe?: () => void;
@@ -153,31 +144,74 @@ export class SceneRenderer {
   private readonly cineAnimator = new Animator();
   private readonly updatables = new Set<Updatable>();
   private readonly floatingTexts: FloatingText[] = [];
-  private wisps?: WispSystem;
-  /** Persistent ambient firefly field for the live world (distinct from the cinematic `wisps`). */
+  /** Persistent ambient firefly field for the live world (distinct from cinematic wisps). */
   private ambientWisps?: WispSystem;
   private fallingLeaves!: FallingLeavesSystem;
-  /** Live mirror of the player's inventory, used to drive Build Prompts. */
-  private inventory: Record<string, number> = {};
-  /** Active Build Prompts keyed by the (unbuilt Buildable) instance id. */
-  private readonly buildPrompts = new Map<string, WorldPrompt>();
-  /** Shrine instance ids and their offering glow overlays (tap the glow to claim). */
-  private readonly shrineIds = new Set<string>();
-  private readonly offeringGlows = new Map<string, Container>();
-  /** Live mirror of player tool/skill/crafting state for the cursor ring + prompts. */
-  private ownedToolIds: ToolId[] = [];
-  private skillLevels: Partial<Record<SkillId, number>> = {};
-  private craftingUnlocked = false;
-  private craftPrompt?: WorldPrompt;
-  /** While a craft is in flight, a countdown badge replaces the craft prompt. */
-  private furnaceTimer?: WorldPrompt;
-  private furnaceTimerTick?: Updatable;
-  /** True once an NPC has reacted to the first Smite (so it fires only once). */
-  private smiteWitnessed = false;
   /** Instances whose next entity.damaged number should be skipped (a Smite owns it). */
   private readonly smiteSuppressNumberFor = new Set<string>();
 
+  private cinematic!: CinematicController;
+  private prompts!: WorldPromptManager;
+  private npcReactions!: NpcReactionController;
+  private camera!: CameraController;
+
+  /**
+   * The world's full extent in world units (the pannable area), read from the
+   * level. The viewport stays fixed at VIRTUAL_WIDTH x VIRTUAL_HEIGHT; when the
+   * world is larger, the camera pans across it. A 1920x1080 level has
+   * world == viewport, so it never pans (behaves exactly as before).
+   */
+  private worldWidth = VIRTUAL_WIDTH;
+  private worldHeight = VIRTUAL_HEIGHT;
+
+  /**
+   * Last camera position seen by the frame loop, used to cheaply detect when the
+   * camera has panned so we can refresh hover under a stationary pointer.
+   */
+  private prevCameraX = 0;
+  private prevCameraY = 0;
+  /**
+   * Last real DOM pointer position (clientX/Y), its id and type. When the camera
+   * pans under a still cursor we re-dispatch a synthetic pointermove here so Pixi
+   * recomputes hover (see `refreshHoverAfterCameraPan`).
+   */
+  private lastPointerClientX = 0;
+  private lastPointerClientY = 0;
+  private lastPointerId = 1;
+  private lastPointerType = 'mouse';
+  private pointerInsideCanvas = false;
+
   private constructor(private readonly opts: SceneRendererOptions) {}
+
+  private get networked(): boolean {
+    return this.opts.networked === true;
+  }
+
+  /** Converts a screen-space (stage) point to world coords under the camera. */
+  private toWorldPoint(gx: number, gy: number): { x: number; y: number } {
+    const cam = this.worldCamera;
+    const sx = cam.scale.x || 1;
+    const sy = cam.scale.y || 1;
+    return { x: (gx - cam.position.x) / sx, y: (gy - cam.position.y) / sy };
+  }
+
+  // --- Player-state reads (single projection, see ADR-0006) ---
+  // The HUD store is the one projection of authoritative player state. The
+  // renderer reads tool/skill/crafting facts from it rather than keeping
+  // parallel mirrors that could drift. `bindHud` subscribes before this
+  // renderer does (see useWorldScene), so the store is always updated first.
+
+  private get ownedToolIds(): readonly ToolId[] {
+    return useHud.getState().ownedToolIds;
+  }
+
+  private get craftingUnlocked(): boolean {
+    return useHud.getState().craftingUnlocked;
+  }
+
+  private skillLevel(skillId: SkillId): number {
+    return useHud.getState().skills[skillId]?.level ?? 1;
+  }
 
   static async create(opts: SceneRendererOptions): Promise<SceneRenderer> {
     const renderer = new SceneRenderer(opts);
@@ -196,6 +230,9 @@ export class SceneRenderer {
       autoDensity: false,
     });
     this.app = app;
+    // World extent comes from the level; the viewport stays fixed (above).
+    this.worldWidth = this.opts.level.width || VIRTUAL_WIDTH;
+    this.worldHeight = this.opts.level.height || VIRTUAL_HEIGHT;
     this.opts.host.appendChild(app.canvas);
     app.canvas.style.cursor = this.opts.showCursor === false ? 'default' : 'none';
     if (this.opts.showCursor !== false) {
@@ -212,8 +249,10 @@ export class SceneRenderer {
     const bgTex = this.opts.textures.get(this.opts.level.backgroundTextureId);
     if (bgTex) {
       const bg = new Sprite(bgTex);
-      bg.width = VIRTUAL_WIDTH;
-      bg.height = VIRTUAL_HEIGHT;
+      // The background stretches to cover the whole world (not just the
+      // viewport), so a larger world simply shows more ground as you pan.
+      bg.width = this.worldWidth;
+      bg.height = this.worldHeight;
       bg.eventMode = 'static';
       bg.on('pointertap', () => {
         if (this.opts.interactive !== false) this.opts.transport.send({ type: 'entity.unlock' });
@@ -228,6 +267,14 @@ export class SceneRenderer {
     // World layers ride inside the camera; the blackout and cursor stay fixed
     // in screen space above it.
     this.worldCamera.addChild(this.ambientLayer, this.entityLayer, this.fxLayer);
+    // Remote cursors live in world space (above the world FX) so they track the
+    // right spot in the shared Level as the local player pans (see ADR-0016).
+    if (this.networked && this.opts.localPlayerId) {
+      this.remoteCursors = new RemoteCursorManager(this.opts.textures, this.opts.localPlayerId);
+      this.worldCamera.addChild(this.remoteCursors.layer);
+      if (this.opts.initialPresence) this.remoteCursors.seed(this.opts.initialPresence);
+      this.updatables.add(this.remoteCursors);
+    }
     app.stage.addChild(this.cinematicRoot, this.cursorLayer);
     this.cinematicRoot.addChild(this.blackout, this.cinematicContent);
     this.blackout.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill(0x000000);
@@ -259,29 +306,72 @@ export class SceneRenderer {
     });
     this.updatables.add(this.ambientWisps);
 
+    // Player-driven pan camera over the (possibly larger) world. Pinned at the
+    // origin when world == viewport, so 1920x1080 levels never pan (ADR-0015).
+    this.camera = new CameraController({
+      camera: this.worldCamera,
+      worldWidth: this.worldWidth,
+      worldHeight: this.worldHeight,
+      viewportWidth: VIRTUAL_WIDTH,
+      viewportHeight: VIRTUAL_HEIGHT,
+    });
+    this.camera.centerOnWorld();
+    this.updatables.add(this.camera);
+    if (this.opts.interactive !== false) this.setupCameraInput(app);
+
+    // Collaborators (after the layers + particles they draw into exist).
+    this.cinematic = new CinematicController({
+      worldCamera: this.worldCamera,
+      cinematicRoot: this.cinematicRoot,
+      cinematicContent: this.cinematicContent,
+      blackout: this.blackout,
+      particles: this.cinematicParticles,
+      animator: this.cineAnimator,
+      textures: this.opts.textures,
+      resolveWorldPoint: (t) => this.resolveWorldPoint(t),
+      addUpdatable: (u) => this.addUpdatable(u),
+      playSound: (...args) => this.opts.sound?.play(...args),
+      setCameraInputEnabled: (on) => this.camera.setEnabled(on),
+      restingCameraTarget: () => this.camera.restingPosition(),
+    });
+    this.prompts = new WorldPromptManager({
+      textures: this.opts.textures,
+      send: (cmd) => this.opts.transport.send(cmd),
+      addUpdatable: (u) => this.addUpdatable(u),
+      getView: (id) => this.views.get(id),
+      getDef: (id) => this.defs.get(id),
+      craftingStationView: () => this.craftingStationView(),
+      setCursorTargeting: (on) => this.cursorView?.setTargeting(on),
+      onOpenCrafting: this.opts.onOpenCrafting,
+      interactive: this.opts.interactive !== false,
+    });
+    this.npcReactions = new NpcReactionController();
+
     const snapshot = this.opts.transport.getSnapshot();
-    this.inventory = { ...snapshot.player.inventory };
-    this.ownedToolIds = [...snapshot.player.ownedTools];
-    for (const id of Object.keys(snapshot.player.skills) as SkillId[]) {
-      this.skillLevels[id] = snapshot.player.skills[id].level;
-    }
-    this.craftingUnlocked = snapshot.player.craftingUnlocked;
+    // Player-state mirrors (inventory/tools/skills/crafting) come from the HUD
+    // store, which `bindHud` has already hydrated from this same snapshot.
     for (const inst of snapshot.entities) this.addEntityView(inst);
     // Restore any offering already sitting on a shrine (e.g. carried snapshot).
     for (const inst of snapshot.entities) {
-      if (inst.pendingOffering) this.showOffering(inst.instanceId, inst.pendingOffering.grantsToolId);
+      if (inst.pendingOffering) this.prompts.showOffering(inst.instanceId, inst.pendingOffering.grantsToolId);
     }
-    if (this.craftingUnlocked) this.ensureCraftPrompt();
+    if (this.craftingUnlocked) this.prompts.ensureCraftPrompt();
     // A carried snapshot may arrive mid-craft: show the busy timer, not the prompt.
     const job = snapshot.player.craftingJob;
-    if (job) this.showFurnaceTimer(job.remainingSeconds, job.totalSeconds);
+    if (job) this.prompts.showFurnaceTimer(job.remainingSeconds, job.totalSeconds);
 
     if (this.opts.showCursor !== false) {
-      this.cursorView = new CursorView(this.opts.textures, snapshot.player.equippedToolType);
+      this.cursorView = new CursorView(
+        this.opts.textures,
+        this.toolIconForType(snapshot.player.equippedToolType),
+      );
       this.cursorLayer.addChild(this.cursorView.container);
       app.stage.on('globalpointermove', (e: FederatedPointerEvent) => {
         this.cursorView?.setPosition(e.global.x, e.global.y);
-        this.opts.transport.send({ type: 'cursor.move', x: e.global.x, y: e.global.y });
+        // Cursors travel as WORLD coords so remote clients place them at the right
+        // spot in the shared world regardless of each viewer's camera pan.
+        const wp = this.toWorldPoint(e.global.x, e.global.y);
+        this.opts.transport.send({ type: 'cursor.move', x: wp.x, y: wp.y });
       });
     }
 
@@ -298,6 +388,37 @@ export class SceneRenderer {
     this.resizeObserver.observe(this.opts.host);
   }
 
+  /**
+   * Wires the player camera's pointer inputs: edge-push tracks the desktop
+   * cursor near a viewport edge, and touch drag grabs-and-pulls the world. Both
+   * read screen-space pointer coords (the cursor never leaves screen space, so
+   * no world conversion is needed). Below the tap threshold a touch falls
+   * through as a normal tap, so tap-to-damage still works.
+   */
+  private setupCameraInput(app: Application): void {
+    const stage = app.stage;
+    stage.on('globalpointermove', (e: FederatedPointerEvent) => {
+      this.camera.setPointer(e.global.x, e.global.y, e.pointerType !== 'touch');
+      this.camera.dragMove(e.global.x, e.global.y);
+      // Remember the real pointer so a camera pan can re-poll hover at it.
+      this.lastPointerClientX = e.client.x;
+      this.lastPointerClientY = e.client.y;
+      this.lastPointerId = e.pointerId;
+      this.lastPointerType = e.pointerType || 'mouse';
+      this.pointerInsideCanvas = true;
+    });
+    stage.on('pointerdown', (e: FederatedPointerEvent) => {
+      if (e.pointerType === 'touch') this.camera.beginDrag(e.global.x, e.global.y);
+    });
+    stage.on('pointerup', () => this.camera.endDrag());
+    stage.on('pointerupoutside', () => this.camera.endDrag());
+    // Stop edge-push (and hover re-polling) the moment the mouse leaves the canvas.
+    app.canvas.addEventListener('pointerleave', () => {
+      this.camera.clearPointer();
+      this.pointerInsideCanvas = false;
+    });
+  }
+
   /** Builds, registers, and wires the view for an entity instance. */
   private addEntityView(inst: EntityInstance): EntityView {
     const def = requireEntityDefinition(inst.definitionId);
@@ -308,7 +429,7 @@ export class SceneRenderer {
     this.entityLayer.addChild(view.container);
     if ((def.tags ?? []).includes('tree')) this.registerLeafSource(view, inst);
     if (def.kind === 'npc') {
-      this.npcs.push({ view, x: inst.x, y: inst.y, cooldown: 0 });
+      this.npcReactions.register(view, inst.x, inst.y);
     } else if (def.kind === 'cursorBeing') {
       // Celestial/other cursors are non-interactive scriptable speakers. They
       // start hidden when locked so a director can reveal them on cue.
@@ -317,15 +438,14 @@ export class SceneRenderer {
         view.container.visible = false;
       }
     } else if (def.kind === 'shrine') {
-      this.shrineIds.add(inst.instanceId);
       // A locked shrine stays hidden until enabled, then appears on cue.
       if (inst.locked) view.container.visible = false;
-      if (this.opts.interactive !== false) this.wireShrine(view, inst.instanceId);
+      if (this.opts.interactive !== false) this.prompts.wireShrine(view, inst.instanceId);
     } else if (this.opts.interactive !== false) {
       if (def.buildable) {
         // Buildables are inert; their only interaction is the Build Prompt,
         // which only appears once the Buildable is enabled (unlocked).
-        if (inst.state === 'unbuilt' && !inst.locked) this.setupBuildPrompt(view, inst.instanceId, def);
+        if (inst.state === 'unbuilt' && !inst.locked) this.prompts.setupBuildPrompt(view, inst.instanceId, def);
       } else {
         this.wireEntity(view, inst.instanceId, def);
         // A Locked pickup is hidden entirely until enabled, so it "spawns" on
@@ -356,256 +476,6 @@ export class SceneRenderer {
     this.fallingLeaves.setSourceActive(inst.instanceId, inst.state === 'available');
   }
 
-  /** Attaches a generic Build Prompt above an unbuilt Buildable entity. */
-  private setupBuildPrompt(view: EntityView, instanceId: string, def: EntityDefinition): void {
-    const cost = def.buildable?.cost;
-    if (!cost || cost.length === 0) return;
-    if (this.buildPrompts.has(instanceId)) return;
-    const prompt = new WorldPrompt({
-      onTap: () => this.opts.transport.send({ type: 'entity.build', instanceId }),
-    });
-    // Multi-cost prompt shows the icon of the still-most-lacking resource.
-    const iconTex = this.opts.textures.get(`item_${cost[0]!.itemId}`);
-    if (iconTex) prompt.setIcon(iconTex);
-    prompt.setBaseY(view.headAnchorY + view.visualHeight * BUILD_PROMPT_DOWNWARD_OFFSET_RATIO);
-    prompt.container.zIndex = 50;
-    view.container.addChild(prompt.container);
-    this.buildPrompts.set(instanceId, prompt);
-    this.updatables.add(prompt);
-    this.refreshBuildPrompt(instanceId);
-    prompt.appear();
-  }
-
-  /** Updates a Build Prompt's progress + ready state from the live inventory. */
-  private refreshBuildPrompt(instanceId: string): void {
-    const prompt = this.buildPrompts.get(instanceId);
-    const cost = this.defs.get(instanceId)?.buildable?.cost;
-    if (!prompt || !cost || cost.length === 0) return;
-    let haveTotal = 0;
-    let needTotal = 0;
-    let lacking: { itemId: string; have: number; need: number } | undefined;
-    for (const c of cost) {
-      const have = this.inventory[c.itemId] ?? 0;
-      haveTotal += Math.min(have, c.quantity);
-      needTotal += c.quantity;
-      if (have < c.quantity && !lacking) lacking = { itemId: c.itemId, have, need: c.quantity };
-    }
-    const showItem = lacking ?? { itemId: cost[0]!.itemId, have: this.inventory[cost[0]!.itemId] ?? 0, need: cost[0]!.quantity };
-    const iconTex = this.opts.textures.get(`item_${showItem.itemId}`);
-    if (iconTex) prompt.setIcon(iconTex);
-    prompt.setProgress(Math.min(showItem.have, showItem.need), showItem.need);
-    prompt.setReady(haveTotal >= needTotal);
-  }
-
-  private removeBuildPrompt(instanceId: string): void {
-    const prompt = this.buildPrompts.get(instanceId);
-    if (!prompt) return;
-    this.updatables.delete(prompt);
-    prompt.destroy();
-    this.buildPrompts.delete(instanceId);
-  }
-
-  // ---- Shrine / offering ----
-
-  /** Wires a shrine to claim its offering on tap (only acts when one is present). */
-  private wireShrine(view: EntityView, instanceId: string): void {
-    const target = view.hitTarget;
-    view.setInteractive(true);
-    target.on('pointerover', () => this.cursorView?.setTargeting(true));
-    target.on('pointerout', () => this.cursorView?.setTargeting(false));
-    target.on('pointertap', (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      if (this.offeringGlows.has(instanceId)) {
-        this.opts.transport.send({ type: 'craft.claim', instanceId });
-      }
-    });
-  }
-
-  /**
-   * Floats a crafted tool above a shrine inside a calm, slowly-rotating divine
-   * glow (a soft halo + two counter-spinning rayed layers, deliberately dim so
-   * it reads as luminous rather than overexposed). The whole bundle is tappable
-   * to claim the Offering — no speech-bubble — and the shrine sprite stays
-   * tap-to-claim too (see `wireShrine`).
-   */
-  private showOffering(instanceId: string, toolId: ToolId): void {
-    if (this.offeringGlows.has(instanceId)) return;
-    const view = this.views.get(instanceId);
-    if (!view) return;
-    const toolDef = getToolDefinition(toolId);
-    const iconTex = toolDef ? this.opts.textures.get(toolDef.iconTextureId) : undefined;
-
-    const baseY = view.headAnchorY - 20;
-    const group = new Container();
-    group.y = baseY;
-    group.zIndex = 60;
-
-    // Diffuse, non-spiky base halo so the glow feels soft, not blown-out.
-    const haloTex = this.opts.textures.get('fx_glow_soft') ?? this.opts.textures.get('fx_glow');
-    if (haloTex) {
-      const halo = new Sprite(haloTex);
-      halo.anchor.set(0.5);
-      halo.width = 150;
-      halo.height = 150;
-      halo.alpha = 0.35;
-      halo.tint = 0xffe6a8;
-      halo.blendMode = 'add';
-      group.addChild(halo);
-    }
-
-    // Two rayed layers spinning in opposite directions for subtle shimmer.
-    const rayTex = this.opts.textures.get('fx_glow');
-    const rays1 = new Sprite(rayTex ?? Texture.EMPTY);
-    const rays2 = new Sprite(rayTex ?? Texture.EMPTY);
-    if (rayTex) {
-      rays1.anchor.set(0.5);
-      rays1.width = 130;
-      rays1.height = 130;
-      rays1.alpha = 0.45;
-      rays1.tint = 0xffe6a8;
-      rays1.blendMode = 'add';
-      group.addChild(rays1);
-
-      rays2.anchor.set(0.5);
-      rays2.width = 96;
-      rays2.height = 96;
-      rays2.alpha = 0.3;
-      rays2.tint = 0xfff2cf;
-      rays2.blendMode = 'add';
-      group.addChild(rays2);
-    }
-
-    if (iconTex) {
-      const icon = new Sprite(iconTex);
-      icon.anchor.set(0.5);
-      const s = 64 / Math.max(iconTex.width, iconTex.height);
-      icon.scale.set(s);
-      group.addChild(icon);
-    }
-
-    // The whole glowing bundle is the claim target (generous circular hit area).
-    group.eventMode = 'static';
-    group.cursor = 'none';
-    group.hitArea = new Circle(0, 0, 80);
-    group.on('pointerover', () => this.cursorView?.setTargeting(true));
-    group.on('pointerout', () => this.cursorView?.setTargeting(false));
-    group.on('pointertap', (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      this.opts.transport.send({ type: 'craft.claim', instanceId });
-    });
-
-    view.container.addChild(group);
-    this.offeringGlows.set(instanceId, group);
-
-    let t = 0;
-    const bob: Updatable = {
-      update: (dt) => {
-        t += dt;
-        group.y = baseY + Math.sin(t * 3) * 6;
-        group.scale.set(1 + Math.sin(t * 4) * 0.05);
-        if (rayTex) {
-          rays1.rotation += dt * 0.25;
-          rays2.rotation -= dt * 0.4;
-          const pulse = 0.85 + 0.15 * Math.sin(t * 2.4);
-          rays1.alpha = 0.45 * pulse;
-          rays2.alpha = 0.3 * pulse;
-        }
-      },
-    };
-    this.updatables.add(bob);
-    (group as unknown as { __bob?: Updatable }).__bob = bob;
-  }
-
-  private hideOffering(instanceId: string): void {
-    const group = this.offeringGlows.get(instanceId);
-    if (group) {
-      const bob = (group as unknown as { __bob?: Updatable }).__bob;
-      if (bob) this.updatables.delete(bob);
-      group.destroy({ children: true });
-      this.offeringGlows.delete(instanceId);
-    }
-  }
-
-  // ---- Craft prompt over the furnace ----
-
-  /**
-   * Floats a "craft here" prompt over the furnace (the physical crafting
-   * station) once crafting is unlocked. Mr Smith stays the *voice* of crafting,
-   * but the interaction point is the forge. No-op until a built furnace exists.
-   */
-  private ensureCraftPrompt(): void {
-    if (this.craftPrompt || this.opts.interactive === false) return;
-    const station = this.craftingStationView();
-    if (!station) return;
-    const prompt = new WorldPrompt({ onTap: () => this.opts.onOpenCrafting?.(), compact: true });
-    prompt.setGlyph('hammer');
-    prompt.setLabel('');
-    prompt.setBaseY(station.headAnchorY - CRAFT_PROMPT_FURNACE_OFFSET);
-    prompt.container.zIndex = 50;
-    station.container.addChild(prompt.container);
-    prompt.appear();
-    prompt.setReady(true);
-    this.craftPrompt = prompt;
-    this.updatables.add(prompt);
-  }
-
-  /** Tears down the hammer craft prompt (e.g. while the forge is busy crafting). */
-  private removeCraftPrompt(): void {
-    if (!this.craftPrompt) return;
-    this.updatables.delete(this.craftPrompt);
-    this.craftPrompt.destroy();
-    this.craftPrompt = undefined;
-  }
-
-  /**
-   * Replaces the furnace's craft prompt with a countdown badge while a craft is
-   * in flight, so the forge can't be re-opened and the player can see the wait.
-   * The local countdown is display-only; the sim's `craftingJobCompleted` event
-   * is what actually clears it (see `hideFurnaceTimer`).
-   */
-  private showFurnaceTimer(remainingSeconds: number, totalSeconds: number): void {
-    if (this.opts.interactive === false) return;
-    // The forge is busy: drop the tappable craft prompt for the duration.
-    this.removeCraftPrompt();
-    if (this.furnaceTimer) return;
-    const station = this.craftingStationView();
-    if (!station) return;
-
-    const timer = new WorldPrompt({ compact: true });
-    timer.setLabel(`${Math.max(1, Math.ceil(remainingSeconds))}s`);
-    timer.setBaseY(station.headAnchorY - CRAFT_PROMPT_FURNACE_OFFSET);
-    timer.container.zIndex = 50;
-    station.container.addChild(timer.container);
-    timer.appear();
-    this.furnaceTimer = timer;
-    this.updatables.add(timer);
-
-    // Display-only countdown; clamps at 0 until the sim completes the job.
-    let remaining = Math.min(remainingSeconds, totalSeconds);
-    const tick: Updatable = {
-      update: (dt) => {
-        remaining = Math.max(0, remaining - dt);
-        timer.setLabel(`${Math.max(0, Math.ceil(remaining))}s`);
-      },
-    };
-    this.furnaceTimerTick = tick;
-    this.updatables.add(tick);
-  }
-
-  /** Removes the furnace countdown and brings the craft prompt back. */
-  private hideFurnaceTimer(): void {
-    if (this.furnaceTimerTick) {
-      this.updatables.delete(this.furnaceTimerTick);
-      this.furnaceTimerTick = undefined;
-    }
-    if (this.furnaceTimer) {
-      this.updatables.delete(this.furnaceTimer);
-      this.furnaceTimer.destroy();
-      this.furnaceTimer = undefined;
-    }
-    this.ensureCraftPrompt();
-  }
-
   /** The built furnace's view (the crafting station), or undefined if none/unbuilt. */
   private craftingStationView(): EntityView | undefined {
     const id = this.instanceIdByDefinition('furnace');
@@ -618,14 +488,32 @@ export class SceneRenderer {
     return view;
   }
 
+  /**
+   * The manifest texture id for the cursor ring's tool icon for a given type:
+   * the player's best-tier owned tool of that type (so a Rusty Axe shows rusty
+   * and a Stone Axe shows the upgrade), falling back to the generic per-type
+   * icon when none is owned yet.
+   */
+  private toolIconForType(type: ToolType | undefined): string | undefined {
+    if (!type) return undefined;
+    let best: { tier: number; iconTextureId: string } | undefined;
+    for (const id of this.ownedToolIds) {
+      const def = getToolDefinition(id);
+      if (def?.toolType === type && (!best || def.tier > best.tier)) {
+        best = { tier: def.tier, iconTextureId: def.iconTextureId };
+      }
+    }
+    return best?.iconTextureId ?? TOOL_ICON[type];
+  }
+
   /** Auto-equips the cursor ring to the best usable tool for the hovered target. */
   private autoEquipForTarget(instanceId: string | undefined): void {
     if (!instanceId) return;
     const def = this.defs.get(instanceId);
     const reqType = def?.requirements?.toolType;
     if (!reqType) return;
-    const tool = bestUsableTool(this.ownedToolIds, reqType, (s) => this.skillLevels[s] ?? 1);
-    if (tool) this.cursorView?.setTool(tool.toolType);
+    const tool = bestUsableTool(this.ownedToolIds, reqType, (s) => this.skillLevel(s));
+    if (tool) this.cursorView?.setTool(tool.iconTextureId);
   }
 
   private wireEntity(view: EntityView, instanceId: string, def: EntityDefinition): void {
@@ -641,8 +529,15 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
-      if (isPickup) this.opts.transport.send({ type: 'pickup.collect', instanceId });
-      else this.opts.transport.send({ type: 'entity.tap', instanceId });
+      if (isPickup) {
+        this.opts.transport.send({ type: 'pickup.collect', instanceId });
+      } else {
+        // Optimistic presentation (networked): play the swing spark + sound now;
+        // the server's authoritative entity.damaged adds the real number/HP and is
+        // de-duped so it isn't played twice (see handleEvent).
+        if (this.networked) this.spawnHitFx(instanceId, 0, 'active', false, true);
+        this.opts.transport.send({ type: 'entity.tap', instanceId });
+      }
     });
     if (!isPickup) {
       view.onLockToggle = () => {
@@ -665,7 +560,7 @@ export class SceneRenderer {
   }
 
   setEquippedTool(tool: ToolType | undefined): void {
-    this.cursorView?.setTool(tool);
+    this.cursorView?.setTool(this.toolIconForType(tool));
   }
 
   /** Dev/Content-Zoo: fire a loot burst of a chosen rarity at screen center. */
@@ -681,7 +576,33 @@ export class SceneRenderer {
         if (!view) break;
         view.onDamaged(event.hp, event.maxHp, event.source);
         const suppressNumber = this.smiteSuppressNumberFor.delete(event.instanceId);
-        this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber);
+        const isSelfActive =
+          this.networked && event.source === 'active' && event.by === this.opts.localPlayerId;
+        if (isSelfActive) {
+          // The spark + sound were already played optimistically on the local tap;
+          // just surface the authoritative damage number now.
+          if (!suppressNumber) {
+            this.damageNumbers.spawn(view.container.x, view.container.y + view.hitOffsetY, event.amount, event.source);
+          }
+        } else {
+          this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber);
+          // Action cue: pulse the acting player's remote cursor on their hit.
+          if (this.networked && event.by && event.by !== this.opts.localPlayerId) {
+            this.remoteCursors?.hit(event.by);
+          }
+        }
+        break;
+      }
+      case 'presence.joined': {
+        this.remoteCursors?.join(event.playerId, event.name, event.x, event.y, event.equippedToolType);
+        break;
+      }
+      case 'presence.left': {
+        this.remoteCursors?.leave(event.playerId);
+        break;
+      }
+      case 'cursor.moved': {
+        this.remoteCursors?.move(event.playerId, event.x, event.y, event.mode);
         break;
       }
       case 'smiteTriggered': {
@@ -689,10 +610,8 @@ export class SceneRenderer {
         // damage number (we show a big one) and play the full Smite presentation.
         this.smiteSuppressNumberFor.add(event.instanceId);
         this.spawnSmiteFx(event.x, event.y, event.amount);
-        if (!this.smiteWitnessed) {
-          this.smiteWitnessed = true;
-          this.npcReact('smite_witnessed');
-        }
+        // The controller's `oncePerPlayer` reaction makes this fire only once.
+        this.npcReactions.react('smite_witnessed');
         break;
       }
       case 'divinePowerChanged':
@@ -707,7 +626,7 @@ export class SceneRenderer {
         this.spawnHitFx(event.instanceId, 0, 'active', true);
         this.opts.sound?.play('deplete');
         this.fallingLeaves.setSourceActive(event.instanceId, false);
-        if (def) this.reactToDepletion(def, event.x, event.y);
+        if (def) this.npcReactions.reactToDepletion(def, event.x, event.y);
         break;
       }
       case 'entity.respawned': {
@@ -726,7 +645,7 @@ export class SceneRenderer {
         break;
       }
       case 'pickup.collected': {
-        if (!this.ownedToolIds.includes(event.toolId)) this.ownedToolIds.push(event.toolId);
+        // Owned-tool state is projected by the HUD store; here we only animate.
         this.collectPickupView(event.instanceId);
         this.opts.sound?.play('loot');
         break;
@@ -741,7 +660,7 @@ export class SceneRenderer {
         break;
       }
       case 'tool.equipped': {
-        this.cursorView?.setTool(event.toolType);
+        this.cursorView?.setTool(this.toolIconForType(event.toolType));
         break;
       }
       case 'target.changed': {
@@ -765,7 +684,6 @@ export class SceneRenderer {
         break;
       }
       case 'skill.leveledUp': {
-        this.skillLevels[event.skillId] = event.level;
         this.floatText(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.3, `${SKILL_LABEL[event.skillId]} Level ${event.level}!`, {
           color: 0xffe08a,
           size: 40,
@@ -773,29 +691,29 @@ export class SceneRenderer {
           vy: -36,
         });
         this.opts.sound?.play('respawn');
-        this.npcReact('level_up');
+        this.npcReactions.react('level_up');
         break;
       }
       case 'craftingJobStarted': {
         this.startCraftFx(event.recipeId);
-        this.npcReact('craft_started');
+        this.npcReactions.react('craft_started');
         // Forge is busy: swap the craft prompt for a countdown over the furnace.
-        this.showFurnaceTimer(event.totalSeconds, event.totalSeconds);
+        this.prompts.showFurnaceTimer(event.totalSeconds, event.totalSeconds);
         break;
       }
       case 'craftingJobCompleted': {
         this.opts.sound?.play('loot');
-        this.hideFurnaceTimer();
+        this.prompts.hideFurnaceTimer();
         break;
       }
       case 'craftedItemPlacedAtShrine': {
-        this.showOffering(event.instanceId, event.grantsToolId);
-        this.npcReact('offering_ready');
+        this.prompts.showOffering(event.instanceId, event.grantsToolId);
+        this.npcReactions.react('offering_ready');
         break;
       }
       case 'craftedItemClaimed': {
-        this.hideOffering(event.instanceId);
-        if (!this.ownedToolIds.includes(event.toolId)) this.ownedToolIds.push(event.toolId);
+        this.prompts.hideOffering(event.instanceId);
+        // Owned-tool state is projected by the HUD store; here we only animate.
         this.opts.sound?.play('loot');
         const toolDef = getToolDefinition(event.toolId);
         this.floatText(event.x, event.y - 80, `${toolDef?.displayName ?? 'Item'} claimed!`, {
@@ -807,8 +725,8 @@ export class SceneRenderer {
         break;
       }
       case 'player.nameChanged': {
-        this.craftingUnlocked = true;
-        this.ensureCraftPrompt();
+        // craftingUnlocked is projected by the HUD store (bindHud runs first).
+        this.prompts.ensureCraftPrompt();
         break;
       }
       case 'loot.rolled': {
@@ -821,18 +739,18 @@ export class SceneRenderer {
         break;
       }
       case 'inventory.changed': {
-        this.inventory = { ...event.inventory };
-        for (const id of this.buildPrompts.keys()) this.refreshBuildPrompt(id);
+        // Inventory is projected by the HUD store; refresh prompts that read it.
+        this.prompts.refreshAllBuildPrompts();
         break;
       }
       case 'entity.built': {
         const view = this.views.get(event.instanceId);
         view?.onBuilt();
-        this.removeBuildPrompt(event.instanceId);
+        this.prompts.removeBuildPrompt(event.instanceId);
         const def = this.defs.get(event.instanceId);
         const fx = def?.art.hitParticleTextureId;
         if (fx && view) {
-          this.particleBurst(fx, view.container.x, view.container.y + view.hitOffsetY, {
+          this.cinematic.particleBurst(fx, view.container.x, view.container.y + view.hitOffsetY, {
             count: 22,
             speed: 320,
             scale: 0.7,
@@ -840,10 +758,10 @@ export class SceneRenderer {
         }
         this.opts.sound?.play('respawn');
         if ((def?.tags ?? []).includes('furnace')) {
-          this.npcReact('furnace_built');
+          this.npcReactions.react('furnace_built');
           // If crafting was already unlocked, the forge is now ready to host the
           // craft prompt (covers a furnace built after the Dedication beat).
-          if (this.craftingUnlocked) this.ensureCraftPrompt();
+          if (this.craftingUnlocked) this.prompts.ensureCraftPrompt();
         }
         break;
       }
@@ -860,7 +778,7 @@ export class SceneRenderer {
           } else if (def?.buildable) {
             // The furnace just unlocked: bring up its Build Prompt now.
             const inst = this.opts.transport.getSnapshot().entities.find((e) => e.instanceId === event.instanceId);
-            if (inst?.state === 'unbuilt') this.setupBuildPrompt(view, event.instanceId, def);
+            if (inst?.state === 'unbuilt') this.prompts.setupBuildPrompt(view, event.instanceId, def);
           } else {
             // A hidden locked pickup spawns into view on cue.
             view.container.visible = true;
@@ -930,7 +848,7 @@ export class SceneRenderer {
    * oversized damage number, plus impact sparks and a punchy sound.
    */
   private spawnSmiteFx(x: number, y: number, amount: number): void {
-    this.flashScreen(0xfff3c0, 0.55, 320);
+    this.cinematic.flashScreen(0xfff3c0, 0.55, 320);
 
     const tex = this.opts.textures.get('fx_smite');
     if (tex) {
@@ -957,111 +875,6 @@ export class SceneRenderer {
     this.floatText(x, y - 60, `${amount}`, { color: 0xfff1a8, size: 56, life: 1.1, vy: -120 });
     this.particleBurstWorld('fx_sparkle', x, y - 20, { count: 20, speed: 320, scale: 0.8 });
     this.opts.sound?.play('lightning');
-  }
-
-  /**
-   * The Smite presentation rendered on the CINEMATIC layer (above the blackout),
-   * so the onboarding void's scripted third-blow smites read on the black screen
-   * — coordinates are screen-space (the void props live here, not in the world).
-   */
-  playCinematicSmiteFx(x: number, y: number): void {
-    this.flashScreen(0xfff3c0, 0.6, 340);
-
-    const tex = this.opts.textures.get('fx_smite');
-    if (tex) {
-      const sprite = new Sprite(tex);
-      sprite.anchor.set(0.5, 0.92);
-      const s = 380 / Math.max(1, tex.height);
-      sprite.position.set(x, y);
-      sprite.zIndex = 5000;
-      sprite.blendMode = 'add';
-      sprite.scale.set(s * 0.9, s * 1.2);
-      this.cinematicContent.addChild(sprite);
-      this.cineAnimator.add(
-        0.45,
-        (v) => {
-          sprite.alpha = 1 - v;
-          sprite.scale.set(s * (0.9 + v * 0.2), s * (1.2 + v * 0.2));
-        },
-        { ease: Easings.outQuad, onComplete: () => sprite.destroy() },
-      );
-    }
-
-    this.cinematicCallout(x, y - 150, 'SMITE!');
-    this.particleBurst('fx_sparkle', x, y - 20, { count: 20, speed: 320, scale: 0.8 });
-    this.opts.sound?.play('lightning');
-  }
-
-  /** A rising, fading caption on the cinematic layer (the void Smite "SMITE!"). */
-  private cinematicCallout(x: number, y: number, text: string): void {
-    const t = new Text({
-      text,
-      style: {
-        fontFamily: GAME_FONT_FAMILY,
-        fontSize: 64,
-        fontWeight: '800',
-        fill: 0xffe66a,
-        stroke: { color: 0x1a1206, width: 6 },
-        align: 'center',
-      },
-    });
-    t.anchor.set(0.5);
-    t.position.set(x, y);
-    t.zIndex = 5001;
-    this.cinematicContent.addChild(t);
-    this.cineAnimator.add(
-      1.2,
-      (v) => {
-        t.alpha = 1 - v * v;
-        t.y = y - 40 * v;
-      },
-      { onComplete: () => t.destroy() },
-    );
-  }
-
-  /** A quick full-screen color flash (above the world), used by Smite. */
-  private flashScreen(color: number, alpha: number, ms: number): void {
-    const flash = new Graphics();
-    flash.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill(color);
-    flash.alpha = alpha;
-    flash.eventMode = 'none';
-    this.cinematicRoot.addChild(flash);
-    this.cineAnimator.add(
-      Math.max(0.0001, ms / 1000),
-      (v) => {
-        flash.alpha = alpha * (1 - v);
-      },
-      { ease: Easings.outQuad, onComplete: () => flash.destroy() },
-    );
-  }
-
-  /** Picks the nearest off-cooldown NPC and has it comment on a depletion. */
-  private reactToDepletion(def: EntityDefinition, x: number, y: number): void {
-    if (this.npcs.length === 0) return;
-    const trigger = reactionTriggerFor(def);
-    if (!trigger) return;
-
-    let best: NpcEntry | undefined;
-    let bestDist = Infinity;
-    for (const npc of this.npcs) {
-      if (npc.cooldown > 0) continue;
-      const d = (npc.x - x) ** 2 + (npc.y - y) ** 2;
-      if (d < bestDist) {
-        bestDist = d;
-        best = npc;
-      }
-    }
-    if (!best) return;
-    best.view.say(pickLine(trigger));
-    best.cooldown = NPC_REACTION_COOLDOWN;
-  }
-
-  /** Has the first available NPC speak a line for a (non-depletion) trigger. */
-  private npcReact(trigger: ReactionTrigger): void {
-    const npc = this.npcs.find((n) => n.cooldown <= 0) ?? this.npcs[0];
-    if (!npc) return;
-    npc.view.say(pickLine(trigger));
-    npc.cooldown = NPC_REACTION_COOLDOWN;
   }
 
   /** Builds a player-facing message for a blocked interaction (see ADR-0008). */
@@ -1096,13 +909,12 @@ export class SceneRenderer {
     if (tex) this.particles.burst(tex, x, y, opts);
   }
 
-  /** Animates cost resources flying to Mr Smith + a work spark when a craft starts. */
+  /** Animates cost resources flying to the forge + a work spark when a craft starts. */
   private startCraftFx(recipeId: string): void {
-    const npc = this.npcs[0];
     // Resources fly into the forge (the physical craft station); the NPC voices
     // it. Fall back to the NPC as the target only if there's no furnace.
     const station = this.craftingStationView();
-    const target = station ?? npc?.view;
+    const target = station ?? this.npcReactions.primaryView();
     if (!target) return;
     const recipe = getRecipeDefinition(recipeId);
     const targetX = target.container.x;
@@ -1138,18 +950,13 @@ export class SceneRenderer {
         },
       );
     });
-    if (npc) {
-      npc.view.say('Let me work the forge...');
-      npc.cooldown = NPC_REACTION_COOLDOWN;
-    }
+    this.npcReactions.sayCustom('Let me work the forge...');
   }
 
   private update(dt: number): void {
     this.cineAnimator.update(dt);
     for (const view of this.views.values()) view.update(dt);
-    for (const npc of this.npcs) {
-      if (npc.cooldown > 0) npc.cooldown -= dt;
-    }
+    this.npcReactions.update(dt);
     for (const u of this.updatables) u.update(dt);
     this.updateFloatingTexts(dt);
     this.particles.update(dt);
@@ -1158,6 +965,34 @@ export class SceneRenderer {
     this.lootDrops.update(dt);
     this.damageNumbers.update(dt);
     this.cursorView?.update(dt);
+    this.refreshHoverAfterCameraPan();
+  }
+
+  /**
+   * The cursor lives in screen space, so when the camera pans (WASD / edge-push)
+   * the world slides under a stationary pointer and Pixi never re-runs its hover
+   * hit-test — a hovered entity would stay targeted (and keep taking passive
+   * damage) until the mouse physically moves. We cheaply detect a camera move
+   * each frame (a position delta; zero cost while the camera is still) and only
+   * then re-dispatch a synthetic pointermove at the last pointer position, so
+   * Pixi recomputes over/out through the existing entity handlers. This reuses
+   * the normal hover path rather than maintaining a parallel one.
+   */
+  private refreshHoverAfterCameraPan(): void {
+    const { x, y } = this.worldCamera.position;
+    if (x === this.prevCameraX && y === this.prevCameraY) return;
+    this.prevCameraX = x;
+    this.prevCameraY = y;
+    if (!this.pointerInsideCanvas) return;
+    this.app.canvas.dispatchEvent(
+      new PointerEvent('pointermove', {
+        clientX: this.lastPointerClientX,
+        clientY: this.lastPointerClientY,
+        pointerId: this.lastPointerId,
+        pointerType: this.lastPointerType,
+        bubbles: true,
+      }),
+    );
   }
 
   private updateFloatingTexts(dt: number): void {
@@ -1183,7 +1018,15 @@ export class SceneRenderer {
     this.app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
   }
 
-  // ---- Cinematic API (used by the onboarding Director) ----
+  /** Resolves a focus target to a world point (entity centre or literal point). */
+  private resolveWorldPoint(target: string | { x: number; y: number }): { x: number; y: number } | undefined {
+    if (typeof target !== 'string') return target;
+    const view = this.views.get(target);
+    if (!view) return undefined;
+    return { x: view.container.x, y: view.container.y + view.hitOffsetY };
+  }
+
+  // ---- Cinematic API (delegated to CinematicController; used by the Directors) ----
 
   get textures(): TextureMap {
     return this.opts.textures;
@@ -1199,7 +1042,7 @@ export class SceneRenderer {
     return () => this.updatables.delete(u);
   }
 
-  /** Runs a time-based tween on the renderer's cinematic clock. */
+  /** Runs a time-based tween on the renderer's shared cinematic clock. */
   tween(
     durationMs: number,
     onUpdate: (v: number) => void,
@@ -1213,136 +1056,52 @@ export class SceneRenderer {
   }
 
   setBlackout(alpha: number): void {
-    this.blackout.alpha = alpha;
-    const on = alpha > 0.001;
-    this.blackout.visible = on;
-    this.blackout.eventMode = on ? 'static' : 'none';
+    this.cinematic.setBlackout(alpha);
   }
 
-  /**
-   * Ramps a full-screen WHITE flash up to full and holds it — the Ancient Tree
-   * banishment blink. The caller transitions away (a level swap tears the
-   * renderer down), so the flash is intentionally left covering the screen.
-   */
   flashWhite(ms = 420): Promise<void> {
-    return new Promise((resolve) => {
-      const flash = new Graphics();
-      flash.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill(0xffffff);
-      flash.alpha = 0;
-      flash.eventMode = 'static';
-      this.cinematicRoot.addChild(flash);
-      this.cineAnimator.add(
-        Math.max(0.0001, ms / 1000),
-        (v) => {
-          flash.alpha = v;
-        },
-        {
-          ease: Easings.inQuad,
-          onComplete: () => {
-            flash.alpha = 1;
-            resolve();
-          },
-        },
-      );
-    });
+    return this.cinematic.flashWhite(ms);
   }
 
-  /** Fades the full-screen blackout toward `to` over `ms`. Resolves when done. */
   fadeBlackout(to: number, ms: number): Promise<void> {
-    return new Promise((resolve) => {
-      const from = this.blackout.alpha;
-      this.blackout.visible = true;
-      this.blackout.eventMode = 'static';
-      this.cineAnimator.add(
-        Math.max(0.0001, ms / 1000),
-        (v) => this.setBlackout(from + (to - from) * v),
-        {
-          ease: Easings.outQuad,
-          onComplete: () => {
-            this.setBlackout(to);
-            resolve();
-          },
-        },
-      );
-    });
+    return this.cinematic.fadeBlackout(to, ms);
   }
 
-  /**
-   * Eases the cinematic camera so a world point (an entity instance id, or a
-   * literal world point) lands at `anchor` (a screen fraction, default centre)
-   * at the given zoom. Resolves when the move completes. No-op (and instantly
-   * resolved) when the camera is disabled. Pure presentation: it never touches
-   * sim state.
-   */
   cameraFocus(
     target: string | { x: number; y: number },
     opts: { zoom?: number; durationMs?: number; anchor?: { x: number; y: number } } = {},
   ): Promise<void> {
-    if (!CINEMATIC_CAMERA) return Promise.resolve();
-    const point = this.resolveWorldPoint(target);
-    if (!point) return Promise.resolve();
-    const zoom = opts.zoom ?? 1.8;
-    const anchorX = (opts.anchor?.x ?? 0.5) * VIRTUAL_WIDTH;
-    const anchorY = (opts.anchor?.y ?? 0.5) * VIRTUAL_HEIGHT;
-    const toX = anchorX - point.x * zoom;
-    const toY = anchorY - point.y * zoom;
-    return this.tweenCamera(zoom, toX, toY, opts.durationMs ?? 900);
+    return this.cinematic.cameraFocus(target, opts);
   }
 
-  /** Eases the camera back to its identity transform (the full wide scene). */
   cameraReset(opts: { durationMs?: number } = {}): Promise<void> {
-    if (!CINEMATIC_CAMERA) return Promise.resolve();
-    return this.tweenCamera(1, 0, 0, opts.durationMs ?? 1200);
-  }
-
-  /** Resolves a focus target to a world point (entity centre or literal point). */
-  private resolveWorldPoint(target: string | { x: number; y: number }): { x: number; y: number } | undefined {
-    if (typeof target !== 'string') return target;
-    const view = this.views.get(target);
-    if (!view) return undefined;
-    return { x: view.container.x, y: view.container.y + view.hitOffsetY };
-  }
-
-  /** Tweens the camera scale + position together on the cinematic clock. */
-  private tweenCamera(toScale: number, toX: number, toY: number, durationMs: number): Promise<void> {
-    return new Promise((resolve) => {
-      const fromScale = this.worldCamera.scale.x;
-      const fromX = this.worldCamera.position.x;
-      const fromY = this.worldCamera.position.y;
-      this.cineAnimator.add(
-        Math.max(0.0001, durationMs / 1000),
-        (v) => {
-          const s = fromScale + (toScale - fromScale) * v;
-          this.worldCamera.scale.set(s);
-          this.worldCamera.position.set(fromX + (toX - fromX) * v, fromY + (toY - fromY) * v);
-        },
-        { ease: Easings.outCubic, onComplete: resolve },
-      );
-    });
+    return this.cinematic.cameraReset(opts);
   }
 
   addWisps(opts?: WispOptions): WispSystem {
-    if (this.wisps) return this.wisps;
-    const wisps = new WispSystem(this.cinematicContent, opts);
-    this.updatables.add(wisps);
-    this.wisps = wisps;
-    return wisps;
+    return this.cinematic.addWisps(opts);
   }
 
   removeWisps(): void {
-    if (!this.wisps) return;
-    this.updatables.delete(this.wisps);
-    this.wisps.destroy();
-    this.wisps = undefined;
+    this.cinematic.removeWisps();
+  }
+
+  /** Spawns a particle burst on the cinematic layer (above the blackout). */
+  particleBurst(textureId: string, x: number, y: number, opts?: BurstOptions): void {
+    this.cinematic.particleBurst(textureId, x, y, opts);
+  }
+
+  /** The void Smite presentation, rendered on the cinematic layer. */
+  playCinematicSmiteFx(x: number, y: number): void {
+    this.cinematic.playCinematicSmiteFx(x, y);
   }
 
   /**
-   * Spawns a particle burst on the cinematic layer (above the blackout), so it
-   * stays visible during the onboarding void. Used by the onboarding director.
+   * Adds a transparent full-screen tap catcher above the world; invokes
+   * `handler` on each tap. Returns a remover. Used to advance/skip dialogue.
    */
-  particleBurst(textureId: string, x: number, y: number, opts?: BurstOptions): void {
-    const tex = this.opts.textures.get(textureId);
-    if (tex) this.cinematicParticles.burst(tex, x, y, opts);
+  addTapCatcher(handler: () => void): () => void {
+    return this.cinematic.addTapCatcher(handler);
   }
 
   floatText(
@@ -1391,47 +1150,26 @@ export class SceneRenderer {
     this.entityLayer.visible = visible;
   }
 
-  /**
-   * Adds a transparent full-screen tap catcher above the world; invokes
-   * `handler` on each tap. Returns a remover. Used to advance/skip dialogue.
-   */
-  addTapCatcher(handler: () => void): () => void {
-    const catcher = new Graphics();
-    catcher.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT).fill({ color: 0x000000, alpha: 0.0001 });
-    catcher.eventMode = 'static';
-    catcher.on('pointertap', handler);
-    this.cinematicRoot.addChild(catcher);
-    return () => {
-      catcher.destroy();
-    };
-  }
-
   destroy(): void {
     this.unsubscribe?.();
     this.resizeObserver?.disconnect();
-    this.removeWisps();
+    if (this.camera) {
+      this.updatables.delete(this.camera);
+      this.camera.destroy();
+    }
+    this.cinematic?.destroy();
     if (this.ambientWisps) {
       this.updatables.delete(this.ambientWisps);
       this.ambientWisps.destroy();
       this.ambientWisps = undefined;
     }
+    if (this.remoteCursors) {
+      this.updatables.delete(this.remoteCursors);
+      this.remoteCursors.destroy();
+      this.remoteCursors = undefined;
+    }
     this.fallingLeaves?.destroy();
-    for (const prompt of this.buildPrompts.values()) {
-      this.updatables.delete(prompt);
-      prompt.destroy();
-    }
-    this.buildPrompts.clear();
-    for (const id of [...this.offeringGlows.keys()]) this.hideOffering(id);
-    this.removeCraftPrompt();
-    if (this.furnaceTimerTick) {
-      this.updatables.delete(this.furnaceTimerTick);
-      this.furnaceTimerTick = undefined;
-    }
-    if (this.furnaceTimer) {
-      this.updatables.delete(this.furnaceTimer);
-      this.furnaceTimer.destroy();
-      this.furnaceTimer = undefined;
-    }
+    this.prompts?.destroy();
     for (const f of this.floatingTexts) f.text.destroy();
     this.floatingTexts.length = 0;
     for (const view of this.views.values()) view.destroy();

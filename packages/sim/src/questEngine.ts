@@ -42,6 +42,44 @@ function progressFrom(objective: QuestObjective, signal: QuestSignal): number {
 }
 
 /**
+ * A read-only view of the facts a quest objective can be reconciled against.
+ * Used to seed a quest's starting progress from current world state when it is
+ * granted, so actions taken *before* the quest existed still count (preventing
+ * soft-locks like rebuilding the shack before the quest is granted).
+ */
+export interface QuestWorldView {
+  ownedTools: ToolId[];
+  inventory: Record<string, number>;
+  builtEntities: { definitionId: string; tags: string[] }[];
+}
+
+/**
+ * Computes the progress an objective should already have given the current
+ * world state. Mirrors `progressFrom` but reads state instead of a live signal.
+ *
+ * `depleteEntity` intentionally returns 0: depletion is historical (not stored)
+ * and resources respawn, so it cannot hard-lock and stays purely event-based.
+ */
+export function initialProgress(objective: QuestObjective, view: QuestWorldView): number {
+  switch (objective.kind) {
+    case 'acquireTool':
+      return view.ownedTools.includes(objective.toolId) ? 1 : 0;
+    case 'collectItem':
+      return Math.min(objective.count, view.inventory[objective.itemId] ?? 0);
+    case 'buildEntity': {
+      const match = view.builtEntities.some((e) => {
+        const defOk = objective.definitionId ? e.definitionId === objective.definitionId : true;
+        const tagOk = objective.tag ? e.tags.includes(objective.tag) : true;
+        return defOk && tagOk;
+      });
+      return match ? 1 : 0;
+    }
+    case 'depleteEntity':
+      return 0;
+  }
+}
+
+/**
  * Applies a signal to an active quest, returning the updated state if progress
  * changed (else undefined). Progress is capped at the goal and the quest flips
  * to 'completed' when it is reached.

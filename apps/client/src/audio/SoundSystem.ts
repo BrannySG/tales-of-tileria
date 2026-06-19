@@ -39,21 +39,24 @@ interface MusicOptions {
  */
 export class SoundSystem {
   private readonly sounds = new Map<SoundName, Howl>();
+  /** Authored per-sound base volume, scaled by `sfxVolume` at play time. */
+  private readonly sfxBaseVolume = new Map<SoundName, number>();
   private enabled = true;
   private music?: Howl;
   private musicTrack?: MusicTrack;
   private musicVolume = 0.5;
+  private sfxVolume = 1;
 
   constructor() {
     const sources = generatePlaceholderSounds();
     for (const [name, uri] of Object.entries(sources) as [SoundName, string][]) {
-      this.sounds.set(
-        name,
-        new Howl({ src: [uri], format: ['wav'], volume: name === 'hitRock' ? 0.5 : 0.4 }),
-      );
+      const base = name === 'hitRock' ? 0.5 : 0.4;
+      this.sfxBaseVolume.set(name, base);
+      this.sounds.set(name, new Howl({ src: [uri], format: ['wav'], volume: base }));
     }
     // File-backed SFX layer on top, replacing any synth placeholder of the same name.
     for (const [name, url] of Object.entries(SFX_SOURCES) as [SoundName, string][]) {
+      this.sfxBaseVolume.set(name, 0.6);
       this.sounds.set(name, new Howl({ src: [url], volume: 0.6 }));
     }
   }
@@ -64,6 +67,7 @@ export class SoundSystem {
     if (!howl) return;
     const variation = opts.pitchVariation ?? 0;
     if (variation > 0) howl.rate(1 - variation + Math.random() * variation * 2);
+    howl.volume((this.sfxBaseVolume.get(name) ?? 1) * this.sfxVolume);
     howl.play();
   }
 
@@ -122,6 +126,19 @@ export class SoundSystem {
   setMusicVolume(volume: number): void {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     this.music?.volume(this.musicVolume);
+  }
+
+  getMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  /** Scales every one-shot SFX (0–1); applied on the next `play`. */
+  setSfxVolume(volume: number): void {
+    this.sfxVolume = Math.max(0, Math.min(1, volume));
+  }
+
+  getSfxVolume(): number {
+    return this.sfxVolume;
   }
 
   setEnabled(enabled: boolean): void {

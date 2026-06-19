@@ -4,7 +4,6 @@ import { WispSystem } from '../render/WispSystem';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import { SoundSystem } from '../audio/SoundSystem';
 import { loadGameFonts } from '../assets/fonts';
-import { hasOnboarded } from '../onboarding';
 
 const isTouchDevice = () =>
   typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -74,7 +73,8 @@ export function TitleMode() {
     if (startedRef.current) return;
     startedRef.current = true;
     soundRef.current?.unlock();
-    window.location.hash = hasOnboarded() ? '/game' : '/onboarding';
+    // Always enter the game; it folds in onboarding for first-time players.
+    window.location.hash = '/game';
   };
 
   return (

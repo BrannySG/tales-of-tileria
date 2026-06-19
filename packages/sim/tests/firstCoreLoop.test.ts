@@ -179,6 +179,20 @@ describe('crafting + shrine', () => {
     expect(world.getEntity('shrine1')?.pendingOffering).toBeUndefined();
   });
 
+  it('the crafted Stone Axe supplants the found Rusty Axe (auto-replace)', () => {
+    const player = craftReadyPlayer();
+    player.ownedTools = ['axe_rusty'];
+    const world = new World(richLevel(), { seed: 1, player });
+    world.applyCommand({ type: 'craft.start', recipeId: 'stone_axe' });
+    world.tick(10);
+
+    const events = world.applyCommand({ type: 'craft.claim', instanceId: 'shrine1' });
+    const claimed = events.find((e) => e.type === 'craftedItemClaimed');
+    expect(claimed?.type === 'craftedItemClaimed' && claimed.replacedToolIds).toEqual(['axe_rusty']);
+    // The Rusty Axe is gone; only the upgraded Stone Axe remains.
+    expect(world.getPlayer().ownedTools).toEqual(['axe_stone']);
+  });
+
   it('rejects crafting before crafting is unlocked, then allows it after setName', () => {
     const player = createPlayer('local', 'Hero');
     player.inventory = { wood: 12, stone: 6 };
@@ -211,6 +225,49 @@ describe('quest chaining + world unlocks', () => {
     const ids = world.getPlayer().quests.map((q) => q.questId);
     expect(ids).toContain('chop_trees');
     expect(ids).toContain('rebuild_shack');
+  });
+
+  it('does not soft-lock when the shack is rebuilt before pickup_axe is claimed', () => {
+    // Player earns the axe, gathers wood, and rebuilds the shack *before*
+    // claiming pickup_axe — so rebuild_shack does not exist at build time.
+    const player = createPlayer('local', 'Hero');
+    player.inventory = { wood: 10 };
+    const world = new World(richLevel(), { seed: 1, player });
+    world.applyCommand({ type: 'quest.grant', questId: 'pickup_axe' });
+    world.applyCommand({ type: 'pickup.collect', instanceId: 'axe1' });
+    expect(world.getPlayer().quests.find((q) => q.questId === 'pickup_axe')?.status).toBe('completed');
+
+    // Build the shack early: no rebuild_shack quest exists yet.
+    world.applyCommand({ type: 'entity.build', instanceId: 'shack1' });
+    expect(world.getEntity('shack1')?.state).toBe('available');
+
+    // Claim the axe reward: rebuild_shack is granted and should reconcile to
+    // 'completed' against the already-built shack instead of stalling at 0.
+    world.applyCommand({ type: 'quest.claim', questId: 'pickup_axe' });
+    const rebuild = world.getPlayer().quests.find((q) => q.questId === 'rebuild_shack');
+    expect(rebuild?.status).toBe('completed');
+
+    // The chain continues: claiming rebuild_shack enables the pickaxe + next quest.
+    const events = world.applyCommand({ type: 'quest.claim', questId: 'rebuild_shack' });
+    expect(typesOf(events)).toContain('entity.enabled');
+    expect(world.getEntity('pick1')?.locked).toBe(false);
+    expect(world.getPlayer().quests.map((q) => q.questId)).toContain('pickup_pickaxe');
+  });
+
+  it('heals a save soft-locked with rebuild_shack stuck at 0 against a built shack', () => {
+    const player = createPlayer('local', 'Hero');
+    player.ownedTools = ['axe_rusty'];
+    // The stuck state: rebuild_shack active at 0, but the shack is already built.
+    player.quests = [{ questId: 'rebuild_shack', status: 'active', progress: 0, goal: 1 }];
+    const level = richLevel();
+    // A buildable authored without initialState resolves to built ('available').
+    level.entities = level.entities.map((e) =>
+      e.instanceId === 'shack1' ? { ...e, initialState: undefined } : e,
+    );
+    const world = new World(level, { seed: 1, player });
+    expect(world.getPlayer().quests.find((q) => q.questId === 'rebuild_shack')?.status).toBe(
+      'completed',
+    );
   });
 
   it('rebuild_shack reward enables the pickaxe pickup and grants pickup_pickaxe', () => {

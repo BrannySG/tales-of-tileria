@@ -50,7 +50,8 @@ describe('World — passive damage & targeting', () => {
   it('ticks passive damage onto the hovered target', () => {
     const world = new World(makeLevel(), {
       seed: 1,
-      combat: { passiveDamagePerTick: 2, passiveTickSeconds: 0.5 },
+      passiveDamage: 2,
+      combat: { passiveTickSeconds: 0.5 },
     });
     world.applyCommand({ type: 'entity.hoverStart', instanceId: 'r2' });
     world.tick(0.5);
@@ -60,14 +61,15 @@ describe('World — passive damage & targeting', () => {
   });
 
   it('does no passive damage with no target', () => {
-    const world = new World(makeLevel(), { combat: { passiveDamagePerTick: 2, passiveTickSeconds: 0.5 } });
+    const world = new World(makeLevel(), { passiveDamage: 2, combat: { passiveTickSeconds: 0.5 } });
     world.tick(5);
     expect(world.getEntity('r2')?.hp).toBe(10);
   });
 
   it('pauses passive on hoverEnd but keeps the target so it can be locked', () => {
     const world = new World(makeLevel(), {
-      combat: { passiveDamagePerTick: 2, passiveTickSeconds: 0.5 },
+      passiveDamage: 2,
+      combat: { passiveTickSeconds: 0.5 },
     });
     world.applyCommand({ type: 'entity.hoverStart', instanceId: 'r2' });
     world.tick(0.5); // hp 8

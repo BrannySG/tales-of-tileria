@@ -17,17 +17,17 @@ export interface CursorState {
 }
 
 /**
- * Tunable combat parameters for a player. Active = burst per tap;
- * Passive = damage-over-time applied in ticks to the current Target.
+ * Tunable combat parameters for a Level instance. Active = burst per tap;
+ * `passiveTickSeconds` is the passive damage *cadence*. The passive damage
+ * *amount* is a player-owned progression stat (`Player.passiveDamage`), not a
+ * Level knob — see CONTEXT.md.
  */
 export interface CombatConfig {
   activeDamage: number;
-  passiveDamagePerTick: number;
   passiveTickSeconds: number;
 }
 
 export const DEFAULT_COMBAT_CONFIG: CombatConfig = {
   activeDamage: 3,
-  passiveDamagePerTick: 1,
   passiveTickSeconds: 0.5,
 };

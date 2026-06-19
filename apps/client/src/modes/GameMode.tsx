@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { createPlayer, emptySkills, type LevelDefinition, type Player } from '@tot/shared';
+import { createPlayer, emptySkills, getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
 
-const ZONE_ONE_LEVEL_ID = 'zone_01';
+/** The canonical shared open world: every returning player lands here together. */
+const SHARED_ZONE_ID = 'bigworld_01';
 
 /**
  * A returning player's default kit (see ADR-0011: sim state isn't persisted
- * yet). They re-enter Zone 1 owning the basics, with crafting already unlocked
- * and their persisted divine name.
+ * yet). They re-enter the open world owning the basics, with crafting already
+ * unlocked and their persisted divine name.
  */
 function buildReturningPlayer(): Player {
   const player = createPlayer('local', getPlayerName() ?? 'Wanderer');
@@ -22,17 +23,17 @@ function buildReturningPlayer(): Player {
 
 export function GameMode() {
   const [levels, setLevels] = useState<LevelSummary[]>([]);
-  const [level, setLevel] = useState<LevelDefinition | null>(null);
+  const [level, setLevel] = useState<LevelDefinition | null>(getBundledLevel(SHARED_ZONE_ID) ?? null);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Returning players default straight into the bundled shared open world (it
+    // matches the server and needs no dev middleware). Only in local dev do we
+    // also list editor-saved levels for the preview dropdown.
+    if (!import.meta.env.DEV) return;
     void (async () => {
       try {
-        const list = await listLevels();
-        setLevels(list);
-        // Returning players drop straight into Zone 1 if it exists.
-        const preferred = list.find((l) => l.id === ZONE_ONE_LEVEL_ID) ?? list[0];
-        if (preferred) setLevel(await loadLevel(preferred.id));
+        setLevels(await listLevels());
       } catch (err) {
         setError(String(err));
       }
@@ -50,39 +51,41 @@ export function GameMode() {
 
   return (
     <>
-      <div
-        style={{
-          position: 'absolute',
-          top: 12,
-          right: 16,
-          zIndex: 60,
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-        }}
-      >
-        <select
-          value={level?.id ?? ''}
-          onChange={(e) => void onPick(e.target.value)}
+      {import.meta.env.DEV && (
+        <div
           style={{
-            padding: '6px 8px',
-            background: '#1c2027',
-            color: 'var(--text)',
-            border: '1px solid var(--panel-border)',
-            borderRadius: 6,
+            position: 'absolute',
+            top: 12,
+            right: 16,
+            zIndex: 60,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
           }}
         >
-          <option value="">Select a level…</option>
-          {levels.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.displayName}
-            </option>
-          ))}
-        </select>
-      </div>
+          <select
+            value={level?.id ?? ''}
+            onChange={(e) => void onPick(e.target.value)}
+            style={{
+              padding: '6px 8px',
+              background: '#1c2027',
+              color: 'var(--text)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: 6,
+            }}
+          >
+            <option value="">Select a level…</option>
+            {levels.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.displayName}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {level ? (
-        level.id === ZONE_ONE_LEVEL_ID ? (
+        level.multiplayer ? (
           <WorldScene
             key={level.id}
             level={level}
