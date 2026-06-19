@@ -78,7 +78,7 @@ export class EntityView {
     this.maxHp = instance.maxHp;
     this.state = instance.state;
 
-    const resolved = resolveArt(def);
+    const resolved = resolveArt(def, instance.skinId);
     const tex = textures.get(resolved.textureId);
     if (!tex) throw new Error(`Missing texture: ${resolved.textureId}`);
 

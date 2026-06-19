@@ -8,12 +8,14 @@
     "height": 1080,
     "entities": [
       {
-        "instanceId": "council_member_1",
+        "instanceId": "council_member_3",
         "definitionId": "council_member",
-        "x": 732,
-        "y": 247,
+        "x": 952,
+        "y": 309,
         "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "council"
+        }
       },
       {
         "instanceId": "council_member_2",
@@ -21,15 +23,9 @@
         "x": 826,
         "y": 291,
         "locked": true,
-        "overrides": {}
-      },
-      {
-        "instanceId": "council_member_3",
-        "definitionId": "council_member",
-        "x": 952,
-        "y": 309,
-        "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "council"
+        }
       },
       {
         "instanceId": "council_member_4",
@@ -37,7 +33,9 @@
         "x": 1065,
         "y": 297,
         "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "council"
+        }
       },
       {
         "instanceId": "council_member_5",
@@ -45,39 +43,46 @@
         "x": 1163,
         "y": 253,
         "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "council"
+        }
       },
       {
-        "instanceId": "crowd_cursor_1",
-        "definitionId": "crowd_cursor",
-        "x": 415,
-        "y": 742,
+        "instanceId": "council_member_1",
+        "definitionId": "council_member",
+        "x": 732,
+        "y": 247,
         "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "council"
+        }
       },
       {
-        "instanceId": "crowd_cursor_2",
+        "instanceId": "crowd_cursor_mqia87no_4",
         "definitionId": "crowd_cursor",
-        "x": 490,
-        "y": 720,
-        "locked": true,
-        "overrides": {}
+        "x": 496,
+        "y": 492,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
-        "instanceId": "crowd_cursor_3",
+        "instanceId": "crowd_cursor_mqia89al_5",
         "definitionId": "crowd_cursor",
-        "x": 1404,
-        "y": 725,
-        "locked": true,
-        "overrides": {}
+        "x": 552,
+        "y": 517,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
-        "instanceId": "crowd_cursor_4",
+        "instanceId": "crowd_cursor_mqia860t_3",
         "definitionId": "crowd_cursor",
-        "x": 1421,
-        "y": 669,
-        "locked": true,
-        "overrides": {}
+        "x": 493,
+        "y": 559,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
         "instanceId": "crowd_cursor_5",
@@ -85,7 +90,76 @@
         "x": 422,
         "y": 629,
         "locked": true,
-        "overrides": {}
+        "overrides": {
+          "skinId": "stone"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia82uk_1",
+        "definitionId": "crowd_cursor",
+        "x": 479,
+        "y": 623,
+        "overrides": {
+          "skinId": "wooden"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia8493_2",
+        "definitionId": "crowd_cursor",
+        "x": 434,
+        "y": 568,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia8sxg_13",
+        "definitionId": "crowd_cursor",
+        "x": 437,
+        "y": 693,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_2",
+        "definitionId": "crowd_cursor",
+        "x": 490,
+        "y": 720,
+        "locked": true,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_1",
+        "definitionId": "crowd_cursor",
+        "x": 415,
+        "y": 742,
+        "locked": true,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_3",
+        "definitionId": "crowd_cursor",
+        "x": 1404,
+        "y": 725,
+        "locked": true,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_4",
+        "definitionId": "crowd_cursor",
+        "x": 1421,
+        "y": 669,
+        "locked": true,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
         "instanceId": "crowd_cursor_6",
@@ -93,85 +167,72 @@
         "x": 1415,
         "y": 607,
         "locked": true,
-        "overrides": {}
-      },
-      {
-        "instanceId": "crowd_cursor_mqia82uk_1",
-        "definitionId": "crowd_cursor",
-        "x": 479,
-        "y": 623
-      },
-      {
-        "instanceId": "crowd_cursor_mqia8493_2",
-        "definitionId": "crowd_cursor",
-        "x": 434,
-        "y": 568
-      },
-      {
-        "instanceId": "crowd_cursor_mqia860t_3",
-        "definitionId": "crowd_cursor",
-        "x": 493,
-        "y": 559
-      },
-      {
-        "instanceId": "crowd_cursor_mqia87no_4",
-        "definitionId": "crowd_cursor",
-        "x": 496,
-        "y": 492
-      },
-      {
-        "instanceId": "crowd_cursor_mqia89al_5",
-        "definitionId": "crowd_cursor",
-        "x": 552,
-        "y": 517
-      },
-      {
-        "instanceId": "crowd_cursor_mqia8b23_6",
-        "definitionId": "crowd_cursor",
-        "x": 1370,
-        "y": 501
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
         "instanceId": "crowd_cursor_mqia8cpe_7",
         "definitionId": "crowd_cursor",
         "x": 1412,
-        "y": 555
+        "y": 555,
+        "overrides": {
+          "skinId": "stone"
+        }
       },
       {
-        "instanceId": "crowd_cursor_mqia8hye_8",
+        "instanceId": "crowd_cursor_mqia8b23_6",
         "definitionId": "crowd_cursor",
-        "x": 1455,
-        "y": 742
-      },
-      {
-        "instanceId": "crowd_cursor_mqia8jhq_9",
-        "definitionId": "crowd_cursor",
-        "x": 1476,
-        "y": 690
-      },
-      {
-        "instanceId": "crowd_cursor_mqia8lcv_10",
-        "definitionId": "crowd_cursor",
-        "x": 1477,
-        "y": 630
-      },
-      {
-        "instanceId": "crowd_cursor_mqia8nge_11",
-        "definitionId": "crowd_cursor",
-        "x": 1480,
-        "y": 561
+        "x": 1370,
+        "y": 501,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
         "instanceId": "crowd_cursor_mqia8phi_12",
         "definitionId": "crowd_cursor",
         "x": 1432,
-        "y": 492
+        "y": 492,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
       },
       {
-        "instanceId": "crowd_cursor_mqia8sxg_13",
+        "instanceId": "crowd_cursor_mqia8nge_11",
         "definitionId": "crowd_cursor",
-        "x": 437,
-        "y": 693
+        "x": 1480,
+        "y": 561,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia8jhq_9",
+        "definitionId": "crowd_cursor",
+        "x": 1476,
+        "y": 690,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia8hye_8",
+        "definitionId": "crowd_cursor",
+        "x": 1455,
+        "y": 742,
+        "overrides": {
+          "skinId": "handdrawn"
+        }
+      },
+      {
+        "instanceId": "crowd_cursor_mqia8lcv_10",
+        "definitionId": "crowd_cursor",
+        "x": 1478,
+        "y": 630,
+        "overrides": {
+          "skinId": "stone"
+        }
       }
     ]
   }

@@ -142,6 +142,12 @@ export interface EntityOverrides {
   maxHp?: number;
   respawnSeconds?: number;
   lootTableId?: string;
+  /**
+   * Cursor skin id whose texture replaces the definition's base art for this
+   * instance (see CONTEXT.md: Cursor skin). Used by the Level Editor to dress a
+   * Cursor-being (e.g. the gold Council skin) per placement.
+   */
+  skinId?: string;
 }
 
 export type EntityRuntimeState = 'available' | 'depleted' | 'respawning' | 'unbuilt';
@@ -171,4 +177,6 @@ export interface EntityInstance {
   locked: boolean;
   /** A Shrine's pending crafted Offering, awaiting claim (see ADR-0010). */
   pendingOffering?: Offering;
+  /** Per-instance Cursor skin override (see CONTEXT.md: Cursor skin), if any. */
+  skinId?: string;
 }

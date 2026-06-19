@@ -32,6 +32,8 @@ export function loadPlayerSave(): Player | null {
     if (!parsed || parsed.schemaVersion !== SCHEMA_VERSION || !parsed.player) return null;
     const saved = parsed.player;
     const base = createPlayer(saved.id ?? 'local', saved.displayName ?? 'Wanderer');
+    const unlockedCursorSkins = [...(saved.unlockedCursorSkins ?? base.unlockedCursorSkins)];
+    if (!unlockedCursorSkins.includes(base.cursorSkinId)) unlockedCursorSkins.unshift(base.cursorSkinId);
     return {
       ...base,
       ...saved,
@@ -40,6 +42,8 @@ export function loadPlayerSave(): Player | null {
       ownedTools: [...(saved.ownedTools ?? [])],
       quests: [...(saved.quests ?? [])],
       divinePowers: { ...base.divinePowers, ...saved.divinePowers },
+      unlockedCursorSkins,
+      cursorSkinId: saved.cursorSkinId ?? base.cursorSkinId,
     };
   } catch {
     return null;

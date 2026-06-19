@@ -29,7 +29,14 @@ export class RemoteCursorView {
   private active = false;
   private pulse = 0;
 
-  constructor(textures: TextureMap, name: string, x: number, y: number, toolIconTextureId?: string) {
+  constructor(
+    private readonly textures: TextureMap,
+    name: string,
+    x: number,
+    y: number,
+    toolIconTextureId?: string,
+    skinTextureId = 'cursor',
+  ) {
     this.targetX = x;
     this.targetY = y;
     this.container.x = x;
@@ -49,7 +56,7 @@ export class RemoteCursorView {
       this.toolIcon.alpha = 0;
     }
 
-    const arrowTex = textures.get('cursor');
+    const arrowTex = textures.get(skinTextureId) ?? textures.get('cursor');
     this.arrowShadow = createCursorShadow(arrowTex);
     this.arrowShadow.anchor.set(0.05, 0.05);
     this.arrowShadow.width = 34;
@@ -84,6 +91,14 @@ export class RemoteCursorView {
 
   setName(name: string): void {
     this.nameplate.text = name;
+  }
+
+  /** Swap this player's equipped Cursor skin art (see CONTEXT.md: Cursor skin). */
+  setSkin(skinTextureId: string): void {
+    const tex = this.textures.get(skinTextureId);
+    if (!tex) return;
+    this.arrow.texture = tex;
+    this.arrowShadow.texture = tex;
   }
 
   /** Latest networked world position; the view eases toward it each frame. */

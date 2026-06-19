@@ -1,4 +1,9 @@
-import { getBundledEntityArt, type ArtOverride, type EntityDefinition } from '@tot/shared';
+import {
+  cursorSkinTextureId,
+  getBundledEntityArt,
+  type ArtOverride,
+  type EntityDefinition,
+} from '@tot/shared';
 
 export type { ArtOverride };
 
@@ -72,11 +77,15 @@ export async function saveEntityArtOverlay(): Promise<void> {
   if (!res.ok) throw new Error(`Failed to save entity art (${res.status})`);
 }
 
-/** Resolves a definition's art by layering the global overlay over defaults. */
-export function resolveArt(def: EntityDefinition): ResolvedArt {
+/**
+ * Resolves a definition's art by layering the global overlay over defaults. An
+ * optional per-instance `skinId` (see CONTEXT.md: Cursor skin) swaps the base
+ * texture for the skin's art; transforms still come from the definition/overlay.
+ */
+export function resolveArt(def: EntityDefinition, skinId?: string): ResolvedArt {
   const ov = overlay[def.id] ?? {};
   return {
-    textureId: def.art.textureId,
+    textureId: skinId ? cursorSkinTextureId(skinId) : def.art.textureId,
     scale: ov.scale ?? def.art.scale ?? 1,
     rotation: ov.rotation ?? def.art.rotation ?? 0,
     anchorX: ov.anchorX ?? def.art.anchorX ?? 0.5,

@@ -29,27 +29,20 @@ export function WelcomeNotice({ onClose, variant = 'intro' }: WelcomeNoticeProps
         <button className="welcome-close" onClick={onClose} aria-label="Close">
           ×
         </button>
-        <p className="welcome-kicker">A note from the developer</p>
-        {variant === 'intro' ? (
-          <>
-            <h2>Welcome to Tales of Tileria!</h2>
-            <p>
-              You’ve reached the end of the private intro and are now entering the first shared
-              prototype space. This game is still early, but the core loop is taking shape: gather
-              resources, level skills, craft upgrades, unlock new interactions, and rebuild your lost
-              divine power.
-            </p>
-            <p>Thanks for playing — feedback genuinely helps shape where this goes next.</p>
-          </>
-        ) : (
-          <>
-            <h2>Welcome back to Tales of Tileria!</h2>
-            <p>
-              Your divine work continues. The world is still taking shape — here’s what’s new since
-              you were last here.
-            </p>
-          </>
-        )}
+        <p className="welcome-kicker">A note from Branny (the dev)</p>
+        <h2>{variant === 'intro' ? 'Welcome to Tales of Tileria!' : 'Welcome back to Tales of Tileria!'}</h2>
+        <p>
+          If you’re playing this version of the game, it’s because you’re awesome. Fair warning:
+          expect things to change drastically over time. This is a super rough first draft of what
+          I’m hoping to build — expect data wipes, content changes, system overhauls, and more.
+        </p>
+        <p>
+          My goal is to keep the game playable so I can gather feedback and iterate as you play. I
+          hope you enjoy it — send feedback on X:{' '}
+          <a href="https://x.com/BrannyTweets" target="_blank" rel="noopener noreferrer">
+            @BrannyTweets
+          </a>
+        </p>
 
         <div className="welcome-notes">
           <h3>Update Notes</h3>

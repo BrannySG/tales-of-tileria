@@ -1,12 +1,15 @@
 import {
   DEFAULT_COMBAT_CONFIG,
+  DEFAULT_CURSOR_SKIN_ID,
   addressEvent,
   bestOwnedToolTier,
   bestUsableTool,
   createPlayer,
   emptyDivinePowers,
   emptySkills,
+  getCursorSkin,
   getLootTable,
+  listAchievements,
   listQuestDefinitions,
   listToolDefinitions,
   objectiveGoal,
@@ -201,6 +204,11 @@ export class World {
     const session = this.makeSession(player);
     this.sessions.set(player.id, session);
     this.reconcileActiveQuests(session);
+    // Silent heal: a carried snapshot may already meet an achievement (e.g.
+    // leveled past 10 before the unlock existed). Grant it into the snapshot
+    // without a `cosmetic.unlocked` event; the client derives the "new" dot by
+    // comparing unlocked skins against its local seen set.
+    this.evaluateAchievements(session);
     return [
       {
         event: {
@@ -210,6 +218,7 @@ export class World {
           x: session.cursor.x,
           y: session.cursor.y,
           equippedToolType: player.equippedToolType,
+          cursorSkinId: player.cursorSkinId,
         },
         scope: 'world',
       },
@@ -249,6 +258,7 @@ export class World {
       y: s.cursor.y,
       mode: s.cursor.mode,
       equippedToolType: s.player.equippedToolType,
+      cursorSkinId: s.player.cursorSkinId,
     }));
   }
 
@@ -414,6 +424,9 @@ export class World {
 
       case 'player.setPassiveDamage':
         return this.setPassiveDamage(cmd.amount, session);
+
+      case 'cosmetic.equip':
+        return this.equipCursorSkin(cmd.cursorSkinId, playerId, session);
 
       default:
         return [];
@@ -867,6 +880,47 @@ export class World {
     return [{ type: 'passiveDamageChanged', amount: next }];
   }
 
+  /**
+   * Equips a Cursor skin (see CONTEXT.md: Cursor skin). Authoritative: the skin
+   * must be one the player has unlocked and be a player cosmetic. Emits a
+   * world-scoped `cosmetic.equipped` so other clients re-skin this cursor.
+   */
+  private equipCursorSkin(cursorSkinId: string, playerId: PlayerId, session: PlayerSession): SimEvent[] {
+    const skin = getCursorSkin(cursorSkinId);
+    if (!skin || !skin.playerEquippable) return [];
+    if (!session.player.unlockedCursorSkins.includes(cursorSkinId)) return [];
+    if (session.player.cursorSkinId === cursorSkinId) return [];
+    session.player.cursorSkinId = cursorSkinId;
+    return [{ type: 'cosmetic.equipped', playerId, cursorSkinId }];
+  }
+
+  /**
+   * Grants any Achievement whose condition the player now meets (see CONTEXT.md:
+   * Achievement). Idempotent: a reward Cursor skin already owned is skipped.
+   * Emits `cosmetic.unlocked` per newly granted skin (player-scoped).
+   */
+  private evaluateAchievements(session: PlayerSession): SimEvent[] {
+    const events: SimEvent[] = [];
+    for (const achievement of listAchievements()) {
+      if (!this.achievementMet(achievement.condition, session)) continue;
+      const skinId = achievement.reward.unlockCursorSkinId;
+      if (!skinId || session.player.unlockedCursorSkins.includes(skinId)) continue;
+      session.player.unlockedCursorSkins.push(skinId);
+      events.push({ type: 'cosmetic.unlocked', cursorSkinId: skinId, achievementId: achievement.id });
+    }
+    return events;
+  }
+
+  private achievementMet(
+    condition: { kind: 'reachSkillLevel'; skillId: SkillId; level: number },
+    session: PlayerSession,
+  ): boolean {
+    if (condition.kind === 'reachSkillLevel') {
+      return (session.player.skills[condition.skillId]?.level ?? 1) >= condition.level;
+    }
+    return false;
+  }
+
   // --- Damage / depletion / loot / XP ---
 
   private tickPassiveDamage(dt: number, session: PlayerSession, events: SimEvent[]): void {
@@ -1020,7 +1074,11 @@ export class World {
       const level = xpToLevel(totalXp);
       session.player.skills[skillId] = { xp: totalXp, level };
       events.push({ type: 'skill.xpGained', skillId, amount, totalXp, level });
-      if (level > prev.level) events.push({ type: 'skill.leveledUp', skillId, level });
+      if (level > prev.level) {
+        events.push({ type: 'skill.leveledUp', skillId, level });
+        // A level-up may complete a skill-milestone Achievement (e.g. Lv10).
+        events.push(...this.evaluateAchievements(session));
+      }
     }
     return events;
   }
@@ -1070,6 +1128,9 @@ function clonePlayer(player: Player): Player {
   const divinePowers = player.divinePowers
     ? { smite: { ...player.divinePowers.smite } }
     : emptyDivinePowers();
+  // Carried snapshots from before cosmetics existed may omit these.
+  const unlocked = player.unlockedCursorSkins ? [...player.unlockedCursorSkins] : [];
+  if (!unlocked.includes(DEFAULT_CURSOR_SKIN_ID)) unlocked.unshift(DEFAULT_CURSOR_SKIN_ID);
   return {
     ...player,
     passiveDamage: player.passiveDamage ?? 0,
@@ -1079,6 +1140,8 @@ function clonePlayer(player: Player): Player {
     craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,
     quests: player.quests.map((q) => ({ ...q })),
     divinePowers,
+    unlockedCursorSkins: unlocked,
+    cursorSkinId: player.cursorSkinId ?? DEFAULT_CURSOR_SKIN_ID,
   };
 }
 

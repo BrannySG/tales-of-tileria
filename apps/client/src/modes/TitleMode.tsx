@@ -30,7 +30,9 @@ export function TitleMode() {
     const fit = () => {
       const host = hostRef.current;
       if (!app || !host) return;
-      const scale = Math.min(host.clientWidth / VIRTUAL_WIDTH, host.clientHeight / VIRTUAL_HEIGHT);
+      // Cover-fit so the wisp field fills the screen edge-to-edge (no bars),
+      // matching the in-game presentation.
+      const scale = Math.max(host.clientWidth / VIRTUAL_WIDTH, host.clientHeight / VIRTUAL_HEIGHT);
       app.canvas.style.width = `${Math.round(VIRTUAL_WIDTH * scale)}px`;
       app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
     };

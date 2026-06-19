@@ -20,12 +20,9 @@ export const PATCH_NOTES: readonly PatchNote[] = [
     version: '0.2.0',
     date: 'Jun 2026',
     notes: [
-      'Your progress now sticks around between sessions — tools, skills, and inventory persist.',
-      'This welcome note now waits for you to close it, and returning gods see the latest update notes on load.',
-      'Fixed floating combat text stealing your taps from the world beneath it.',
-      'Fixed "+XP" popups drifting off into the corner on larger maps.',
-      'The townsfolk have learned to pace themselves and comment a little less often.',
-      'Smite now reliably finishes off a young tree, and your starting axe stays usable.',
+      'Progress now saves between sessions.',
+      'Fixed combat text and +XP popup issues.',
+      'Various polish and balance tweaks.',
     ],
   },
 ];

@@ -2,7 +2,13 @@ import bgArea00 from '@assets/T_Area_00_Background.png';
 import bgArea01 from '@assets/T_Area_01_Background.png';
 import bgHighCouncil from '@assets/T_Area_HighCouncil.png';
 import cursorCracked from '@assets/T_Cursor_Cracked.png';
+import cursorWooden from '@assets/Cursors/T_Cursor_Wooden01.png';
+import cursorStone from '@assets/Cursors/T_Cursor_Stone01.png';
+import cursorHanddrawn from '@assets/Cursors/T_Cursor_Handdrawn.png';
+import cursorCouncil from '@assets/Cursors/T_Cursor_Council.png';
 import rock from '@assets/T_Entity_Rock.png';
+import magicStone from '@assets/T_Entity_MagicStone.png';
+import veinedRock from '@assets/T_Entity_VeinedRock.png';
 import tree from '@assets/T_Entity_Tree01.png';
 import treeAncient from '@assets/T_Entity_AncientTree.png';
 import npcSmith from '@assets/T_Entity_Char_MrSmith_Black.png';
@@ -25,6 +31,10 @@ import iconPickaxe from '@assets/T_Item_Pickaxe_Icon.png';
 import iconSword from '@assets/T_Item_Sword_Icon.png';
 import itemAxeRusty from '@assets/T_Item_RustyAxe.png';
 import itemPickaxeRusty from '@assets/T_Item_RustyPickaxe.png';
+import itemAxeIron from '@assets/T_Item_IronAxe.png';
+import itemPickaxeIron from '@assets/T_Item_IronPickaxe.png';
+import itemIronChunk from '@assets/T_Item_IronChunk.png';
+import itemAetherShard from '@assets/T_Item_AetherShard.png';
 import itemWood from '@assets/T_Item_WoodLogs.png';
 import itemStone from '@assets/T_Item_Stone.png';
 import coinGold from '@assets/Coin 2 Gold Outline 256.png';
@@ -37,7 +47,13 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   bg_area01: bgArea01,
   bg_high_council: bgHighCouncil,
   cursor: cursorCracked,
+  cursor_wooden: cursorWooden,
+  cursor_stone: cursorStone,
+  cursor_handdrawn: cursorHanddrawn,
+  cursor_council: cursorCouncil,
   rock,
+  magic_stone: magicStone,
+  veined_rock: veinedRock,
   tree,
   tree_ancient: treeAncient,
   npc_smith: npcSmith,
@@ -60,6 +76,10 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   icon_sword: iconSword,
   item_axe_rusty: itemAxeRusty,
   item_pickaxe_rusty: itemPickaxeRusty,
+  item_axe_iron: itemAxeIron,
+  item_pickaxe_iron: itemPickaxeIron,
+  item_iron_chunk: itemIronChunk,
+  item_aether_shard: itemAetherShard,
   item_wood: itemWood,
   item_stone: itemStone,
   coin_gold: coinGold,

@@ -21,6 +21,15 @@ language in the design docs, this file wins and the docs should be reconciled.
   Dedication. Sim-authoritative (a `player.setName` command sets it; it is the
   Player's `displayName`) and persisted on the client, so the shrine label,
   cursor nameplate, NPC lines, and welcome message all read it.
+- **Cursor skin** — A cosmetic appearance for the player's Cursor: the arrow art
+  shown for their in-world Cursor, their Networked cursor (as other players see
+  them), and their HUD avatar. A player owns a set of *unlocked* Cursor skins and
+  has exactly one *equipped*. A skin only changes how the Cursor looks, never the
+  actor or its behavior. The same skin art is also reusable as the texture of a
+  Cursor-being Entity placed in the Level Editor (e.g. the gold Council skin).
+- **Default skin** — The Cursor skin every player has from the start (the cracked
+  cursor). Always unlocked and equippable; the fallback when nothing else is
+  equipped.
 
 ## Divine Powers
 
@@ -249,6 +258,23 @@ language in the design docs, this file wins and the docs should be reconciled.
   claim), then claimed (Reward taken).
 - **Quest Tracker** — The HUD element listing a player's active Quests and their
   Objective progress, and where completed Quests are claimed.
+
+## Achievements & Profile
+
+- **Achievement** — A passive, sim-authoritative milestone the player completes by
+  reaching a condition (e.g. a Skill level), as opposed to a Quest which is
+  directed and explicitly claimed. Auto-evaluated (no Claim step); completing one
+  may grant a Reward such as unlocking a Cursor skin. Surfaced in the Profile, not
+  the Quest Tracker.
+- **Profile** — The player-facing modal opened from the HUD avatar. It presents
+  the player's identity (Divine name, equipped Cursor skin), Stats (Skill levels,
+  owned Tools), the Cursor skin gallery, and Achievements. It doubles as the
+  surface where the player previews and equips Cursor skins. Locked skins show a
+  silhouette and their unlock condition.
+- **New indicator** — A red dot that flags unacknowledged new content (a freshly
+  unlocked Cursor skin or completed Achievement) on the HUD avatar and within the
+  Profile. "Seen" is a per-device read-receipt held on the client, not
+  authoritative Player state, so it may differ between browsers.
 
 ## Building & Prompts
 

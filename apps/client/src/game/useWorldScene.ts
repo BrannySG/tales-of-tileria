@@ -44,7 +44,7 @@ function carriedPlayer(
 function snapshotPlayerForSave(transport: SimTransport): Player {
   const base = transport.getSnapshot().player;
   const hud = useHud.getState();
-  let craftingJob = base.craftingJob;
+  let craftingJob: typeof base.craftingJob;
   if (hud.craftingJob) {
     const elapsed = (performance.now() - hud.craftingJob.startedAt) / 1000;
     craftingJob = {
@@ -67,6 +67,8 @@ function snapshotPlayerForSave(transport: SimTransport): Player {
     craftingJob,
     quests: hud.quests.map((q) => ({ ...q })),
     divinePowers: base.divinePowers,
+    unlockedCursorSkins: [...hud.unlockedCursorSkins],
+    cursorSkinId: hud.cursorSkinId,
   };
 }
 

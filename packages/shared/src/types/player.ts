@@ -1,6 +1,7 @@
 import type { SkillId, ToolId, ToolType } from './ids';
 import type { QuestState } from './quest';
 import type { CraftingJob } from './recipe';
+import { DEFAULT_CURSOR_SKIN_ID } from '../content/cursorSkins';
 
 /** A single skill's live progress: accumulated XP and the derived level. */
 export interface SkillState {
@@ -69,6 +70,13 @@ export interface Player {
   quests: QuestState[];
   /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
   divinePowers: DivinePowers;
+  /**
+   * Cursor skins the player has unlocked (see CONTEXT.md: Cursor skin). Always
+   * includes the Default skin. Portable across Levels like other Player state.
+   */
+  unlockedCursorSkins: string[];
+  /** The currently equipped Cursor skin id (defaults to the Default skin). */
+  cursorSkinId: string;
 }
 
 const SKILL_IDS: SkillId[] = ['mining', 'woodcutting', 'combat', 'crafting'];
@@ -91,5 +99,7 @@ export function createPlayer(id: string, displayName: string): Player {
     craftingUnlocked: false,
     quests: [],
     divinePowers: emptyDivinePowers(),
+    unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
+    cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
   };
 }

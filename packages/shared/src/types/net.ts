@@ -18,6 +18,8 @@ export interface PresenceInfo {
   y: number;
   mode?: CursorMode;
   equippedToolType?: ToolType;
+  /** The player's equipped Cursor skin id, so others render the right art. */
+  cursorSkinId?: string;
 }
 
 /** Messages the client sends to the server. */

@@ -39,7 +39,8 @@ export type SimCommand =
   | { type: 'craft.claim'; instanceId: string }
   | { type: 'player.setName'; name: string }
   | { type: 'player.setDivinePower'; power: DivinePowerId; unlocked: boolean }
-  | { type: 'player.setPassiveDamage'; amount: number };
+  | { type: 'player.setPassiveDamage'; amount: number }
+  | { type: 'cosmetic.equip'; cursorSkinId: string };
 
 /** Identifier of a removable divine power (see CONTEXT.md: Divine power). */
 export type DivinePowerId = 'smite';
@@ -149,6 +150,20 @@ export type SimEvent =
     }
   | { type: 'divinePowerChanged'; power: DivinePowerId; unlocked: boolean }
   | { type: 'passiveDamageChanged'; amount: number }
+  // --- Cosmetics (see CONTEXT.md: Cursor skin / Achievement) ---
+  | {
+      /** A Cursor skin was newly unlocked for the player (private; drives a "new" dot). */
+      type: 'cosmetic.unlocked';
+      cursorSkinId: string;
+      /** The Achievement that granted it, if any (for the toast/profile hint). */
+      achievementId?: string;
+    }
+  | {
+      /** A player equipped a Cursor skin. World-scoped so others re-skin the cursor. */
+      type: 'cosmetic.equipped';
+      playerId: PlayerId;
+      cursorSkinId: string;
+    }
   // --- Multiplayer presence (see ADR-0016) ---
   | {
       /** Another player entered the Level instance (or is already present on join). */
@@ -158,6 +173,8 @@ export type SimEvent =
       x: number;
       y: number;
       equippedToolType?: ToolType;
+      /** The joining player's equipped Cursor skin id (see CONTEXT.md: Cursor skin). */
+      cursorSkinId?: string;
     }
   | { type: 'presence.left'; playerId: PlayerId }
   | {
@@ -211,6 +228,9 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   smiteTriggered: 'player',
   divinePowerChanged: 'player',
   passiveDamageChanged: 'player',
+  // Cosmetics: unlocks are private; an equip must be seen by everyone.
+  'cosmetic.unlocked': 'player',
+  'cosmetic.equipped': 'world',
   // Presence: shared world state every player in the instance must see.
   'presence.joined': 'world',
   'presence.left': 'world',

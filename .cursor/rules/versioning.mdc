@@ -1,0 +1,32 @@
+---
+description: Bump the in-game build version on every change
+alwaysApply: true
+---
+
+# Build Versioning
+
+The game shows a build badge in the bottom-right of the screen (e.g. `Dev V0.2.0a`).
+The single source of truth is `GAME_VERSION` in `apps/client/src/version.ts`.
+
+## Rule: bump it whenever you ship a change
+
+After making a meaningful code/content change, increment `GAME_VERSION` to reflect it.
+Format: `MAJOR.MINOR.PATCH<build>` (build letter optional).
+
+| Change type | What to bump | Example |
+|-------------|--------------|---------|
+| Big milestone / breaking rework | MAJOR (reset minor+patch) | `0.2.0a` → `1.0.0` |
+| New feature or system | MINOR (reset patch) | `0.2.0a` → `0.3.0` |
+| Fix, tweak, balance, polish | PATCH | `0.2.0a` → `0.2.1` |
+| Quick same-version iteration | build letter | `0.2.0` → `0.2.0a` → `0.2.0b` |
+
+## How
+
+Edit only the one line in `apps/client/src/version.ts`:
+
+```typescript
+export const GAME_VERSION = '0.3.0';
+```
+
+Do not hardcode the version anywhere else — import `GAME_VERSION` / `VERSION_LABEL`
+from `version.ts` instead.

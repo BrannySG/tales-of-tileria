@@ -10,6 +10,7 @@ import {
 } from 'pixi.js';
 import {
   bestUsableTool,
+  cursorSkinTextureId,
   getItemDefinition,
   getRecipeDefinition,
   getToolDefinition,
@@ -371,6 +372,7 @@ export class SceneRenderer {
       this.cursorView = new CursorView(
         this.opts.textures,
         this.toolIconForType(snapshot.player.equippedToolType),
+        cursorSkinTextureId(snapshot.player.cursorSkinId),
       );
       this.cursorLayer.addChild(this.cursorView.container);
       app.stage.on('globalpointermove', (e: FederatedPointerEvent) => {
@@ -604,7 +606,24 @@ export class SceneRenderer {
         break;
       }
       case 'presence.joined': {
-        this.remoteCursors?.join(event.playerId, event.name, event.x, event.y, event.equippedToolType);
+        this.remoteCursors?.join(
+          event.playerId,
+          event.name,
+          event.x,
+          event.y,
+          event.equippedToolType,
+          undefined,
+          event.cursorSkinId,
+        );
+        break;
+      }
+      case 'cosmetic.equipped': {
+        // World-scoped: re-skin the equipping player's cursor for everyone.
+        if (!this.networked || event.playerId === this.opts.localPlayerId) {
+          this.cursorView?.setSkin(cursorSkinTextureId(event.cursorSkinId));
+        } else {
+          this.remoteCursors?.setSkin(event.playerId, event.cursorSkinId);
+        }
         break;
       }
       case 'presence.left': {
@@ -1027,12 +1046,26 @@ export class SceneRenderer {
     }
   }
 
+  /**
+   * Sizes the canvas to COVER the host (fill it, no letterbox bars), centred so
+   * the overflow on the longer axis is cropped symmetrically (the host clips it
+   * via `overflow: hidden`). The Pixi coordinate space stays a fixed
+   * VIRTUAL_WIDTH x VIRTUAL_HEIGHT, so all world/cinematic/HUD math is unchanged
+   * — only the presentation goes edge-to-edge. We also hand the camera the
+   * visible design-space rect so edge-push pans from the real screen edges
+   * rather than the (now off-screen) design edges.
+   */
   private fitToHost(): void {
     const { clientWidth: w, clientHeight: h } = this.opts.host;
     if (!w || !h) return;
-    const scale = Math.min(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
+    const scale = Math.max(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
     this.app.canvas.style.width = `${Math.round(VIRTUAL_WIDTH * scale)}px`;
     this.app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
+    const visW = Math.min(VIRTUAL_WIDTH, w / scale);
+    const visH = Math.min(VIRTUAL_HEIGHT, h / scale);
+    const insetX = (VIRTUAL_WIDTH - visW) / 2;
+    const insetY = (VIRTUAL_HEIGHT - visH) / 2;
+    this.camera?.setViewportRect(insetX, insetY, VIRTUAL_WIDTH - insetX, VIRTUAL_HEIGHT - insetY);
   }
 
   /** Resolves a focus target to a world point (entity centre or literal point). */

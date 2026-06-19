@@ -33,4 +33,39 @@ export const stonePickaxeRecipe: RecipeDefinition = {
   xp: { crafting: 10 },
 };
 
-export const RECIPE_DEFINITIONS: readonly RecipeDefinition[] = [stoneAxeRecipe, stonePickaxeRecipe];
+/**
+ * The Iron Axe recipe — tier 3 woodcutting tool. Consumes iron chunks + wood.
+ */
+export const ironAxeRecipe: RecipeDefinition = {
+  id: 'iron_axe',
+  displayName: 'Iron Axe',
+  cost: [
+    { itemId: 'iron_chunk', quantity: 5 },
+    { itemId: 'wood', quantity: 10 },
+  ],
+  craftSeconds: 8,
+  result: { grantsToolId: 'axe_iron' },
+  xp: { crafting: 15 },
+};
+
+/**
+ * The Iron Pickaxe recipe — tier 3 mining tool. Consumes iron chunks + wood.
+ */
+export const ironPickaxeRecipe: RecipeDefinition = {
+  id: 'iron_pickaxe',
+  displayName: 'Iron Pickaxe',
+  cost: [
+    { itemId: 'iron_chunk', quantity: 8 },
+    { itemId: 'wood', quantity: 5 },
+  ],
+  craftSeconds: 8,
+  result: { grantsToolId: 'pickaxe_iron' },
+  xp: { crafting: 15 },
+};
+
+export const RECIPE_DEFINITIONS: readonly RecipeDefinition[] = [
+  stoneAxeRecipe,
+  stonePickaxeRecipe,
+  ironAxeRecipe,
+  ironPickaxeRecipe,
+];

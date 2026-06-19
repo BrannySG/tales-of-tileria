@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   DEFAULT_COMBAT_CONFIG,
+  DEFAULT_CURSOR_SKIN_ID,
   emptySkills,
   getToolDefinition,
   type CombatConfig,
@@ -64,6 +65,38 @@ function persistAudioSettings(settings: AudioSettings): void {
   }
 }
 
+/**
+ * Per-device "seen" read-receipts for the red New indicators (see CONTEXT.md:
+ * New indicator). NOT authoritative Player state — purely which unlocked skins /
+ * completed achievements this browser has already shown the player.
+ */
+const SEEN_KEY = 'tot.seenCosmetics';
+interface SeenState {
+  skins: string[];
+  achievements: string[];
+}
+
+function loadSeen(): SeenState {
+  if (typeof localStorage === 'undefined') return { skins: [], achievements: [] };
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    if (!raw) return { skins: [], achievements: [] };
+    const parsed = JSON.parse(raw) as Partial<SeenState>;
+    return { skins: parsed.skins ?? [], achievements: parsed.achievements ?? [] };
+  } catch {
+    return { skins: [], achievements: [] };
+  }
+}
+
+function persistSeen(seen: SeenState): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  } catch {
+    // Storage unavailable: dots will simply reappear next session.
+  }
+}
+
 interface HudState {
   inventory: Record<string, number>;
   quests: QuestState[];
@@ -81,6 +114,14 @@ interface HudState {
   combat: CombatConfig;
   /** Player-owned passive damage per tick (mirrors `Player.passiveDamage`). */
   passiveDamage: number;
+  /** Equipped Cursor skin id (mirrors `Player.cursorSkinId`). */
+  cursorSkinId: string;
+  /** Cursor skins the player has unlocked (mirrors `Player.unlockedCursorSkins`). */
+  unlockedCursorSkins: string[];
+  /** Skin ids the New indicator has already shown (client-local read-receipts). */
+  seenCursorSkins: string[];
+  /** Achievement ids already acknowledged in the Profile (client-local). */
+  seenAchievements: string[];
   soundEnabled: boolean;
   /** Music channel volume (0–1), persisted across sessions. */
   musicVolume: number;
@@ -103,6 +144,13 @@ interface HudState {
   setLocked: (locked: boolean) => void;
   setCombat: (partial: Partial<CombatConfig>) => void;
   setPassiveDamage: (amount: number) => void;
+  setCursorSkin: (cursorSkinId: string) => void;
+  setUnlockedCursorSkins: (ids: string[]) => void;
+  addUnlockedCursorSkin: (id: string) => void;
+  /** Marks skin ids as seen (clears their New dot), persisted per-device. */
+  markCursorSkinsSeen: (ids: string[]) => void;
+  /** Marks achievement ids as seen (clears their New dot), persisted per-device. */
+  markAchievementsSeen: (ids: string[]) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
@@ -120,6 +168,7 @@ function toolTypesOf(ids: readonly ToolId[]): ToolType[] {
 }
 
 const initialAudio = loadAudioSettings();
+const initialSeen = loadSeen();
 
 export const useHud = create<HudState>((set) => ({
   inventory: {},
@@ -136,6 +185,10 @@ export const useHud = create<HudState>((set) => ({
   locked: false,
   combat: { ...DEFAULT_COMBAT_CONFIG },
   passiveDamage: 0,
+  cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
+  unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
+  seenCursorSkins: initialSeen.skins,
+  seenAchievements: initialSeen.achievements,
   soundEnabled: initialAudio.soundEnabled,
   musicVolume: initialAudio.musicVolume,
   sfxVolume: initialAudio.sfxVolume,
@@ -179,6 +232,26 @@ export const useHud = create<HudState>((set) => ({
   setLocked: (locked) => set({ locked }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
   setPassiveDamage: (passiveDamage) => set({ passiveDamage }),
+  setCursorSkin: (cursorSkinId) => set({ cursorSkinId }),
+  setUnlockedCursorSkins: (ids) => set({ unlockedCursorSkins: [...ids] }),
+  addUnlockedCursorSkin: (id) =>
+    set((state) =>
+      state.unlockedCursorSkins.includes(id)
+        ? state
+        : { unlockedCursorSkins: [...state.unlockedCursorSkins, id] },
+    ),
+  markCursorSkinsSeen: (ids) =>
+    set((state) => {
+      const seenCursorSkins = [...new Set([...state.seenCursorSkins, ...ids])];
+      persistSeen({ skins: seenCursorSkins, achievements: state.seenAchievements });
+      return { seenCursorSkins };
+    }),
+  markAchievementsSeen: (ids) =>
+    set((state) => {
+      const seenAchievements = [...new Set([...state.seenAchievements, ...ids])];
+      persistSeen({ skins: state.seenCursorSkins, achievements: seenAchievements });
+      return { seenAchievements };
+    }),
   setSoundEnabled: (soundEnabled) =>
     set((state) => {
       persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: state.sfxVolume, soundEnabled });
@@ -197,6 +270,8 @@ export const useHud = create<HudState>((set) => ({
       return { sfxVolume: next };
     }),
   reset: () =>
+    // Note: seen* read-receipts are intentionally NOT reset — they are a
+    // per-device history that should survive session/level swaps.
     set({
       inventory: {},
       quests: [],
@@ -210,6 +285,8 @@ export const useHud = create<HudState>((set) => ({
       displayName: '',
       target: undefined,
       locked: false,
+      cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
+      unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     }),
 }));
 
@@ -224,6 +301,9 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   const snapshot = transport.getSnapshot();
   for (const e of snapshot.entities) hp.set(e.instanceId, { hp: e.hp, maxHp: e.maxHp });
   let currentTarget: string | undefined;
+  // The local player owns this projection; cosmetic.equipped is world-scoped, so
+  // only mirror our OWN equip into the HUD (others' equips re-skin remote cursors).
+  const localPlayerId = snapshot.player.id;
 
   // Hydrate player-scoped state from the snapshot.
   const hud = useHud.getState();
@@ -234,6 +314,8 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
   hud.setPassiveDamage(snapshot.player.passiveDamage);
   hud.setDisplayName(snapshot.player.displayName);
+  hud.setUnlockedCursorSkins(snapshot.player.unlockedCursorSkins ?? [DEFAULT_CURSOR_SKIN_ID]);
+  hud.setCursorSkin(snapshot.player.cursorSkinId ?? DEFAULT_CURSOR_SKIN_ID);
   for (const e of snapshot.entities) if (e.pendingOffering) hud.setOffering(e.instanceId, e.pendingOffering.grantsToolId);
   for (const q of snapshot.player.quests) hud.upsertQuest(q);
 
@@ -314,6 +396,14 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'passiveDamageChanged': {
         useHud.getState().setPassiveDamage(event.amount);
+        break;
+      }
+      case 'cosmetic.unlocked': {
+        useHud.getState().addUnlockedCursorSkin(event.cursorSkinId);
+        break;
+      }
+      case 'cosmetic.equipped': {
+        if (event.playerId === localPlayerId) useHud.getState().setCursorSkin(event.cursorSkinId);
         break;
       }
     }

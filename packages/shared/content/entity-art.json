@@ -5,6 +5,18 @@
     "anchorX": 0.5,
     "anchorY": 0.89
   },
+  "veined_rock": {
+    "scale": 0.86,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.82
+  },
+  "magic_stone": {
+    "scale": 0.34,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.85
+  },
   "basic_tree": {
     "scale": 1.02,
     "rotation": 0,

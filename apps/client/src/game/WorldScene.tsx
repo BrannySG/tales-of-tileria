@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { CombatConfig, LevelDefinition, Player, Rarity, ToolId, ToolType } from '@tot/shared';
 import { LocalTransport } from '@tot/sim';
 import { useWorldScene, type WorldSession } from './useWorldScene';
@@ -79,6 +79,11 @@ export function WorldScene({
   const onClaimQuest = (questId: string) => {
     sessionRef.current?.transport.send({ type: 'quest.claim', questId });
   };
+  // Equipping a Cursor skin is authoritative; the echoed `cosmetic.equipped`
+  // updates the HUD store + re-skins the cursor (see store.ts / SceneRenderer).
+  const onEquipCursor = (cursorSkinId: string) => {
+    sessionRef.current?.transport.send({ type: 'cosmetic.equip', cursorSkinId });
+  };
   const onCombatChange = (partial: Partial<CombatConfig>) => {
     // Combat tuning is a Content-Zoo (local) dev affordance; networked play has
     // no client-side combat authority.
@@ -127,8 +132,8 @@ export function WorldScene({
     <>
       <div className="stage-host" ref={hostRef} />
       <div className="world-frame-host" style={{ display: hudVisible ? undefined : 'none' }}>
-        <div className="world-frame" style={{ width: stage.width, height: stage.height }}>
-          <div className="hud-layer" style={{ transform: `scale(${stage.scale})` }}>
+        <div className="world-frame">
+          <div className="hud-layer" style={{ '--hud-scale': stage.scale } as CSSProperties}>
             <Hud
               variant={variant}
               locationName={locationName}
@@ -140,6 +145,7 @@ export function WorldScene({
               onPassiveDamageChange={onPassiveDamageChange}
               onToggleSound={onToggleSound}
               onOpenSettings={() => setSettingsOpen(true)}
+              onEquipCursor={onEquipCursor}
               onTestLootBurst={onTestLootBurst}
             />
             {craftingOpen && <CraftingMenu onCraft={onCraft} onClose={() => setCraftingOpen(false)} />}

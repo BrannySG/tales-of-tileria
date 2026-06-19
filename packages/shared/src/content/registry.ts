@@ -11,6 +11,8 @@ import { LOOT_TABLES } from './lootTables';
 import { QUEST_DEFINITIONS } from './quests';
 import { RECIPE_DEFINITIONS } from './recipes';
 import { TOOL_DEFINITIONS } from './tools';
+import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
+import { ACHIEVEMENT_DEFINITIONS, type Achievement } from './achievements';
 
 const entityById = new Map<string, EntityDefinition>(ENTITY_DEFINITIONS.map((d) => [d.id, d]));
 const itemById = new Map<string, ItemDefinition>(ITEM_DEFINITIONS.map((d) => [d.id, d]));
@@ -18,6 +20,8 @@ const lootTableById = new Map<string, LootTable>(LOOT_TABLES.map((t) => [t.id, t
 const questById = new Map<string, QuestDefinition>(QUEST_DEFINITIONS.map((q) => [q.id, q]));
 const toolById = new Map<ToolId, ToolDefinition>(TOOL_DEFINITIONS.map((t) => [t.id, t]));
 const recipeById = new Map<string, RecipeDefinition>(RECIPE_DEFINITIONS.map((r) => [r.id, r]));
+const cursorSkinById = new Map<string, CursorSkin>(CURSOR_SKINS.map((s) => [s.id, s]));
+const achievementById = new Map<string, Achievement>(ACHIEVEMENT_DEFINITIONS.map((a) => [a.id, a]));
 
 export function getEntityDefinition(id: string): EntityDefinition | undefined {
   return entityById.get(id);
@@ -95,6 +99,28 @@ export function requireRecipeDefinition(id: string): RecipeDefinition {
 
 export function listRecipeDefinitions(): readonly RecipeDefinition[] {
   return RECIPE_DEFINITIONS;
+}
+
+export function getCursorSkin(id: string): CursorSkin | undefined {
+  return cursorSkinById.get(id);
+}
+
+export function listCursorSkins(): readonly CursorSkin[] {
+  return CURSOR_SKINS;
+}
+
+/** Resolve a skin id to its texture id, falling back to the Default skin. */
+export function cursorSkinTextureId(id: string | undefined): string {
+  const skin = (id && cursorSkinById.get(id)) || cursorSkinById.get(DEFAULT_CURSOR_SKIN_ID);
+  return skin ? skin.textureId : 'cursor';
+}
+
+export function getAchievement(id: string): Achievement | undefined {
+  return achievementById.get(id);
+}
+
+export function listAchievements(): readonly Achievement[] {
+  return ACHIEVEMENT_DEFINITIONS;
 }
 
 /**

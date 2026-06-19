@@ -72,10 +72,13 @@ export const oakTree: EntityDefinition = {
   tags: ['tree', 'choppable', 'oak'],
 };
 
-/** Unlocked by the crafted Stone Pickaxe: needs a tier-2 pickaxe + Mining 3. */
-export const hardRock: EntityDefinition = {
-  id: 'hard_rock',
-  displayName: 'Hard Rock',
+/**
+ * Unlocked by the crafted Stone Pickaxe: needs a tier-2 pickaxe + Mining 3.
+ * The entry point to iron — has a chance to drop an Iron Chunk.
+ */
+export const boulder: EntityDefinition = {
+  id: 'boulder',
+  displayName: 'Boulder',
   kind: 'resource',
   art: {
     textureId: 'rock',
@@ -87,11 +90,61 @@ export const hardRock: EntityDefinition = {
   },
   damageable: { maxHp: 80 },
   respawns: { respawnSeconds: 30 },
-  loot: { lootTableId: 'rock_basic' },
+  loot: { lootTableId: 'boulder' },
   requirements: { skill: { skillId: 'mining', level: 3 }, toolType: 'pickaxe', minTier: 2 },
   xp: { rewards: { mining: 20 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'hard'],
+};
+
+/**
+ * Iron-rich rock: needs a tier-3 (Iron) pickaxe + Mining 5. Drops Iron Chunks
+ * in higher quantity than a Boulder.
+ */
+export const veinedRock: EntityDefinition = {
+  id: 'veined_rock',
+  displayName: 'Veined Rock',
+  kind: 'resource',
+  art: {
+    textureId: 'veined_rock',
+    scale: 0.8,
+    anchorX: 0.5,
+    anchorY: 0.82,
+    hitParticleTextureId: 'fx_rock_shard',
+    hitTint: 0xd8c39a,
+  },
+  damageable: { maxHp: 110 },
+  respawns: { respawnSeconds: 40 },
+  loot: { lootTableId: 'veined_rock' },
+  requirements: { skill: { skillId: 'mining', level: 5 }, toolType: 'pickaxe', minTier: 3 },
+  xp: { rewards: { mining: 28 } },
+  interactionRule: 'claimed',
+  tags: ['rock', 'mineable', 'iron'],
+};
+
+/**
+ * Arcane rock: needs a tier-3 (Iron) pickaxe + Mining 5. Drops stone plus a
+ * rare chance of an Aether Shard.
+ */
+export const magicStone: EntityDefinition = {
+  id: 'magic_stone',
+  displayName: 'Magic Stone',
+  kind: 'resource',
+  art: {
+    textureId: 'magic_stone',
+    scale: 0.8,
+    anchorX: 0.5,
+    anchorY: 0.82,
+    hitParticleTextureId: 'fx_rock_shard',
+    hitTint: 0x9fb6ff,
+  },
+  damageable: { maxHp: 120 },
+  respawns: { respawnSeconds: 45 },
+  loot: { lootTableId: 'magic_stone' },
+  requirements: { skill: { skillId: 'mining', level: 5 }, toolType: 'pickaxe', minTier: 3 },
+  xp: { rewards: { mining: 30 } },
+  interactionRule: 'claimed',
+  tags: ['rock', 'mineable', 'magic'],
 };
 
 export const mrSmith: EntityDefinition = {
@@ -276,7 +329,9 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   smallRock,
   basicTree,
   oakTree,
-  hardRock,
+  boulder,
+  veinedRock,
+  magicStone,
   ancientTree,
   mrSmith,
   woodShack,

@@ -43,6 +43,15 @@ export class CameraController implements Updatable {
 
   private enabled = true;
 
+  // Visible viewport rect in design space. Equals the full viewport until the
+  // renderer reports a cover-cropped sub-rect (see SceneRenderer.fitToHost), so
+  // edge-push engages at the real screen edges rather than the cropped (now
+  // off-screen) design edges. Clamping still uses the full viewport extent.
+  private viewMinX = 0;
+  private viewMinY = 0;
+  private viewMaxX: number;
+  private viewMaxY: number;
+
   // Held movement keys -> direction (look direction).
   private readonly keys = new Set<string>();
 
@@ -73,6 +82,8 @@ export class CameraController implements Updatable {
     this.worldHeight = opts.worldHeight;
     this.viewportWidth = opts.viewportWidth;
     this.viewportHeight = opts.viewportHeight;
+    this.viewMaxX = opts.viewportWidth;
+    this.viewMaxY = opts.viewportHeight;
     this.restingX = this.camera.position.x;
     this.restingY = this.camera.position.y;
     window.addEventListener('keydown', this.onKeyDown);
@@ -106,6 +117,18 @@ export class CameraController implements Updatable {
   /** The last clamped resting position (for a cinematic reset hand-back). */
   restingPosition(): { x: number; y: number } {
     return { x: this.restingX, y: this.restingY };
+  }
+
+  /**
+   * Sets the visible viewport rect in design space (the part of the fixed
+   * design viewport the player can actually see after a cover fit). Edge-push
+   * uses these bounds so it triggers at the real screen edges.
+   */
+  setViewportRect(minX: number, minY: number, maxX: number, maxY: number): void {
+    this.viewMinX = minX;
+    this.viewMinY = minY;
+    this.viewMaxX = maxX;
+    this.viewMaxY = maxY;
   }
 
   /** Feeds the latest desktop pointer position (screen space) for edge-push. */
@@ -173,11 +196,11 @@ export class CameraController implements Updatable {
       vy = (vy / len) * KEYBOARD_PAN_SPEED;
     }
 
-    // Edge-push (desktop): pan when the cursor nears a viewport edge, with speed
-    // scaling from 0 at the margin boundary to full at the very edge.
+    // Edge-push (desktop): pan when the cursor nears a visible viewport edge,
+    // with speed scaling from 0 at the margin boundary to full at the very edge.
     if (this.edgeActive && !this.dragging) {
-      vx += this.edgeVelocity(this.pointerX, this.viewportWidth);
-      vy += this.edgeVelocity(this.pointerY, this.viewportHeight);
+      vx += this.edgeVelocity(this.pointerX, this.viewMinX, this.viewMaxX);
+      vy += this.edgeVelocity(this.pointerY, this.viewMinY, this.viewMaxY);
     }
 
     if (vx !== 0 || vy !== 0) {
@@ -191,15 +214,19 @@ export class CameraController implements Updatable {
     this.keys.clear();
   }
 
-  /** Edge-push velocity for one axis given the pointer coord and viewport size. */
-  private edgeVelocity(p: number, size: number): number {
-    if (p <= EDGE_MARGIN) {
+  /**
+   * Edge-push velocity for one axis given the pointer coord and the visible
+   * viewport bounds [low, high] (design space). Speed scales from 0 at the
+   * margin boundary to full at the very edge.
+   */
+  private edgeVelocity(p: number, low: number, high: number): number {
+    if (p <= low + EDGE_MARGIN) {
       // Near the low edge: look that way (position increases).
-      const depth = (EDGE_MARGIN - Math.max(0, p)) / EDGE_MARGIN;
+      const depth = (low + EDGE_MARGIN - Math.max(low, p)) / EDGE_MARGIN;
       return EDGE_PAN_SPEED * depth;
     }
-    if (p >= size - EDGE_MARGIN) {
-      const depth = (Math.min(size, p) - (size - EDGE_MARGIN)) / EDGE_MARGIN;
+    if (p >= high - EDGE_MARGIN) {
+      const depth = (Math.min(high, p) - (high - EDGE_MARGIN)) / EDGE_MARGIN;
       return -EDGE_PAN_SPEED * depth;
     }
     return 0;

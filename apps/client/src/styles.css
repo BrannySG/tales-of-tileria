@@ -25,6 +25,10 @@ body,
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  /* Stop mobile rubber-banding / pull-to-refresh, which can reveal browser
+     chrome and shift the canvas. (Touch gestures are constrained per-area
+     below — globally `none` here would also block scrollable HUD panels.) */
+  overscroll-behavior: none;
 }
 
 /* Text inputs must stay selectable/editable despite the global opt-out above. */
@@ -49,7 +53,26 @@ button {
 .app {
   position: relative;
   width: 100vw;
+  /* `dvh` tracks the *visible* viewport on mobile (excludes the dynamic Safari
+     toolbars), so the game fills the real screen instead of hiding behind the
+     address bar; `vh` is the fallback for older browsers. */
   height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ---- Build version badge (always present, bottom-right of the screen) ---- */
+.version-badge {
+  position: fixed;
+  right: calc(10px + env(safe-area-inset-right));
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  z-index: 1000;
+  pointer-events: none;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: rgba(232, 234, 237, 0.65);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 
 .mode-nav {
@@ -156,6 +179,12 @@ button {
   display: grid;
   place-items: center;
   background: #0e0f12;
+  /* The canvas is COVER-sized (larger than the host on one axis) and centred;
+     clip the symmetric overflow so it fills the screen with no letterbox bars. */
+  overflow: hidden;
+  /* The Pixi camera owns all touch gestures over the world (drag-to-pan,
+     tap-to-mine); stop the browser from also panning/zooming the page. */
+  touch-action: none;
 }
 
 .stage-host canvas {
@@ -163,29 +192,26 @@ button {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
-/* ---- World frame: overlays + clips the HUD to the letterboxed world view ---- */
+/* ---- World frame: full-screen HUD overlay anchored to the real screen edges ---- */
 .world-frame-host {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
   pointer-events: none;
   z-index: 20;
 }
 
 .world-frame {
-  position: relative;
-  overflow: hidden;
+  position: absolute;
+  inset: 0;
 }
 
-/* HUD authored at the virtual resolution; scaled to match the displayed canvas. */
+/* The HUD now fills the screen; each cluster anchors to a real screen corner and
+   scales by `--hud-scale` (the fit-contain factor) so it stays proportional but
+   never gets clipped by the cover-cropped canvas. */
 .hud-layer {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 1920px;
-  height: 1080px;
-  transform-origin: top left;
+  inset: 0;
+  --hud-scale: 1;
 }
 
 .hud {
@@ -198,38 +224,107 @@ button {
   pointer-events: auto;
 }
 
-/* ---- Currency (top-left) ---- */
-.hud-currency {
+/* ---- Profile card (top-left) ---- */
+.hud-profile {
   position: absolute;
-  top: 34px;
-  left: 40px;
+  top: calc(env(safe-area-inset-top) + 34px * var(--hud-scale));
+  left: calc(env(safe-area-inset-left) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top left;
   display: flex;
   align-items: center;
   gap: 14px;
-  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
+  padding: 12px 18px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  backdrop-filter: blur(4px);
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
 }
 
-.gold {
-  width: 46px;
-  height: 46px;
+.hud-profile-avatar {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--panel-border);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.35));
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hud-profile-avatar:hover {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 210, 74, 0.4);
+  transform: scale(1.06);
+}
+
+.hud-profile-avatar img {
+  width: 40px;
+  height: 40px;
   object-fit: contain;
-  image-rendering: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
 }
 
-.gold-amount {
-  font-size: 46px;
+.hud-profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1.1;
+}
+
+.hud-profile-name {
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+}
+
+.hud-profile-level {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.hud-profile-gold {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+
+.hud-profile-gold img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.hud-profile-gold span {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
   color: #fff;
-  text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
   font-variant-numeric: tabular-nums;
 }
 
 /* ---- Quest tracker (top-left, under currency) ---- */
 .hud-quests {
   position: absolute;
-  top: 104px;
-  left: 40px;
+  top: calc(env(safe-area-inset-top) + 150px * var(--hud-scale));
+  left: calc(env(safe-area-inset-left) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top left;
   width: 320px;
   display: flex;
   flex-direction: column;
@@ -353,8 +448,10 @@ button {
 /* ---- Location (bottom-left) ---- */
 .hud-location {
   position: absolute;
-  bottom: 36px;
-  left: 42px;
+  bottom: calc(env(safe-area-inset-bottom) + 36px * var(--hud-scale));
+  left: calc(env(safe-area-inset-left) + 42px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: bottom left;
   text-shadow: 0 3px 4px rgba(0, 0, 0, 0.6);
   line-height: 1.1;
 }
@@ -374,9 +471,10 @@ button {
 /* ---- Hotbar (bottom-center) ---- */
 .hotbar {
   position: absolute;
-  bottom: 30px;
+  bottom: calc(env(safe-area-inset-bottom) + 30px * var(--hud-scale));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(var(--hud-scale));
+  transform-origin: bottom center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -425,8 +523,10 @@ button {
 /* ---- Settings gear button (top-right) ---- */
 .hud-settings-button {
   position: absolute;
-  top: 34px;
-  right: 40px;
+  top: calc(env(safe-area-inset-top) + 34px * var(--hud-scale));
+  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top right;
   width: 64px;
   height: 64px;
   display: grid;
@@ -444,15 +544,18 @@ button {
 .hud-settings-button:hover {
   color: var(--accent);
   border-color: var(--accent);
-  transform: rotate(35deg);
+  /* Keep the HUD scale while adding the playful tilt. */
+  transform: scale(var(--hud-scale)) rotate(35deg);
 }
 
 /* ---- Dev panel (Zoo only; lives inside the world frame) ---- */
 .dev-panel {
   position: absolute;
   /* Sits below the settings gear, which owns the top-right corner. */
-  top: 114px;
-  right: 40px;
+  top: calc(env(safe-area-inset-top) + 114px * var(--hud-scale));
+  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top right;
   width: 360px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -695,8 +798,10 @@ button {
 /* ---- Skills panel (top-right) ---- */
 .hud-skills {
   position: absolute;
-  top: 40px;
-  right: 40px;
+  top: calc(env(safe-area-inset-top) + 40px * var(--hud-scale));
+  right: calc(env(safe-area-inset-right) + 40px * var(--hud-scale));
+  transform: scale(var(--hud-scale));
+  transform-origin: top right;
   width: 240px;
   display: flex;
   flex-direction: column;
@@ -1272,4 +1377,360 @@ button {
 
 .welcome-dismiss:hover {
   filter: brightness(1.08);
+}
+
+/* ---- New indicator (red dot) ---- */
+.new-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff4747;
+  border: 2px solid var(--panel-solid);
+  box-shadow: 0 0 6px rgba(255, 71, 71, 0.8);
+}
+
+.new-dot.avatar {
+  top: -2px;
+  right: -2px;
+}
+
+.new-dot.card {
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+/* Inline dot used inside tab buttons. */
+.profile-tab .new-dot {
+  position: static;
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ---- Profile modal ---- */
+.profile-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+}
+
+.profile-panel {
+  width: 640px;
+  max-width: 92%;
+  max-height: 86%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-avatar-large {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--panel-border);
+  background: radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.4));
+}
+
+.profile-avatar-large img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+}
+
+.profile-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.profile-name {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.profile-total-level {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+.profile-gold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.profile-gold img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.profile-gold span {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.profile-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.profile-close:hover {
+  color: var(--text);
+}
+
+.profile-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 22px 0;
+}
+
+.profile-tab {
+  position: relative;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.profile-tab:hover {
+  color: var(--text);
+}
+
+.profile-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.profile-body {
+  padding: 18px 22px 24px;
+  overflow-y: auto;
+}
+
+/* Stats page */
+.profile-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-stat-row {
+  display: grid;
+  grid-template-columns: 140px 56px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-stat-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.profile-stat-level {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.profile-stat-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.profile-stat-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6cc24a, #9be05a);
+  transition: width 0.25s ease;
+}
+
+.profile-stat-extra {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* Cursor gallery */
+.cursor-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.cursor-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.cursor-card.equipped {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(255, 210, 74, 0.35);
+}
+
+.cursor-card-art {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+}
+
+.cursor-card-art img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.cursor-card-art img.silhouette {
+  filter: brightness(0) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+  opacity: 0.85;
+}
+
+.cursor-card-label {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cursor-card.locked .cursor-card-label {
+  color: var(--muted);
+}
+
+.cursor-card-hint {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.cursor-equip-btn {
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cursor-equip-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.cursor-equip-btn.equipped,
+.cursor-equip-btn:disabled {
+  color: var(--accent);
+  cursor: default;
+}
+
+/* Achievements */
+.achievement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.achievement-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.achievement-status {
+  font-size: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.achievement-row.complete .achievement-status {
+  color: var(--accent);
+}
+
+.achievement-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.achievement-label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.achievement-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.achievement-reward {
+  font-size: 12px;
+  color: var(--accent-2);
+}
+
+.achievement-state {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.achievement-row.complete .achievement-state {
+  color: var(--accent-2);
 }

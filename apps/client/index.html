@@ -2,7 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` lets the game draw under the notch/home indicator
+         (we pad the HUD with safe-area insets); disabling user zoom keeps the
+         game from being pinch-scaled like a document. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no, maximum-scale=1.0"
+    />
+    <meta name="theme-color" content="#0e0f12" />
+    <!-- PWA / installed-app fullscreen. The `apple-*` tags are what actually let
+         iOS "Add to Home Screen" launch WITHOUT the Safari address/tab bars. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Tileria" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icon-256.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>Tales of Tileria</title>
   </head>
   <body>

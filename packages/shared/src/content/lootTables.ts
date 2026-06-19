@@ -25,4 +25,39 @@ export const oakBasic: LootTable = {
   ],
 };
 
-export const LOOT_TABLES: readonly LootTable[] = [rockBasic, treeBasic, oakBasic];
+/** Boulder (tier-2 pickaxe): stone plus an occasional Iron Chunk. */
+export const boulderLoot: LootTable = {
+  id: 'boulder',
+  rolls: [
+    { itemId: 'stone', minQuantity: 1, maxQuantity: 3, chance: 1 },
+    { itemId: 'smooth_pebble', minQuantity: 1, maxQuantity: 1, chance: 0.1 },
+    { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 0.25 },
+  ],
+};
+
+/** Veined Rock (iron pickaxe): a reliable, plentiful source of Iron Chunks. */
+export const veinedRockLoot: LootTable = {
+  id: 'veined_rock',
+  rolls: [
+    { itemId: 'stone', minQuantity: 1, maxQuantity: 2, chance: 1 },
+    { itemId: 'iron_chunk', minQuantity: 2, maxQuantity: 4, chance: 1 },
+  ],
+};
+
+/** Magic Stone (iron pickaxe): stone plus a rare Aether Shard. */
+export const magicStoneLoot: LootTable = {
+  id: 'magic_stone',
+  rolls: [
+    { itemId: 'stone', minQuantity: 1, maxQuantity: 3, chance: 1 },
+    { itemId: 'aether_shard', minQuantity: 1, maxQuantity: 1, chance: 0.15 },
+  ],
+};
+
+export const LOOT_TABLES: readonly LootTable[] = [
+  rockBasic,
+  treeBasic,
+  oakBasic,
+  boulderLoot,
+  veinedRockLoot,
+  magicStoneLoot,
+];

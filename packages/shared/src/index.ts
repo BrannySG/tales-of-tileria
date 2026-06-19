@@ -20,4 +20,6 @@ export * from './content/quests';
 export * from './content/recipes';
 export * from './content/skills';
 export * from './content/tools';
+export * from './content/cursorSkins';
+export * from './content/achievements';
 export * from './content/registry';

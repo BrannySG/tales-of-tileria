@@ -27,6 +27,7 @@ export class CursorView {
   constructor(
     private readonly textures: TextureMap,
     iconTextureId?: string,
+    skinTextureId = 'cursor',
   ) {
     this.container.eventMode = 'none';
     this.container.zIndex = 1000;
@@ -49,7 +50,7 @@ export class CursorView {
     // Anchor at the arrow art's tip (~5% in from the top-left) and place that
     // tip exactly on the container origin, which tracks the true pointer. This
     // keeps the visible pointer aligned with the OS pointer / hit-test point.
-    const arrowTex = this.textures.get('cursor');
+    const arrowTex = this.textures.get(skinTextureId) ?? this.textures.get('cursor');
     this.arrow = new Sprite(arrowTex);
     this.arrow.anchor.set(0.05, 0.05);
     this.arrow.width = 38;
@@ -72,6 +73,14 @@ export class CursorView {
   setPosition(x: number, y: number): void {
     this.container.x = x;
     this.container.y = y;
+  }
+
+  /** Swap the equipped Cursor skin's art (see CONTEXT.md: Cursor skin). */
+  setSkin(skinTextureId: string): void {
+    const tex = this.textures.get(skinTextureId);
+    if (!tex) return;
+    this.arrow.texture = tex;
+    this.arrowShadow.texture = tex;
   }
 
   setTool(iconTextureId: string | undefined): void {

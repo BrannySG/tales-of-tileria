@@ -22,6 +22,16 @@ export const axeStone: ToolDefinition = {
   iconTextureId: 'icon_axe',
 };
 
+/** The crafted Iron Axe: tier 3, requires Woodcutting 5 to wield. */
+export const axeIron: ToolDefinition = {
+  id: 'axe_iron',
+  toolType: 'axe',
+  tier: 3,
+  displayName: 'Iron Axe',
+  wieldRequirement: { skillId: 'woodcutting', level: 5 },
+  iconTextureId: 'item_axe_iron',
+};
+
 /** The found starting pickaxe: low tier, no wield requirement. More rust than pickaxe. */
 export const pickaxeRusty: ToolDefinition = {
   id: 'pickaxe_rusty',
@@ -32,7 +42,7 @@ export const pickaxeRusty: ToolDefinition = {
 };
 
 /**
- * The crafted Stone Pickaxe: tier 2 (can mine Hard Rocks) but requires Mining 3
+ * The crafted Stone Pickaxe: tier 2 (can mine Boulders) but requires Mining 3
  * to wield — the mining-side mirror of the Stone Axe (see ADR-0008).
  */
 export const pickaxeStone: ToolDefinition = {
@@ -44,9 +54,21 @@ export const pickaxeStone: ToolDefinition = {
   iconTextureId: 'icon_pickaxe',
 };
 
+/** The crafted Iron Pickaxe: tier 3 (can mine Veined Rock and Magic Stone), requires Mining 5 to wield. */
+export const pickaxeIron: ToolDefinition = {
+  id: 'pickaxe_iron',
+  toolType: 'pickaxe',
+  tier: 3,
+  displayName: 'Iron Pickaxe',
+  wieldRequirement: { skillId: 'mining', level: 5 },
+  iconTextureId: 'item_pickaxe_iron',
+};
+
 export const TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   axeRusty,
   axeStone,
+  axeIron,
   pickaxeRusty,
   pickaxeStone,
+  pickaxeIron,
 ];

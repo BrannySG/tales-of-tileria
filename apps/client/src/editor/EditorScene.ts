@@ -177,7 +177,16 @@ export class EditorScene {
   updateOverrides(instanceId: string, overrides: PlacedEntity['overrides']): void {
     const entry = this.entities.get(instanceId);
     if (!entry) return;
+    const prevSkin = entry.placed.overrides?.skinId;
     entry.placed.overrides = overrides;
+    // A skin change swaps the texture, so re-spawn the sprite to reflect it.
+    if ((overrides?.skinId ?? undefined) !== (prevSkin ?? undefined)) {
+      const placed = entry.placed;
+      entry.container.destroy({ children: true });
+      this.entities.delete(instanceId);
+      this.spawn(placed);
+      if (this.selectedId === instanceId) this.select(instanceId);
+    }
     this.emitChange();
   }
 
@@ -202,7 +211,7 @@ export class EditorScene {
 
   private spawn(placed: PlacedEntity): void {
     const def = requireEntityDefinition(placed.definitionId);
-    const resolved = resolveArt(def);
+    const resolved = resolveArt(def, placed.overrides?.skinId);
     const tex = this.opts.textures.get(resolved.textureId);
     if (!tex) return;
     const container = new Container();

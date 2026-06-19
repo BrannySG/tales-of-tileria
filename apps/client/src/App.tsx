@@ -8,6 +8,7 @@ import { TitleMode } from './modes/TitleMode';
 import { OnboardingMode } from './modes/OnboardingMode';
 import { OnboardingDevControl } from './ui/OnboardingDevControl';
 import { hasOnboarded } from './onboarding';
+import { VERSION_LABEL } from './version';
 
 type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding';
 
@@ -89,6 +90,11 @@ export function App() {
       {import.meta.env.DEV && mode === 'zoo' && <ZooMode />}
       {import.meta.env.DEV && mode === 'editor' && <EditorMode />}
       {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}
+      {/* Always-present build badge; lives at the app shell so it survives every
+          mode and is never clipped by the letterboxed world frame. */}
+      <span className="version-badge" aria-hidden>
+        {VERSION_LABEL}
+      </span>
     </div>
   );
 }

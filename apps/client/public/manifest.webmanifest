@@ -1,0 +1,25 @@
+{
+  "name": "Tales of Tileria",
+  "short_name": "Tileria",
+  "description": "Tales of Tileria — an open-world clicker adventure.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0e0f12",
+  "theme_color": "#0e0f12",
+  "icons": [
+    {
+      "src": "/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

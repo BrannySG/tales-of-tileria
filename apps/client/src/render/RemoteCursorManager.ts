@@ -1,5 +1,5 @@
 import { Container } from 'pixi.js';
-import type { CursorMode, PresenceInfo, ToolType } from '@tot/shared';
+import { cursorSkinTextureId, type CursorMode, type PresenceInfo, type ToolType } from '@tot/shared';
 import { RemoteCursorView } from './RemoteCursorView';
 import { TOOL_ICON } from '../assets/manifest';
 import type { TextureMap } from './assets';
@@ -24,7 +24,8 @@ export class RemoteCursorManager implements Updatable {
 
   /** Seeds cursors for players already present when the local player joined. */
   seed(presence: PresenceInfo[]): void {
-    for (const p of presence) this.join(p.playerId, p.name, p.x, p.y, p.equippedToolType, p.mode);
+    for (const p of presence)
+      this.join(p.playerId, p.name, p.x, p.y, p.equippedToolType, p.mode, p.cursorSkinId);
   }
 
   join(
@@ -34,13 +35,27 @@ export class RemoteCursorManager implements Updatable {
     y: number,
     equippedToolType?: ToolType,
     mode?: CursorMode,
+    cursorSkinId?: string,
   ): void {
     if (playerId === this.localPlayerId || this.cursors.has(playerId)) return;
     const icon = equippedToolType ? TOOL_ICON[equippedToolType] : undefined;
-    const view = new RemoteCursorView(this.textures, name, x, y, icon);
+    const view = new RemoteCursorView(
+      this.textures,
+      name,
+      x,
+      y,
+      icon,
+      cursorSkinTextureId(cursorSkinId),
+    );
     if (mode) view.setMode(mode);
     this.cursors.set(playerId, view);
     this.layer.addChild(view.container);
+  }
+
+  /** Re-skin a remote player's cursor when they equip a new Cursor skin. */
+  setSkin(playerId: string, cursorSkinId: string): void {
+    if (playerId === this.localPlayerId) return;
+    this.cursors.get(playerId)?.setSkin(cursorSkinTextureId(cursorSkinId));
   }
 
   leave(playerId: string): void {

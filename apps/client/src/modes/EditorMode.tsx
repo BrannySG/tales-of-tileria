@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  listCursorSkins,
   listEntityDefinitions,
   listLootTables,
   requireEntityDefinition,
+  type InteractionRule,
   type LevelDefinition,
   type PlacedEntity,
 } from '@tot/shared';
@@ -22,6 +24,33 @@ interface LevelMeta {
   displayName: string;
 }
 
+/**
+ * Editor-local multiplayer state. `enabled` maps to whether the saved Level
+ * carries a {@link MultiplayerConfig} block at all (see ADR-0016): on = a
+ * networked, shared, persisted zone; off = single-player. An empty
+ * `interactionDefault` means "fall back to each entity's own rule".
+ */
+interface MultiplayerDraft {
+  enabled: boolean;
+  maxPlayers: number;
+  interactionDefault: InteractionRule | '';
+}
+
+const DEFAULT_MULTIPLAYER: MultiplayerDraft = {
+  enabled: false,
+  maxPlayers: 5,
+  interactionDefault: '',
+};
+
+/** Picks shown in the editor; mirrors the zone archetypes in level.ts. */
+const INTERACTION_OPTIONS: { value: InteractionRule | ''; label: string }[] = [
+  { value: '', label: "Per-entity (each entity's own rule)" },
+  { value: 'lastHit', label: 'Co-op (last hit takes credit)' },
+  { value: 'sharedContribution', label: 'Competitive (shared contribution)' },
+  { value: 'claimed', label: 'Peaceful (first claim locks)' },
+  { value: 'personal', label: 'Personal (per-player instances)' },
+];
+
 export function EditorMode() {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<EditorScene | null>(null);
@@ -30,6 +59,7 @@ export function EditorMode() {
   const [meta, setMeta] = useState<LevelMeta>({ id: 'my_level', displayName: 'My Level' });
   const [backgroundId, setBackgroundId] = useState(DEFAULT_BACKGROUND_ID);
   const [size, setSize] = useState({ width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT });
+  const [multiplayer, setMultiplayer] = useState<MultiplayerDraft>(DEFAULT_MULTIPLAYER);
   const [saved, setSaved] = useState<LevelSummary[]>([]);
   const [status, setStatus] = useState('');
 
@@ -103,6 +133,14 @@ export function EditorMode() {
       height: size.height,
       entities,
     };
+    if (multiplayer.enabled) {
+      level.multiplayer = {
+        maxPlayers: Math.max(1, Math.round(multiplayer.maxPlayers) || 1),
+        ...(multiplayer.interactionDefault
+          ? { interactionDefault: multiplayer.interactionDefault }
+          : {}),
+      };
+    }
     try {
       await saveLevel(level);
       setStatus(`Saved "${level.id}" (${entities.length} entities)`);
@@ -124,6 +162,15 @@ export function EditorMode() {
       sceneRef.current?.setWorldSize(w, h);
       sceneRef.current?.setBackground(level.backgroundTextureId);
       sceneRef.current?.loadEntities(level.entities);
+      setMultiplayer(
+        level.multiplayer
+          ? {
+              enabled: true,
+              maxPlayers: level.multiplayer.maxPlayers,
+              interactionDefault: level.multiplayer.interactionDefault ?? '',
+            }
+          : DEFAULT_MULTIPLAYER,
+      );
       setStatus(`Loaded "${level.id}"`);
     } catch (err) {
       setStatus(`Load failed: ${String(err)}`);
@@ -135,6 +182,7 @@ export function EditorMode() {
     setMeta({ id: 'my_level', displayName: 'My Level' });
     onChangeBackground(DEFAULT_BACKGROUND_ID);
     onChangeSize(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    setMultiplayer(DEFAULT_MULTIPLAYER);
     setStatus('New level');
   };
 
@@ -223,6 +271,58 @@ export function EditorMode() {
             })}
           </div>
         </div>
+        <div className="field">
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              checked={multiplayer.enabled}
+              onChange={(e) =>
+                setMultiplayer((m) => ({ ...m, enabled: e.target.checked }))
+              }
+              style={{ width: 'auto' }}
+            />
+            Multiplayer (shared, networked, persisted)
+          </label>
+          <p className="editor-hint">
+            On = a server-authoritative shared zone players load into together and
+            keep progress in. Off = single-player (tutorial, cutscenes).
+          </p>
+        </div>
+        {multiplayer.enabled && (
+          <>
+            <div className="field">
+              <label>Max players per instance</label>
+              <input
+                type="number"
+                min={1}
+                value={multiplayer.maxPlayers}
+                onChange={(e) =>
+                  setMultiplayer((m) => ({ ...m, maxPlayers: Number(e.target.value) }))
+                }
+              />
+            </div>
+            <div className="field">
+              <label>Interaction rule</label>
+              <select
+                value={multiplayer.interactionDefault}
+                onChange={(e) =>
+                  setMultiplayer((m) => ({
+                    ...m,
+                    interactionDefault: e.target.value as InteractionRule | '',
+                  }))
+                }
+              >
+                {INTERACTION_OPTIONS.map((opt) => (
+                  <option key={opt.value || 'per-entity'} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         <button className="btn" onClick={onSave}>
           Save
         </button>
@@ -336,6 +436,22 @@ function Inspector({
           ))}
         </select>
       </div>
+      {def.kind === 'cursorBeing' && (
+        <div className="field">
+          <label>Cursor skin (default {def.art.textureId})</label>
+          <select
+            value={ov.skinId ?? ''}
+            onChange={(e) => setOverride({ skinId: e.target.value || undefined })}
+          >
+            <option value="">(default)</option>
+            {listCursorSkins().map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <button className="btn secondary" onClick={onDelete}>
         Delete entity
       </button>
