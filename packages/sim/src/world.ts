@@ -8,6 +8,7 @@ import {
   emptyDivinePowers,
   emptySkills,
   findItemInteraction,
+  getCollectionEntry,
   getCursorSkin,
   getLootTable,
   listAchievements,
@@ -23,6 +24,7 @@ import {
   type AddressedEvent,
   type AwardedItem,
   type BlockReason,
+  type CollectionEntryProgress,
   type CombatConfig,
   type CursorState,
   type DamageSource,
@@ -37,6 +39,7 @@ import {
   type SimCommand,
   type SimEvent,
   type SkillId,
+  type SkillUpgradeId,
   type ToolId,
   type ToolType,
   type ZoneSnapshot,
@@ -428,6 +431,12 @@ export class World {
 
       case 'player.setPassiveDamage':
         return this.setPassiveDamage(cmd.amount, session);
+
+      case 'collection.register':
+        return this.registerCollection(cmd.entryId, session, cmd.itemId);
+
+      case 'skill.purchaseUpgrade':
+        return this.purchaseSkillUpgrade(cmd.skillId, cmd.upgradeId, session);
 
       case 'cosmetic.equip':
         return this.equipCursorSkin(cmd.cursorSkinId, playerId, session);
@@ -901,11 +910,12 @@ export class World {
    */
   private applyActiveTap(entity: EntityInstance, session: PlayerSession): SimEvent[] {
     const playerId = session.player.id;
+    const base = this.resolveActiveDamage(entity, session);
     const smite = session.player.divinePowers.smite;
     if (!smite.unlocked || smite.everyNthClick <= 0) {
       session.smiteCount = 0;
       session.lastSmiteTargetId = entity.instanceId;
-      return this.applyDamage(entity, this.combat.activeDamage, 'active', session);
+      return this.applyDamage(entity, base, 'active', session);
     }
 
     if (session.lastSmiteTargetId !== entity.instanceId) {
@@ -915,15 +925,130 @@ export class World {
     session.smiteCount += 1;
 
     if (session.smiteCount % smite.everyNthClick !== 0) {
-      return this.applyDamage(entity, this.combat.activeDamage, 'active', session);
+      return this.applyDamage(entity, base, 'active', session);
     }
 
-    const amount = this.combat.activeDamage * smite.damageMultiplier;
+    const amount = base * smite.damageMultiplier;
     const events: SimEvent[] = [
       { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount, by: playerId },
     ];
     events.push(...this.applyDamage(entity, amount, 'active', session));
     return events;
+  }
+
+  /**
+   * The Active click damage for a tap on `entity`: the Level's base
+   * (`combat.activeDamage`) plus the player's per-skill Skill-Point upgrade bonus
+   * for the entity's skill (see ADR-0020). Tools gate access, not damage; the
+   * bonus only applies to entities whose `requirements.skill.skillId` matches a
+   * skill the player has upgraded, so a Mining upgrade never raises Woodcutting
+   * damage.
+   */
+  private resolveActiveDamage(entity: EntityInstance, session: PlayerSession): number {
+    const skillId = requireEntityDefinition(entity.definitionId).requirements?.skill?.skillId;
+    const bonus = skillId ? (session.player.skillUpgrades[skillId]?.activeClickDamage ?? 0) : 0;
+    return this.combat.activeDamage + bonus;
+  }
+
+  // --- Collections & Skill Points (see CONTEXT.md: Collection / Skill Point) ---
+
+  /**
+   * Registers owned Items toward a Collection Entry (see CONTEXT.md:
+   * Registration). Consumes as much as the player owns toward each still-needed
+   * requirement (partial allowed), then completes the entry and awards Skill
+   * Points when every requirement is met. When `itemId` is given, only that one
+   * requirement is targeted; otherwise every requirement is processed. No-op
+   * (returns []) when the entry is unknown, already complete, the targeted item
+   * is not a requirement, or nothing can be registered.
+   */
+  private registerCollection(
+    entryId: string,
+    session: PlayerSession,
+    itemId?: string,
+  ): SimEvent[] {
+    const def = getCollectionEntry(entryId);
+    if (!def) return [];
+    const player = session.player;
+    const existing = player.collections[entryId];
+    if (existing?.completed) return [];
+
+    const progress: CollectionEntryProgress = existing ?? { registered: {}, completed: false };
+    const inv = player.inventory;
+    let registeredAny = false;
+
+    const targets = itemId
+      ? def.requirements.filter((req) => req.itemId === itemId)
+      : def.requirements;
+
+    for (const req of targets) {
+      const already = progress.registered[req.itemId] ?? 0;
+      const remaining = req.quantity - already;
+      if (remaining <= 0) continue;
+      const owned = inv[req.itemId] ?? 0;
+      const take = Math.min(owned, remaining);
+      if (take <= 0) continue;
+      inv[req.itemId] = owned - take;
+      progress.registered[req.itemId] = already + take;
+      registeredAny = true;
+    }
+
+    if (!registeredAny) return [];
+
+    const complete = def.requirements.every(
+      (req) => (progress.registered[req.itemId] ?? 0) >= req.quantity,
+    );
+    progress.completed = complete;
+    player.collections[entryId] = progress;
+
+    const events: SimEvent[] = [
+      { type: 'inventory.changed', inventory: { ...inv } },
+      { type: 'collection.registered', entryId, registered: { ...progress.registered } },
+    ];
+
+    if (complete && def.rewards.skillPoints > 0) {
+      const points = (player.skillPoints[def.skill] ?? 0) + def.rewards.skillPoints;
+      player.skillPoints[def.skill] = points;
+      events.push({
+        type: 'collection.entryCompleted',
+        entryId,
+        skillId: def.skill,
+        pointsAwarded: def.rewards.skillPoints,
+      });
+      events.push({ type: 'skill.pointsChanged', skillId: def.skill, points });
+    }
+
+    return events;
+  }
+
+  /**
+   * Spends one Skill Point on a per-skill upgrade (see CONTEXT.md: Skill
+   * Upgrade). V1: `active_click_damage` adds +1 to the skill's Active click
+   * damage, repeatable at 1 point each. No-op when the player lacks a point.
+   */
+  private purchaseSkillUpgrade(
+    skillId: SkillId,
+    upgradeId: SkillUpgradeId,
+    session: PlayerSession,
+  ): SimEvent[] {
+    if (upgradeId !== 'active_click_damage') return [];
+    const player = session.player;
+    const points = player.skillPoints[skillId] ?? 0;
+    if (points < 1) return [];
+
+    player.skillPoints[skillId] = points - 1;
+    const upgrades = player.skillUpgrades[skillId] ?? { activeClickDamage: 0 };
+    upgrades.activeClickDamage += 1;
+    player.skillUpgrades[skillId] = upgrades;
+
+    return [
+      { type: 'skill.pointsChanged', skillId, points: points - 1 },
+      {
+        type: 'skill.upgradePurchased',
+        skillId,
+        upgradeId,
+        activeClickDamage: upgrades.activeClickDamage,
+      },
+    ];
   }
 
   private setDivinePower(power: DivinePowerId, unlocked: boolean, session: PlayerSession): SimEvent[] {
@@ -1199,15 +1324,34 @@ function defaultEquippedToolType(
 /** Deep-clones a Player so the World owns its own mutable state. */
 function clonePlayer(player: Player): Player {
   const skills = {} as Player['skills'];
-  for (const id of Object.keys(player.skills) as SkillId[]) skills[id] = { ...player.skills[id] };
+  for (const id of Object.keys(player.skills) as SkillId[]) {
+    const saved = player.skills[id];
+    // Migration-safe: preserve XP from snapshots and always re-derive level
+    // from the current authored curve.
+    skills[id] = { xp: saved.xp, level: xpToLevel(saved.xp) };
+  }
   const base = emptySkills();
-  for (const id of Object.keys(base) as SkillId[]) if (!skills[id]) skills[id] = { ...base[id] };
+  for (const id of Object.keys(base) as SkillId[]) {
+    if (!skills[id]) {
+      const saved = base[id];
+      skills[id] = { xp: saved.xp, level: xpToLevel(saved.xp) };
+    }
+  }
   const divinePowers = player.divinePowers
     ? { smite: { ...player.divinePowers.smite } }
     : emptyDivinePowers();
   // Carried snapshots from before cosmetics existed may omit these.
   const unlocked = player.unlockedCursorSkins ? [...player.unlockedCursorSkins] : [];
   if (!unlocked.includes(DEFAULT_CURSOR_SKIN_ID)) unlocked.unshift(DEFAULT_CURSOR_SKIN_ID);
+  // Carried snapshots from before Collections existed may omit these.
+  const collections: Player['collections'] = {};
+  for (const [entryId, progress] of Object.entries(player.collections ?? {})) {
+    collections[entryId] = { registered: { ...progress.registered }, completed: progress.completed };
+  }
+  const skillUpgrades: Player['skillUpgrades'] = {};
+  for (const [skillId, upgrade] of Object.entries(player.skillUpgrades ?? {})) {
+    if (upgrade) skillUpgrades[skillId as SkillId] = { ...upgrade };
+  }
   return {
     ...player,
     passiveDamage: player.passiveDamage ?? 0,
@@ -1216,6 +1360,9 @@ function clonePlayer(player: Player): Player {
     skills,
     craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,
     quests: player.quests.map((q) => ({ ...q })),
+    collections,
+    skillPoints: { ...(player.skillPoints ?? {}) },
+    skillUpgrades,
     divinePowers,
     unlockedCursorSkins: unlocked,
     cursorSkinId: player.cursorSkinId ?? DEFAULT_CURSOR_SKIN_ID,

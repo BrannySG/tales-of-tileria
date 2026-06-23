@@ -52,7 +52,33 @@ export type SimCommand =
   | { type: 'player.setName'; name: string }
   | { type: 'player.setDivinePower'; power: DivinePowerId; unlocked: boolean }
   | { type: 'player.setPassiveDamage'; amount: number }
+  | {
+      /**
+       * Register (donate/consume) owned Items toward a Collection Entry (see
+       * CONTEXT.md: Registration). Consumes as much as the player owns toward the
+       * still-needed requirement(s) (partial allowed) and completes the entry +
+       * awards Skill Points when every requirement is met. When `itemId` is given,
+       * only that one requirement is targeted; otherwise every requirement of the
+       * entry is processed ("register all available"). A no-op if the entry is
+       * unknown, already complete, or nothing can be registered.
+       */
+      type: 'collection.register';
+      entryId: string;
+      itemId?: string;
+    }
+  | {
+      /**
+       * Spend one Skill Point on a per-skill upgrade (see CONTEXT.md: Skill
+       * Upgrade). A no-op if the player lacks the point or the upgrade is unknown.
+       */
+      type: 'skill.purchaseUpgrade';
+      skillId: SkillId;
+      upgradeId: SkillUpgradeId;
+    }
   | { type: 'cosmetic.equip'; cursorSkinId: string };
+
+/** Identifier of a purchasable Skill Upgrade (see CONTEXT.md: Skill Upgrade). */
+export type SkillUpgradeId = 'active_click_damage';
 
 /** Identifier of a removable divine power (see CONTEXT.md: Divine power). */
 export type DivinePowerId = 'smite';
@@ -194,6 +220,39 @@ export type SimEvent =
     }
   | { type: 'divinePowerChanged'; power: DivinePowerId; unlocked: boolean }
   | { type: 'passiveDamageChanged'; amount: number }
+  // --- Collections & Skill Points (see CONTEXT.md: Collection / Skill Point) ---
+  | {
+      /**
+       * Items were Registered toward a Collection Entry: `registered` is the new
+       * per-item Registered totals for the entry. The consumed inventory rides a
+       * companion `inventory.changed`.
+       */
+      type: 'collection.registered';
+      entryId: string;
+      registered: Record<string, number>;
+    }
+  | {
+      /** A Collection Entry was completed (drives the celebration). */
+      type: 'collection.entryCompleted';
+      entryId: string;
+      skillId: SkillId;
+      /** Skill Points granted by this completion. */
+      pointsAwarded: number;
+    }
+  | {
+      /** A skill's unspent Skill Point total changed (award or spend). */
+      type: 'skill.pointsChanged';
+      skillId: SkillId;
+      points: number;
+    }
+  | {
+      /** A Skill Upgrade was purchased; carries the new per-skill bonus total. */
+      type: 'skill.upgradePurchased';
+      skillId: SkillId;
+      upgradeId: SkillUpgradeId;
+      /** New flat Active click-damage bonus for the skill. */
+      activeClickDamage: number;
+    }
   // --- Cosmetics (see CONTEXT.md: Cursor skin / Achievement) ---
   | {
       /** A Cursor skin was newly unlocked for the player (private; drives a "new" dot). */
@@ -277,6 +336,11 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   smiteTriggered: 'player',
   divinePowerChanged: 'player',
   passiveDamageChanged: 'player',
+  // Collections & Skill Points: a single player's private progression.
+  'collection.registered': 'player',
+  'collection.entryCompleted': 'player',
+  'skill.pointsChanged': 'player',
+  'skill.upgradePurchased': 'player',
   // Cosmetics: unlocks are private; an equip must be seen by everyone.
   'cosmetic.unlocked': 'player',
   'cosmetic.equipped': 'world',

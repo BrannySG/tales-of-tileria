@@ -4,19 +4,43 @@ import {
   DEFAULT_CURSOR_SKIN_ID,
   emptySkills,
   getToolDefinition,
+  type CollectionEntryProgress,
   type CombatConfig,
   type QuestState,
   type SimTransport,
   type SkillId,
   type SkillState,
+  type SkillUpgradeState,
   type ToolId,
   type ToolType,
 } from '@tot/shared';
+import {
+  hasUnacknowledgedDiscoveries,
+  isCollectibleItem,
+  markDiscovered,
+} from '../ui/discoveredCollectibles';
+
+let toastIdSeq = 0;
+const nextToastId = (): number => ++toastIdSeq;
 
 export interface TargetInfo {
   name: string;
   hp: number;
   maxHp: number;
+}
+
+/** A queued discovery toast for a first-acquired collectible (presentation). */
+export interface DiscoveryToastItem {
+  id: number;
+  itemId: string;
+}
+
+/** The active Collection completion celebration, if any (presentation). */
+export interface CompletionInfo {
+  key: number;
+  entryId: string;
+  skillId: SkillId;
+  pointsAwarded: number;
 }
 
 /** Client-side view of the player's in-flight craft (for menu progress). */
@@ -104,6 +128,12 @@ interface HudState {
   ownedTools: ToolType[];
   equippedTool: ToolType | undefined;
   skills: Record<SkillId, SkillState>;
+  /** Collection Entry progress keyed by entry id (mirrors `Player.collections`). */
+  collections: Record<string, CollectionEntryProgress>;
+  /** Unspent Skill Points per skill (mirrors `Player.skillPoints`). */
+  skillPoints: Partial<Record<SkillId, number>>;
+  /** Purchased per-skill upgrades (mirrors `Player.skillUpgrades`). */
+  skillUpgrades: Partial<Record<SkillId, SkillUpgradeState>>;
   craftingUnlocked: boolean;
   craftingJob: CraftingJobView | undefined;
   /** Pending shrine offerings keyed by shrine instanceId -> granted tool id. */
@@ -128,6 +158,12 @@ interface HudState {
   seenCursorSkins: string[];
   /** Achievement ids already acknowledged in the Profile (client-local). */
   seenAchievements: string[];
+  /** True when unacknowledged collectibles have been discovered (New badge). */
+  newCollectibles: boolean;
+  /** Queue of discovery toasts for first-acquired collectibles. */
+  discoveryToasts: DiscoveryToastItem[];
+  /** The active Collection completion celebration, if any. */
+  completion: CompletionInfo | undefined;
   soundEnabled: boolean;
   /** Music channel volume (0–1), persisted across sessions. */
   musicVolume: number;
@@ -142,6 +178,12 @@ interface HudState {
   setEquippedTool: (tool: ToolType | undefined) => void;
   setSkill: (skillId: SkillId, skill: SkillState) => void;
   setSkills: (skills: Record<SkillId, SkillState>) => void;
+  setCollections: (collections: Record<string, CollectionEntryProgress>) => void;
+  setCollectionProgress: (entryId: string, progress: CollectionEntryProgress) => void;
+  setSkillPoints: (skillPoints: Partial<Record<SkillId, number>>) => void;
+  setSkillPointsFor: (skillId: SkillId, points: number) => void;
+  setSkillUpgrades: (upgrades: Partial<Record<SkillId, SkillUpgradeState>>) => void;
+  setSkillUpgrade: (skillId: SkillId, upgrade: SkillUpgradeState) => void;
   setCraftingUnlocked: (unlocked: boolean) => void;
   setCraftingJob: (job: CraftingJobView | undefined) => void;
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
@@ -159,6 +201,14 @@ interface HudState {
   markCursorSkinsSeen: (ids: string[]) => void;
   /** Marks achievement ids as seen (clears their New dot), persisted per-device. */
   markAchievementsSeen: (ids: string[]) => void;
+  /** Sets the Collections New badge flag (client-derived discovery). */
+  setNewCollectibles: (value: boolean) => void;
+  /** Enqueues a discovery toast for `itemId`. */
+  pushDiscoveryToast: (itemId: string) => void;
+  /** Removes a discovery toast by id (after its timeout). */
+  dismissDiscoveryToast: (id: number) => void;
+  /** Sets (or clears with undefined) the active completion celebration. */
+  setCompletion: (info: CompletionInfo | undefined) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
@@ -185,6 +235,9 @@ export const useHud = create<HudState>((set) => ({
   ownedTools: [],
   equippedTool: undefined,
   skills: emptySkills(),
+  collections: {},
+  skillPoints: {},
+  skillUpgrades: {},
   craftingUnlocked: false,
   craftingJob: undefined,
   offerings: {},
@@ -198,6 +251,9 @@ export const useHud = create<HudState>((set) => ({
   unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
   seenCursorSkins: initialSeen.skins,
   seenAchievements: initialSeen.achievements,
+  newCollectibles: false,
+  discoveryToasts: [],
+  completion: undefined,
   soundEnabled: initialAudio.soundEnabled,
   musicVolume: initialAudio.musicVolume,
   sfxVolume: initialAudio.sfxVolume,
@@ -227,6 +283,15 @@ export const useHud = create<HudState>((set) => ({
   setEquippedTool: (equippedTool) => set({ equippedTool }),
   setSkill: (skillId, skill) => set((state) => ({ skills: { ...state.skills, [skillId]: skill } })),
   setSkills: (skills) => set({ skills: { ...skills } }),
+  setCollections: (collections) => set({ collections: { ...collections } }),
+  setCollectionProgress: (entryId, progress) =>
+    set((state) => ({ collections: { ...state.collections, [entryId]: progress } })),
+  setSkillPoints: (skillPoints) => set({ skillPoints: { ...skillPoints } }),
+  setSkillPointsFor: (skillId, points) =>
+    set((state) => ({ skillPoints: { ...state.skillPoints, [skillId]: points } })),
+  setSkillUpgrades: (skillUpgrades) => set({ skillUpgrades: { ...skillUpgrades } }),
+  setSkillUpgrade: (skillId, upgrade) =>
+    set((state) => ({ skillUpgrades: { ...state.skillUpgrades, [skillId]: upgrade } })),
   setCraftingUnlocked: (craftingUnlocked) => set({ craftingUnlocked }),
   setCraftingJob: (craftingJob) => set({ craftingJob }),
   setOffering: (instanceId, toolId) =>
@@ -262,6 +327,14 @@ export const useHud = create<HudState>((set) => ({
       persistSeen({ skins: state.seenCursorSkins, achievements: seenAchievements });
       return { seenAchievements };
     }),
+  setNewCollectibles: (newCollectibles) => set({ newCollectibles }),
+  pushDiscoveryToast: (itemId) =>
+    set((state) => ({
+      discoveryToasts: [...state.discoveryToasts, { id: nextToastId(), itemId }],
+    })),
+  dismissDiscoveryToast: (id) =>
+    set((state) => ({ discoveryToasts: state.discoveryToasts.filter((t) => t.id !== id) })),
+  setCompletion: (completion) => set({ completion }),
   setSoundEnabled: (soundEnabled) =>
     set((state) => {
       persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: state.sfxVolume, soundEnabled });
@@ -289,6 +362,9 @@ export const useHud = create<HudState>((set) => ({
       ownedTools: [],
       equippedTool: undefined,
       skills: emptySkills(),
+      collections: {},
+      skillPoints: {},
+      skillUpgrades: {},
       craftingUnlocked: false,
       craftingJob: undefined,
       offerings: {},
@@ -296,6 +372,8 @@ export const useHud = create<HudState>((set) => ({
       target: undefined,
       locked: false,
       armedItemId: undefined,
+      discoveryToasts: [],
+      completion: undefined,
       cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
       unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     }),
@@ -322,7 +400,16 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setOwnedToolIds(snapshot.player.ownedTools);
   hud.setEquippedTool(snapshot.player.equippedToolType);
   hud.setSkills(snapshot.player.skills);
+  hud.setCollections(snapshot.player.collections ?? {});
+  hud.setSkillPoints(snapshot.player.skillPoints ?? {});
+  hud.setSkillUpgrades(snapshot.player.skillUpgrades ?? {});
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
+  // Seed already-owned collectibles as discovered (silently, no toast flood),
+  // then surface the New badge if any discovery is still unacknowledged.
+  for (const [itemId, count] of Object.entries(snapshot.player.inventory)) {
+    if (count > 0 && isCollectibleItem(itemId)) markDiscovered(itemId);
+  }
+  hud.setNewCollectibles(hasUnacknowledgedDiscoveries());
   hud.setPassiveDamage(snapshot.player.passiveDamage);
   hud.setDisplayName(snapshot.player.displayName);
   hud.setUnlockedCursorSkins(snapshot.player.unlockedCursorSkins ?? [DEFAULT_CURSOR_SKIN_ID]);
@@ -362,6 +449,14 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         break;
       }
       case 'inventory.changed': {
+        // First-time collectible acquisition is derived here (player-scoped, so it
+        // never fires on other players' loot): mark + toast + raise the New badge.
+        for (const [itemId, count] of Object.entries(event.inventory)) {
+          if (count > 0 && markDiscovered(itemId)) {
+            useHud.getState().pushDiscoveryToast(itemId);
+            useHud.getState().setNewCollectibles(true);
+          }
+        }
         useHud.getState().setInventory(event.inventory);
         break;
       }
@@ -407,6 +502,36 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'passiveDamageChanged': {
         useHud.getState().setPassiveDamage(event.amount);
+        break;
+      }
+      case 'collection.registered': {
+        const prev = useHud.getState().collections[event.entryId];
+        useHud.getState().setCollectionProgress(event.entryId, {
+          registered: { ...event.registered },
+          completed: prev?.completed ?? false,
+        });
+        break;
+      }
+      case 'collection.entryCompleted': {
+        const prev = useHud.getState().collections[event.entryId];
+        useHud.getState().setCollectionProgress(event.entryId, {
+          registered: { ...(prev?.registered ?? {}) },
+          completed: true,
+        });
+        useHud.getState().setCompletion({
+          key: nextToastId(),
+          entryId: event.entryId,
+          skillId: event.skillId,
+          pointsAwarded: event.pointsAwarded,
+        });
+        break;
+      }
+      case 'skill.pointsChanged': {
+        useHud.getState().setSkillPointsFor(event.skillId, event.points);
+        break;
+      }
+      case 'skill.upgradePurchased': {
+        useHud.getState().setSkillUpgrade(event.skillId, { activeClickDamage: event.activeClickDamage });
         break;
       }
       case 'cosmetic.unlocked': {

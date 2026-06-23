@@ -70,22 +70,126 @@ export const bucketOfWater: ItemDefinition = {
   worldTextureId: 'item_bucket_water',
 };
 
-// Rare drops without art yet: they exist as content but won't burst until a
-// worldTextureId is assigned (see plan / loot-burst presentation).
-export const smoothPebble: ItemDefinition = {
-  id: 'smooth_pebble',
-  displayName: 'Smooth Pebble',
-  rarity: 'rare',
+// --- Collectible drops ---------------------------------------------------
+// Materials registered toward Collection entries (see CONTEXT.md: Collectible
+// Item, Collection). They are ordinary multi-function Items: eligibility to
+// register comes from a Collection Entry referencing the id, not from a
+// category. Art is authored via @tot/spritegen (see .cursor/rules/sprite-generation.mdc);
+// the worldTextureId keys are registered in apps/client/src/assets/manifest.ts.
+
+// Basic Stone -> Mining collectibles (the common-primary requirement is the
+// generic `stone` Item above; these are the alternate-common and rarer drops).
+export const stoneFlintShard: ItemDefinition = {
+  id: 'stone_flint_shard',
+  displayName: 'Flint Shard',
+  rarity: 'common',
   category: 'resource',
-  description: 'Worn perfectly round by water. Oddly satisfying to hold.',
+  description: 'A sharp, useful shard of flint.',
+  worldTextureId: 'item_stone_flint_shard',
 };
 
-export const strongBranch: ItemDefinition = {
-  id: 'strong_branch',
-  displayName: 'Strong Branch',
+export const stoneShinyPebble: ItemDefinition = {
+  id: 'stone_shiny_pebble',
+  displayName: 'Shiny Pebble',
   rarity: 'rare',
   category: 'resource',
-  description: 'A sturdy, straight branch with a promising heft.',
+  description: 'A strangely polished stone that catches the light.',
+  worldTextureId: 'item_stone_shiny_pebble',
+};
+
+export const stoneTinyGeode: ItemDefinition = {
+  id: 'stone_tiny_geode',
+  displayName: 'Tiny Geode',
+  rarity: 'epic',
+  category: 'resource',
+  description: 'A small geode with a hidden crystalline core.',
+  worldTextureId: 'item_stone_tiny_geode',
+};
+
+export const stoneStarFragment: ItemDefinition = {
+  id: 'stone_star_fragment',
+  displayName: 'Star Fragment',
+  rarity: 'legendary',
+  category: 'resource',
+  description: 'A fragment that appears to have fallen from the sky.',
+  worldTextureId: 'item_stone_star_fragment',
+};
+
+// Basic Tree -> Woodcutting collectibles (the common-primary requirement is the
+// generic `wood` Item above; these are the alternate-common and rarer drops).
+export const treeKnottedRoot: ItemDefinition = {
+  id: 'tree_knotted_root',
+  displayName: 'Knotted Root',
+  rarity: 'common',
+  category: 'resource',
+  description: 'A twisted root prized by collectors.',
+  worldTextureId: 'item_tree_knotted_root',
+};
+
+export const treeBirdNest: ItemDefinition = {
+  id: 'tree_bird_nest',
+  displayName: 'Bird Nest',
+  rarity: 'rare',
+  category: 'resource',
+  description: 'An abandoned nest containing unusual finds.',
+  worldTextureId: 'item_tree_bird_nest',
+};
+
+export const treeWhisperingAcorn: ItemDefinition = {
+  id: 'tree_whispering_acorn',
+  displayName: 'Whispering Acorn',
+  rarity: 'epic',
+  category: 'resource',
+  description: 'An acorn that seems faintly alive, humming with quiet magic.',
+  worldTextureId: 'item_tree_whispering_acorn',
+};
+
+export const treeAncientHeartwood: ItemDefinition = {
+  id: 'tree_ancient_heartwood',
+  displayName: 'Ancient Heartwood',
+  rarity: 'legendary',
+  category: 'resource',
+  description: 'A very rare core of ancient living timber.',
+  worldTextureId: 'item_tree_ancient_heartwood',
+};
+
+// Oak Tree -> Woodcutting collectibles (tier-2 source family; the common-primary
+// requirement is the generic `wood` Item above, these are the alternate-common
+// and rarer drops that feed The Oak Codex).
+export const oakBarkStrip: ItemDefinition = {
+  id: 'oak_bark_strip',
+  displayName: 'Oak Bark Strip',
+  rarity: 'common',
+  category: 'resource',
+  description: 'A curl of rugged oak bark, sought by patient collectors.',
+  worldTextureId: 'item_oak_bark_strip',
+};
+
+export const oakGall: ItemDefinition = {
+  id: 'oak_gall',
+  displayName: 'Oak Gall',
+  rarity: 'rare',
+  category: 'resource',
+  description: 'A knobbly woody growth, oddly perfect in its roundness.',
+  worldTextureId: 'item_oak_gall',
+};
+
+export const oakMistletoeSprig: ItemDefinition = {
+  id: 'oak_mistletoe_sprig',
+  displayName: 'Mistletoe Sprig',
+  rarity: 'epic',
+  category: 'resource',
+  description: 'A sprig of mistletoe with pale berries, heavy with old magic.',
+  worldTextureId: 'item_oak_mistletoe_sprig',
+};
+
+export const oakGoldenAcorn: ItemDefinition = {
+  id: 'oak_golden_acorn',
+  displayName: 'Golden Acorn',
+  rarity: 'legendary',
+  category: 'resource',
+  description: 'An acorn of solid golden light. One oak in a thousand bears it.',
+  worldTextureId: 'item_oak_golden_acorn',
 };
 
 export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
@@ -96,6 +200,16 @@ export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   aetherShard,
   bucket,
   bucketOfWater,
-  smoothPebble,
-  strongBranch,
+  stoneFlintShard,
+  stoneShinyPebble,
+  stoneTinyGeode,
+  stoneStarFragment,
+  treeKnottedRoot,
+  treeBirdNest,
+  treeWhisperingAcorn,
+  treeAncientHeartwood,
+  oakBarkStrip,
+  oakGall,
+  oakMistletoeSprig,
+  oakGoldenAcorn,
 ];

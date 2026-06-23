@@ -55,7 +55,7 @@ export const oakTree: EntityDefinition = {
   displayName: 'Oak Tree',
   kind: 'resource',
   art: {
-    textureId: 'tree',
+    textureId: 'tree_oak',
     scale: 1.35,
     anchorX: 0.5,
     anchorY: 0.96,

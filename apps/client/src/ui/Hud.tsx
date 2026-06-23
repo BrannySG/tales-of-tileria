@@ -7,6 +7,7 @@ import { QuestTracker } from './QuestTracker';
 import { DevPanel } from './DevPanel';
 import { ProfileModal } from './ProfileModal';
 import { LeaderboardModal } from './LeaderboardModal';
+import { DiscoveryToasts, CompletionCelebration } from './CollectionFeedback';
 import { newAchievementIds, newCursorSkinIds } from './cosmetics';
 
 export type HudVariant = 'game' | 'zoo';
@@ -21,6 +22,10 @@ export interface HudCallbacks {
   onToggleSound: (enabled: boolean) => void;
   /** Opens the settings menu (audio controls). */
   onOpenSettings: () => void;
+  /** Opens the Collection Book (game variant only). */
+  onOpenCollections: () => void;
+  /** Opens the Skill Upgrades panel (game variant only). */
+  onOpenUpgrades: () => void;
   /** Equips a Cursor skin (sends the authoritative command). */
   onEquipCursor: (cursorSkinId: string) => void;
   /** Content Zoo only: fire a loot burst of a chosen rarity to tune feel. */
@@ -49,6 +54,28 @@ function TrophyIcon() {
       <path
         fill="currentColor"
         d="M18 4h2.5A1.5 1.5 0 0 1 22 5.5v1A4.5 4.5 0 0 1 17.5 11h-.35A6 6 0 0 1 13 14.91V18h2.5a1 1 0 0 1 .97.76L17 20H7l.53-1.24A1 1 0 0 1 8.5 18H11v-3.09A6 6 0 0 1 6.85 11H6.5A4.5 4.5 0 0 1 2 6.5v-1A1.5 1.5 0 0 1 3.5 4H6V3h12v1ZM6 6H4v.5A2.5 2.5 0 0 0 6.2 9 6 6 0 0 1 6 7.5V6Zm12 0v1.5a6 6 0 0 1-.2 1.5A2.5 2.5 0 0 0 20 6.5V6h-2Z"
+      />
+    </svg>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden focusable="false">
+      <path
+        fill="currentColor"
+        d="M6 3h11a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3H6Zm0 2a.5.5 0 0 0-.5.5V16a2.5 2.5 0 0 1 1-.2H17V5H6Zm0 12a.5.5 0 0 0 0 1h11v-1H6Zm2-9h7v1.5H8V8Zm0 3h7v1.5H8V11Z"
+      />
+    </svg>
+  );
+}
+
+function UpgradeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden focusable="false">
+      <path
+        fill="currentColor"
+        d="M12 2.5 14.9 9l6.6.5-5 4.3 1.6 6.7L12 17l-6.1 3.5 1.6-6.7-5-4.3L9.1 9 12 2.5Z"
       />
     </svg>
   );
@@ -98,6 +125,7 @@ export function Hud(props: HudProps) {
   const locationName = props.locationName ?? 'The Grass Plains';
   const [profileOpen, setProfileOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const hasNewCollectibles = useHud((s) => s.newCollectibles);
 
   return (
     <div className="hud">
@@ -123,11 +151,38 @@ export function Hud(props: HudProps) {
       >
         <SettingsGearIcon />
       </button>
+      {variant === 'game' && (
+        <>
+          <button
+            className="hud-collections-button"
+            onClick={props.onOpenCollections}
+            aria-label="Collections"
+            title="Collections"
+          >
+            <BookIcon />
+            {hasNewCollectibles && <span className="new-dot hud-button-dot" aria-label="New" />}
+          </button>
+          <button
+            className="hud-upgrades-button"
+            onClick={props.onOpenUpgrades}
+            aria-label="Skill Upgrades"
+            title="Skill Upgrades"
+          >
+            <UpgradeIcon />
+          </button>
+        </>
+      )}
       <div className="hud-location">
         <small>Tileria</small>
         <span className="hud-location-name">{locationName}</span>
       </div>
       <Bag />
+      {variant === 'game' && (
+        <>
+          <DiscoveryToasts />
+          <CompletionCelebration onOpenUpgrades={props.onOpenUpgrades} />
+        </>
+      )}
       {variant === 'zoo' && (
         <DevPanel
           onCombatChange={props.onCombatChange}

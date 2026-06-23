@@ -20,19 +20,23 @@ const EDGE_PAN_SPEED = 1200;
 const EDGE_MARGIN = 90;
 /** Pointer travel (screen px) before a press becomes a pan instead of a tap. */
 const DRAG_THRESHOLD = 8;
+/** Hard zoom-in cap (multiple of the 1:1 resting scale). */
+const MAX_ZOOM = 2.5;
 
 /**
  * Player-driven pan of the world camera (see CONTEXT.md: Camera, World bounds).
- * Pure presentation: it only translates the shared `worldCamera` container and
- * never touches sim state. Scale is left untouched (no zoom). Movement is
- * clamped so the viewport never reveals anything beyond the World bounds; a
- * world the same size as the viewport is pinned at the origin (never pans), so
- * existing 1920x1080 levels behave exactly as before.
+ * Pure presentation: it only pans/zooms the shared `worldCamera` container and
+ * never touches sim state. Movement and zoom are clamped so the viewport never
+ * reveals anything beyond the World bounds; a world the same size as the
+ * viewport is pinned at the origin and cannot zoom out, so existing 1920x1080
+ * levels behave exactly as before (and unchanged when PLAYER_ZOOM is off, since
+ * the renderer simply never calls `zoomAt`).
  *
- * Three input methods feed it: WASD/Arrow keys (held), edge-push (the desktop
- * cursor near a viewport edge), and touch drag (grab-and-pull the world). It is
- * suspended while a cinematic owns the camera, and exposes its last clamped
- * resting position so a cinematic reset can return there (see ADR-0015).
+ * Input methods feed it: WASD/Arrow keys (held), edge-push (the desktop cursor
+ * near a viewport edge), touch drag (grab-and-pull the world), and pointer-
+ * anchored zoom (`zoomAt`, fed by mouse wheel / touch pinch). It is suspended
+ * while a cinematic owns the camera, and exposes its last clamped resting
+ * transform (position + scale) so a cinematic reset can return there (ADR-0015).
  */
 export class CameraController implements Updatable {
   private readonly camera: Container;
@@ -69,9 +73,10 @@ export class CameraController implements Updatable {
   private dragLastX = 0;
   private dragLastY = 0;
 
-  // Last clamped resting position (where a cinematic reset should return to).
+  // Last clamped resting transform (where a cinematic reset should return to).
   private restingX = 0;
   private restingY = 0;
+  private restingScale = 1;
 
   private onKeyDown = (e: KeyboardEvent) => this.handleKey(e, true);
   private onKeyUp = (e: KeyboardEvent) => this.handleKey(e, false);
@@ -86,6 +91,7 @@ export class CameraController implements Updatable {
     this.viewMaxY = opts.viewportHeight;
     this.restingX = this.camera.position.x;
     this.restingY = this.camera.position.y;
+    this.restingScale = this.camera.scale.x || 1;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
   }
@@ -114,9 +120,37 @@ export class CameraController implements Updatable {
     this.setPosition((this.viewportWidth - this.worldWidth) / 2, (this.viewportHeight - this.worldHeight) / 2);
   }
 
-  /** The last clamped resting position (for a cinematic reset hand-back). */
-  restingPosition(): { x: number; y: number } {
-    return { x: this.restingX, y: this.restingY };
+  /** The last clamped resting transform (for a cinematic reset hand-back). */
+  restingPosition(): { x: number; y: number; scale: number } {
+    return { x: this.restingX, y: this.restingY, scale: this.restingScale };
+  }
+
+  /**
+   * Smallest zoom (scale) that still keeps the World filling the Viewport, so
+   * zooming out can never reveal past the World bounds. A Viewport-sized World
+   * yields 1 (no zoom-out); a larger World allows zooming out to fit it.
+   */
+  private minScale(): number {
+    return Math.max(this.viewportWidth / this.worldWidth, this.viewportHeight / this.worldHeight);
+  }
+
+  /**
+   * Player zoom anchored to a screen point: changes the world scale by `factor`
+   * (clamped to [minScale, MAX_ZOOM]) while keeping the world point currently
+   * under (focusX, focusY) fixed under that same screen point. Suspended while a
+   * cinematic owns the camera. No-op when the clamped scale doesn't change.
+   */
+  zoomAt(focusX: number, focusY: number, factor: number): void {
+    if (!this.enabled) return;
+    const cur = this.camera.scale.x || 1;
+    const next = Math.min(MAX_ZOOM, Math.max(this.minScale(), cur * factor));
+    if (next === cur) return;
+    // World point under the focus before scaling (so it can be pinned after).
+    const wx = (focusX - this.camera.position.x) / cur;
+    const wy = (focusY - this.camera.position.y) / cur;
+    this.camera.scale.set(next);
+    // Re-solve position so the world point stays under the focus, then clamp.
+    this.setPosition(focusX - wx * next, focusY - wy * next);
   }
 
   /**
@@ -232,17 +266,20 @@ export class CameraController implements Updatable {
     return 0;
   }
 
-  /** Sets the camera position, clamped to the World bounds; records resting pos. */
+  /** Sets the camera position, clamped to the World bounds; records resting transform. */
   private setPosition(x: number, y: number): void {
-    // Camera position ranges from (viewport - world) [right/bottom edge aligned]
-    // up to 0 [left/top edge aligned]. When world == viewport, min == max == 0.
-    const minX = this.viewportWidth - this.worldWidth;
-    const minY = this.viewportHeight - this.worldHeight;
+    // Camera position ranges from (viewport - world*scale) [right/bottom edge
+    // aligned] up to 0 [left/top edge aligned]. At scale 1 with world == viewport
+    // min == max == 0; zooming in (scale > 1) grows world*scale and opens up pan.
+    const scale = this.camera.scale.x || 1;
+    const minX = this.viewportWidth - this.worldWidth * scale;
+    const minY = this.viewportHeight - this.worldHeight * scale;
     const clampedX = Math.min(0, Math.max(minX, x));
     const clampedY = Math.min(0, Math.max(minY, y));
     this.camera.position.set(clampedX, clampedY);
     this.restingX = clampedX;
     this.restingY = clampedY;
+    this.restingScale = scale;
   }
 
   private handleKey(e: KeyboardEvent, down: boolean): void {

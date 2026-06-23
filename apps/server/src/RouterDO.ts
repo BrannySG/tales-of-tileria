@@ -15,6 +15,9 @@ export class RouterDO {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (req.method === 'POST' && url.pathname === '/admin/wipe') {
+      return this.adminWipe(req, url);
+    }
     if (url.pathname !== '/assign') return new Response('Not found', { status: 404 });
 
     const levelId = url.searchParams.get('level');
@@ -48,6 +51,19 @@ export class RouterDO {
     names.push(newName);
     await this.state.storage.put(key, names);
     return Response.json({ instanceName: newName });
+  }
+
+  /** Internal-only: clear instance registry keys for a level reset. */
+  private async adminWipe(req: Request, url: URL): Promise<Response> {
+    if (req.headers.get('X-Admin-Token') !== this.env.ADMIN_WIPE_TOKEN) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+    const levelId = url.searchParams.get('level');
+    if (!levelId) return new Response('Missing level', { status: 400 });
+    const key = `instances:${levelId}`;
+    const names = (await this.state.storage.get<string[]>(key)) ?? [];
+    await this.state.storage.delete(key);
+    return Response.json({ ok: true, removed: names.length, levelId });
   }
 
   private async count(instanceName: string): Promise<number> {

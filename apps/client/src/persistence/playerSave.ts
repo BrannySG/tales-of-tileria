@@ -8,7 +8,7 @@
  * Mirrors the defensive try/catch style of `onboarding.ts` so private-mode /
  * quota failures degrade to "no save" rather than throwing.
  */
-import { createPlayer, type Player } from '@tot/shared';
+import { createPlayer, xpToLevel, type Player } from '@tot/shared';
 
 const SAVE_KEY = 'tot.playerSave';
 /** Bump when the persisted shape changes incompatibly; older saves are dropped. */
@@ -34,13 +34,22 @@ export function loadPlayerSave(): Player | null {
     const base = createPlayer(saved.id ?? 'local', saved.displayName ?? 'Wanderer');
     const unlockedCursorSkins = [...(saved.unlockedCursorSkins ?? base.unlockedCursorSkins)];
     if (!unlockedCursorSkins.includes(base.cursorSkinId)) unlockedCursorSkins.unshift(base.cursorSkinId);
+    const mergedSkills = { ...base.skills, ...saved.skills };
+    for (const skillId of Object.keys(mergedSkills) as (keyof typeof mergedSkills)[]) {
+      const skill = mergedSkills[skillId];
+      mergedSkills[skillId] = { xp: skill.xp, level: xpToLevel(skill.xp) };
+    }
     return {
       ...base,
       ...saved,
-      skills: { ...base.skills, ...saved.skills },
+      skills: mergedSkills,
       inventory: { ...saved.inventory },
       ownedTools: [...(saved.ownedTools ?? [])],
       quests: [...(saved.quests ?? [])],
+      // Collections/Skill Points added later: default for pre-collection saves.
+      collections: { ...(saved.collections ?? base.collections) },
+      skillPoints: { ...(saved.skillPoints ?? base.skillPoints) },
+      skillUpgrades: { ...(saved.skillUpgrades ?? base.skillUpgrades) },
       divinePowers: { ...base.divinePowers, ...saved.divinePowers },
       unlockedCursorSkins,
       cursorSkinId: saved.cursorSkinId ?? base.cursorSkinId,

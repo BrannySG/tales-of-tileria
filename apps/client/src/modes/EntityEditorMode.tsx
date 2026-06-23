@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { listEntityDefinitions, requireEntityDefinition, type EntityDefinition } from '@tot/shared';
 import { EntityEditorScene, type PreviewTransform } from '../editor/EntityEditorScene';
+import { EntityPalette } from '../editor/EntityPalette';
 import { loadTextures } from '../render/assets';
-import { ASSET_URL } from '../assets/manifest';
 import { loadGameFonts } from '../assets/fonts';
 import {
   clearArtOverride,
@@ -44,6 +44,7 @@ export function EntityEditorMode() {
     defs[0] ? transformFor(defs[0]) : { scale: 1, rotation: 0, anchorX: 0.5, anchorY: 0.9 },
   );
   const [status, setStatus] = useState('');
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +56,7 @@ export function EntityEditorMode() {
         host: hostRef.current,
         textures,
         backgroundTextureId: BACKGROUND_TEXTURE_ID,
+        onZoom: setZoom,
       });
       if (cancelled) {
         scene.destroy();
@@ -117,20 +119,36 @@ export function EntityEditorMode() {
     <div className="tool-layout" style={{ gridTemplateColumns: '240px 1fr 300px' }}>
       <div className="panel">
         <h3>Entity types</h3>
-        <p className="editor-hint">Edits the global look of a type. Applies to every level.</p>
-        {defs.map((def) => (
-          <div
-            key={def.id}
-            className={`palette-item selectable ${def.id === selectedId ? 'selected' : ''}`}
-            onClick={() => select(def.id)}
-          >
-            <img src={ASSET_URL[def.art.textureId]} alt={def.displayName} />
-            <span>{def.displayName}</span>
-          </div>
-        ))}
+        <EntityPalette
+          mode="selectable"
+          selectedId={selectedId}
+          onSelect={select}
+          hint="Edits the global look of a type. Applies to every level."
+        />
       </div>
 
-      <div ref={hostRef} className="stage-host" style={{ position: 'relative', inset: 'auto', minWidth: 0 }} />
+      <div className="editor-stage">
+        <div
+          ref={hostRef}
+          className="stage-host"
+          style={{ position: 'absolute', inset: 0, minWidth: 0, overflow: 'hidden' }}
+        />
+        <div className="zoom-controls">
+          <button title="Zoom out" onClick={() => sceneRef.current?.zoomByCenter(1 / 1.2)}>
+            −
+          </button>
+          <button className="zoom-readout" title="Fit to view" onClick={() => sceneRef.current?.fit()}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button title="Zoom in" onClick={() => sceneRef.current?.zoomByCenter(1.2)}>
+            +
+          </button>
+          <button className="zoom-fit" title="Fit to view" onClick={() => sceneRef.current?.fit()}>
+            Fit
+          </button>
+        </div>
+        <div className="stage-hint">Scroll to zoom · drag to pan</div>
+      </div>
 
       <div className="panel right">
         <h3>Transform</h3>
@@ -142,7 +160,7 @@ export function EntityEditorMode() {
               min={0.1}
               max={3}
               step={0.01}
-              format={(v) => v.toFixed(2)}
+              decimals={2}
               onChange={(v) => patch({ scale: v })}
             />
             <SliderField
@@ -151,7 +169,8 @@ export function EntityEditorMode() {
               min={-180}
               max={180}
               step={1}
-              format={(v) => `${Math.round(v)}°`}
+              decimals={0}
+              suffix="°"
               onChange={(v) => patch({ rotation: v * RAD })}
             />
             <SliderField
@@ -160,7 +179,7 @@ export function EntityEditorMode() {
               min={0}
               max={1}
               step={0.01}
-              format={(v) => v.toFixed(2)}
+              decimals={2}
               onChange={(v) => patch({ anchorX: v })}
             />
             <SliderField
@@ -169,7 +188,7 @@ export function EntityEditorMode() {
               min={0}
               max={1}
               step={0.01}
-              format={(v) => v.toFixed(2)}
+              decimals={2}
               onChange={(v) => patch({ anchorY: v })}
             />
             <div className="field">
@@ -202,7 +221,8 @@ function SliderField({
   min,
   max,
   step,
-  format,
+  decimals,
+  suffix = '',
   onChange,
 }: {
   label: string;
@@ -210,23 +230,42 @@ function SliderField({
   min: number;
   max: number;
   step: number;
-  format: (v: number) => string;
+  decimals: number;
+  suffix?: string;
   onChange: (v: number) => void;
 }) {
+  const clampToRange = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <div className="field">
       <label>
         <span>{label}</span>
-        <span className="val">{format(value)}</span>
+        <span className="val">
+          {value.toFixed(decimals)}
+          {suffix}
+        </span>
       </label>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
+      <div className="slider-row">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <input
+          type="number"
+          className="slider-number"
+          min={min}
+          max={max}
+          step={step}
+          value={Number(value.toFixed(decimals))}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isNaN(n)) onChange(clampToRange(n));
+          }}
+        />
+      </div>
     </div>
   );
 }

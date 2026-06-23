@@ -1,0 +1,21 @@
+{
+  "name": "@tot/spritegen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "spritegen": "src/cli.ts"
+  },
+  "scripts": {
+    "gen": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
+    "openai": "^6.44.0",
+    "sharp": "^0.35.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
+  }
+}

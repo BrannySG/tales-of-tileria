@@ -6,4 +6,6 @@ export interface Env {
   ROUTER: DurableObjectNamespace;
   /** The single global leaderboard, addressed by the fixed name `global` (see ADR-0019). */
   LEADERBOARD: DurableObjectNamespace;
+  /** Secret used to authorize destructive live data wipe operations. */
+  ADMIN_WIPE_TOKEN: string;
 }

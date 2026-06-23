@@ -1,4 +1,10 @@
-import { getBundledLevel } from '@tot/shared';
+import { getBundledLevel, listBundledLevels } from '@tot/shared';
+import {
+  WIPE_CONFIRM,
+  isAuthorizedAdminRequest,
+  parseWipeScope,
+  type WipeScope,
+} from './adminWipe';
 import type { Env } from './env';
 
 export { InstanceDO } from './InstanceDO';
@@ -11,6 +17,46 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+async function wipeLeaderboard(env: Env): Promise<{ deleted: number }> {
+  const id = env.LEADERBOARD.idFromName('global');
+  const stub = env.LEADERBOARD.get(id);
+  const res = await stub.fetch('https://leaderboard/admin/wipe', {
+    method: 'POST',
+    headers: {
+      'X-Admin-Token': env.ADMIN_WIPE_TOKEN,
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Leaderboard wipe failed (${res.status})`);
+  }
+  const body = (await res.json()) as { deleted?: number };
+  return { deleted: body.deleted ?? 0 };
+}
+
+async function wipeRouters(env: Env): Promise<{ levels: number; removed: number }> {
+  const multiplayerLevels = listBundledLevels().filter((level) => Boolean(level.multiplayer));
+  let removed = 0;
+  for (const level of multiplayerLevels) {
+    const routerId = env.ROUTER.idFromName(`router:${level.id}`);
+    const router = env.ROUTER.get(routerId);
+    const res = await router.fetch(
+      `https://router/admin/wipe?level=${encodeURIComponent(level.id)}`,
+      {
+        method: 'POST',
+        headers: {
+          'X-Admin-Token': env.ADMIN_WIPE_TOKEN,
+        },
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`Router wipe failed for ${level.id} (${res.status})`);
+    }
+    const body = (await res.json()) as { removed?: number };
+    removed += body.removed ?? 0;
+  }
+  return { levels: multiplayerLevels.length, removed };
+}
 
 /**
  * The router Worker (see ADR-0016). A client opens a WebSocket to
@@ -45,6 +91,62 @@ export default {
         status: res.status,
         headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
       });
+    }
+
+    if (url.pathname === '/admin/wipe') {
+      if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+      if (!env.ADMIN_WIPE_TOKEN?.trim()) {
+        return Response.json(
+          { ok: false, error: 'ADMIN_WIPE_TOKEN is not configured' },
+          { status: 503 },
+        );
+      }
+      if (!isAuthorizedAdminRequest(req.headers.get('Authorization'), env.ADMIN_WIPE_TOKEN)) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      let body: { confirm?: string; scope?: WipeScope };
+      try {
+        body = (await req.json()) as { confirm?: string; scope?: WipeScope };
+      } catch {
+        return new Response('Bad JSON', { status: 400 });
+      }
+
+      if (body.confirm !== WIPE_CONFIRM) {
+        return Response.json(
+          { ok: false, error: 'Missing or invalid confirm value' },
+          { status: 400 },
+        );
+      }
+
+      const scope = parseWipeScope(body.scope);
+      if (!scope) {
+        return Response.json({ ok: false, error: 'Invalid scope' }, { status: 400 });
+      }
+
+      try {
+        const result = {
+          scope,
+          leaderboard: undefined as { deleted: number } | undefined,
+          router: undefined as { levels: number; removed: number } | undefined,
+          wipedAt: Date.now(),
+        };
+        if (scope === 'leaderboard' || scope === 'all') {
+          result.leaderboard = await wipeLeaderboard(env);
+        }
+        if (scope === 'router' || scope === 'all') {
+          result.router = await wipeRouters(env);
+        }
+        return Response.json({ ok: true, ...result });
+      } catch (error) {
+        return Response.json(
+          {
+            ok: false,
+            error: error instanceof Error ? error.message : 'Wipe failed',
+          },
+          { status: 502 },
+        );
+      }
     }
 
     if (url.pathname === '/play') {

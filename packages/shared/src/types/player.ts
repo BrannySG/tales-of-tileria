@@ -1,5 +1,6 @@
 import type { SkillId, ToolId, ToolType } from './ids';
 import type { QuestState } from './quest';
+import type { CollectionEntryProgress } from './collection';
 import type { CraftingJob } from './recipe';
 import { DEFAULT_CURSOR_SKIN_ID } from '../content/cursorSkins';
 
@@ -7,6 +8,16 @@ import { DEFAULT_CURSOR_SKIN_ID } from '../content/cursorSkins';
 export interface SkillState {
   xp: number;
   level: number;
+}
+
+/**
+ * Permanent per-skill bonuses bought with Skill Points (see CONTEXT.md: Skill
+ * Upgrade). V1 has a single repeatable upgrade per skill; the shape is kept open
+ * so later upgrades add fields rather than a new system.
+ */
+export interface SkillUpgradeState {
+  /** Flat bonus added to Active click damage against this skill's entities. */
+  activeClickDamage: number;
 }
 
 /**
@@ -68,6 +79,19 @@ export interface Player {
   craftingJob?: CraftingJob;
   /** Live progress on accepted quests. */
   quests: QuestState[];
+  /**
+   * Collection Entry progress keyed by entry id (see CONTEXT.md: Collection
+   * Progress). Sparse: only entries the player has Registered toward appear.
+   * Portable across Levels like other Player state (see ADR-0011).
+   */
+  collections: Record<string, CollectionEntryProgress>;
+  /**
+   * Unspent Skill Points per skill (see CONTEXT.md: Skill Point), earned by
+   * completing Collection Entries and spent in the Skill Upgrades panel.
+   */
+  skillPoints: Partial<Record<SkillId, number>>;
+  /** Permanent per-skill upgrades bought with Skill Points (see ADR-0020). */
+  skillUpgrades: Partial<Record<SkillId, SkillUpgradeState>>;
   /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
   divinePowers: DivinePowers;
   /**
@@ -98,6 +122,9 @@ export function createPlayer(id: string, displayName: string): Player {
     passiveDamage: 0,
     craftingUnlocked: false,
     quests: [],
+    collections: {},
+    skillPoints: {},
+    skillUpgrades: {},
     divinePowers: emptyDivinePowers(),
     unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     cursorSkinId: DEFAULT_CURSOR_SKIN_ID,

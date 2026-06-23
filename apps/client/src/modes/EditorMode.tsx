@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   listCursorSkins,
-  listEntityDefinitions,
   listLootTables,
   requireEntityDefinition,
   type InteractionRule,
@@ -9,8 +8,9 @@ import {
   type PlacedEntity,
 } from '@tot/shared';
 import { EditorScene } from '../editor/EditorScene';
+import { EntityPalette } from '../editor/EntityPalette';
 import { loadTextures } from '../render/assets';
-import { ASSET_URL, BACKGROUNDS } from '../assets/manifest';
+import { BACKGROUNDS } from '../assets/manifest';
 import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from '../render/constants';
 import { listLevels, loadLevel, saveLevel, type LevelSummary } from '../game/levelApi';
 import { loadGameFonts } from '../assets/fonts';
@@ -62,6 +62,7 @@ export function EditorMode() {
   const [multiplayer, setMultiplayer] = useState<MultiplayerDraft>(DEFAULT_MULTIPLAYER);
   const [saved, setSaved] = useState<LevelSummary[]>([]);
   const [status, setStatus] = useState('');
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,12 +82,14 @@ export function EditorMode() {
         worldHeight: VIRTUAL_HEIGHT,
         onChange: setEntities,
         onSelect: setSelectedId,
+        onZoom: setZoom,
       });
       if (cancelled) {
         scene.destroy();
         return;
       }
       sceneRef.current = scene;
+      setZoom(scene.getZoom());
     })();
     void refreshList();
     return () => {
@@ -94,6 +97,34 @@ export function EditorMode() {
       scene?.destroy();
       sceneRef.current = null;
     };
+  }, []);
+
+  // Editor keyboard shortcuts: duplicate / copy / paste / delete. Guarded so
+  // they never fire while typing in the toolbar/inspector form fields.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const scene = sceneRef.current;
+      if (!scene) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        scene.duplicateSelected();
+      } else if (mod && e.key.toLowerCase() === 'c') {
+        scene.copySelected();
+      } else if (mod && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        scene.paste();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (scene.getSelectedId()) {
+          e.preventDefault();
+          scene.removeSelected();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const refreshList = async () => {
@@ -189,43 +220,20 @@ export function EditorMode() {
   const selected = entities.find((e) => e.instanceId === selectedId) ?? null;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        paddingTop: 52,
-        display: 'grid',
-        gridTemplateColumns: '210px 1fr 250px',
-      }}
-    >
-      <div className="panel">
-        <h3>Entities</h3>
-        <p className="editor-hint">Drag onto the canvas to place. Click to select, drag to move.</p>
-        {listEntityDefinitions().map((def) => (
-          <div
-            key={def.id}
-            className="palette-item"
-            draggable
-            onDragStart={(e) => e.dataTransfer.setData(DEF_DRAG_TYPE, def.id)}
-          >
-            <img src={ASSET_URL[def.art.textureId]} alt={def.displayName} />
-            <span>{def.displayName}</span>
-          </div>
-        ))}
-
-        <h3 style={{ marginTop: 18 }}>Level</h3>
-        <div className="field">
-          <label>ID</label>
+    <div className="editor-layout">
+      <div className="editor-toolbar">
+        <div className="toolbar-field">
+          <label>Level ID</label>
           <input value={meta.id} onChange={(e) => setMeta({ ...meta, id: e.target.value })} />
         </div>
-        <div className="field">
+        <div className="toolbar-field">
           <label>Name</label>
           <input
             value={meta.displayName}
             onChange={(e) => setMeta({ ...meta, displayName: e.target.value })}
           />
         </div>
-        <div className="field">
+        <div className="toolbar-field">
           <label>Background</label>
           <select value={backgroundId} onChange={(e) => onChangeBackground(e.target.value)}>
             {BACKGROUNDS.map((bg) => (
@@ -235,9 +243,9 @@ export function EditorMode() {
             ))}
           </select>
         </div>
-        <div className="field">
-          <label>World size (min {VIRTUAL_WIDTH}x{VIRTUAL_HEIGHT})</label>
-          <div style={{ display: 'flex', gap: 6 }}>
+        <div className="toolbar-field">
+          <label>World size</label>
+          <div className="toolbar-size">
             <input
               type="number"
               aria-label="World width"
@@ -246,6 +254,7 @@ export function EditorMode() {
               value={size.width}
               onChange={(e) => onChangeSize(Number(e.target.value), size.height)}
             />
+            <span className="toolbar-x">×</span>
             <input
               type="number"
               aria-label="World height"
@@ -254,58 +263,51 @@ export function EditorMode() {
               value={size.height}
               onChange={(e) => onChangeSize(size.width, Number(e.target.value))}
             />
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            {[1, 2, 3].map((mult) => {
-              const active = size.width === VIRTUAL_WIDTH * mult && size.height === VIRTUAL_HEIGHT * mult;
-              return (
-                <button
-                  key={mult}
-                  className="btn secondary"
-                  style={{ flex: 1, opacity: active ? 1 : 0.7 }}
-                  onClick={() => onChangeSize(VIRTUAL_WIDTH * mult, VIRTUAL_HEIGHT * mult)}
-                >
-                  {mult}x
-                </button>
-              );
-            })}
+            <div className="toolbar-presets">
+              {[1, 2, 3].map((mult) => {
+                const active =
+                  size.width === VIRTUAL_WIDTH * mult && size.height === VIRTUAL_HEIGHT * mult;
+                return (
+                  <button
+                    key={mult}
+                    className={`chip ${active ? 'active' : ''}`}
+                    onClick={() => onChangeSize(VIRTUAL_WIDTH * mult, VIRTUAL_HEIGHT * mult)}
+                  >
+                    {mult}×
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
-        <div className="field">
+        <div className="toolbar-field toolbar-multiplayer">
           <label
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            title="On = a server-authoritative shared zone players load into together and keep progress in. Off = single-player."
           >
             <input
               type="checkbox"
               checked={multiplayer.enabled}
-              onChange={(e) =>
-                setMultiplayer((m) => ({ ...m, enabled: e.target.checked }))
-              }
+              onChange={(e) => setMultiplayer((m) => ({ ...m, enabled: e.target.checked }))}
               style={{ width: 'auto' }}
             />
-            Multiplayer (shared, networked, persisted)
+            Multiplayer
           </label>
-          <p className="editor-hint">
-            On = a server-authoritative shared zone players load into together and
-            keep progress in. Off = single-player (tutorial, cutscenes).
-          </p>
-        </div>
-        {multiplayer.enabled && (
-          <>
-            <div className="field">
-              <label>Max players per instance</label>
+          {multiplayer.enabled && (
+            <div className="toolbar-size">
               <input
                 type="number"
                 min={1}
+                aria-label="Max players"
+                title="Max players per instance"
                 value={multiplayer.maxPlayers}
                 onChange={(e) =>
                   setMultiplayer((m) => ({ ...m, maxPlayers: Number(e.target.value) }))
                 }
+                style={{ width: 64 }}
               />
-            </div>
-            <div className="field">
-              <label>Interaction rule</label>
               <select
+                aria-label="Interaction rule"
                 value={multiplayer.interactionDefault}
                 onChange={(e) =>
                   setMultiplayer((m) => ({
@@ -321,18 +323,22 @@ export function EditorMode() {
                 ))}
               </select>
             </div>
-          </>
-        )}
-        <button className="btn" onClick={onSave}>
-          Save
-        </button>
-        <button className="btn secondary" onClick={onNew}>
-          New
-        </button>
-        <div className="field" style={{ marginTop: 12 }}>
-          <label>Load saved</label>
-          <select value="" onChange={(e) => void onLoad(e.target.value)}>
-            <option value="">Select…</option>
+          )}
+        </div>
+        <div className="toolbar-actions">
+          <button className="btn" onClick={onSave}>
+            Save
+          </button>
+          <button className="btn secondary" onClick={onNew}>
+            New
+          </button>
+          <select
+            className="toolbar-load"
+            value=""
+            aria-label="Load saved level"
+            onChange={(e) => void onLoad(e.target.value)}
+          >
+            <option value="">Load…</option>
             {saved.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.displayName} ({s.id})
@@ -340,32 +346,59 @@ export function EditorMode() {
             ))}
           </select>
         </div>
-        {status && (
-          <p className="editor-hint" style={{ color: 'var(--accent)' }}>
-            {status}
-          </p>
-        )}
+        {status && <span className="toolbar-status">{status}</span>}
       </div>
 
-      <div
-        ref={hostRef}
-        className="stage-host"
-        style={{ position: 'relative', inset: 'auto', minWidth: 0, overflow: 'hidden' }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-      />
-
-      <div className="panel right">
-        <h3>Inspector</h3>
-        {selected ? (
-          <Inspector
-            placed={selected}
-            onChange={(overrides) => sceneRef.current?.updateOverrides(selected.instanceId, overrides)}
-            onDelete={() => sceneRef.current?.removeSelected()}
+      <div className="editor-body">
+        <div className="panel">
+          <h3>Entities</h3>
+          <EntityPalette
+            mode="draggable"
+            dragType={DEF_DRAG_TYPE}
+            hint="Drag onto the canvas to place. Click to select, drag to move."
           />
-        ) : (
-          <p className="empty-note">Select an entity to edit its overrides.</p>
-        )}
+        </div>
+
+        <div className="editor-stage">
+          <div
+            ref={hostRef}
+            className="stage-host"
+            style={{ position: 'absolute', inset: 0, minWidth: 0, overflow: 'hidden' }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={onDrop}
+          />
+          <div className="zoom-controls">
+            <button title="Zoom out" onClick={() => sceneRef.current?.zoomByCenter(1 / 1.2)}>
+              −
+            </button>
+            <button className="zoom-readout" title="Reset to 100%" onClick={() => sceneRef.current?.resetZoom()}>
+              {Math.round(zoom * 100)}%
+            </button>
+            <button title="Zoom in" onClick={() => sceneRef.current?.zoomByCenter(1.2)}>
+              +
+            </button>
+            <button className="zoom-fit" title="Fit world to view" onClick={() => sceneRef.current?.fit()}>
+              Fit
+            </button>
+          </div>
+          <div className="stage-hint">Scroll to zoom · drag empty space to pan</div>
+        </div>
+
+        <div className="panel right">
+          <h3>Inspector</h3>
+          {selected ? (
+            <Inspector
+              placed={selected}
+              onChange={(overrides) =>
+                sceneRef.current?.updateOverrides(selected.instanceId, overrides)
+              }
+              onDuplicate={() => sceneRef.current?.duplicateSelected()}
+              onDelete={() => sceneRef.current?.removeSelected()}
+            />
+          ) : (
+            <p className="empty-note">Select an entity to edit its overrides.</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -374,10 +407,12 @@ export function EditorMode() {
 function Inspector({
   placed,
   onChange,
+  onDuplicate,
   onDelete,
 }: {
   placed: PlacedEntity;
   onChange: (overrides: PlacedEntity['overrides']) => void;
+  onDuplicate: () => void;
   onDelete: () => void;
 }) {
   const def = requireEntityDefinition(placed.definitionId);
@@ -452,8 +487,11 @@ function Inspector({
           </select>
         </div>
       )}
+      <button className="btn secondary" onClick={onDuplicate}>
+        Duplicate (Ctrl+D)
+      </button>
       <button className="btn secondary" onClick={onDelete}>
-        Delete entity
+        Delete entity (Del)
       </button>
     </>
   );

@@ -1,0 +1,62 @@
+---
+description: How to generate game-ready sprites (item icons and world entities) on demand. Use whenever a new Item or Entity needs art, an existing one shows the procedural placeholder, or the user asks to create/generate a sprite, icon, or entity texture.
+alwaysApply: false
+---
+
+# Generating Sprites
+
+Use the local `@tot/spritegen` CLI to produce consistent, transparent, game-ready
+sprites. Do NOT hand-author sprites or invent image files.
+
+## Always delegate to a background subagent
+
+Generation blocks for ~1-3 minutes (and costs OpenAI credits). NEVER run it on the
+main thread. Instead launch a background subagent and keep working:
+
+- Use the Task tool with `subagent_type: shell` and `run_in_background: true`.
+- Give it the exact command below, and tell it to report back the parsed `--json`
+  result: `ok`, `chosen.verdict.score`, `outputs`, and the `wiring` block.
+- When it completes you'll be notified; then do the wiring on the main thread.
+
+## Command
+
+```bash
+# Item icon:
+pnpm --filter @tot/spritegen gen generate \
+  --preset item-icon --subject "<concrete visual description>" \
+  --id <snake_case_item_id> --n 3 --json
+
+# World entity (256x256; scaffolds an EntityDefinition with --wire):
+pnpm --filter @tot/spritegen gen generate \
+  --preset entity --subject "<concrete visual description>" \
+  --id <snake_case_entity_id> --display-name "<Name>" --kind <kind> \
+  --tags <tag1,tag2> --n 3 --json
+```
+
+- `--id` must match (or become) the id in `items.ts` / `entities.ts`.
+- `--subject` is a concrete art description, not the display name.
+- Use `--n 3` (best-of-N) and parse `--json`. Add `--vision-qa` for a stricter check.
+- `--display-name`/`--kind`/`--tags` only shape the scaffolded entity (default kind `prop`).
+- Only `item-icon` and `entity` presets exist today.
+
+## Acting on the result
+
+If `ok: true`, the chosen candidate beat QA (`chosen.verdict.score`). If `ok: false`,
+inspect `error`/`rejects` and retry with a refined `--subject`. Outputs land in
+`AvailableAssets/` with a 1024 master in `tools/spritegen/out/masters/`.
+
+## Wiring it into the game
+
+The `wiring` block gives the exact lines. Pass `--wire` to auto-edit, or do it by hand:
+
+- Items: add the `import` + `TEXTURE_MANIFEST` entry to `apps/client/src/assets/manifest.ts`,
+  then set `worldTextureId` on the matching definition in `packages/shared/src/content/items.ts`.
+- Entities: `--wire` adds the manifest entry AND scaffolds a minimal `EntityDefinition`
+  into `packages/shared/src/content/entities.ts` (added to `ENTITY_DEFINITIONS`, so it
+  appears in both the Level and Entity editors). Refine its gameplay fields afterward.
+
+Then bump the PATCH in `apps/client/src/version.ts` (registering art is a client change).
+
+## Setup
+
+Requires `tools/spritegen/.env` with `OPENAI_API_KEY` (gitignored). See `tools/spritegen/README.md`.

@@ -38,9 +38,10 @@ change a single byte of authoritative state.
   visuals are throwaway (pooled, capped, recycle-oldest) and carry no state.
 - Rarity, display name, and icon are read from a shared `ItemDefinition` registry
   so the sim, HUD, and burst all agree on what an item is.
-- An item only produces a visible drop when its definition has art
-  (`worldTextureId`); art-less items (currently the rare `smooth_pebble` /
-  `strong_branch`) are still awarded, just not shown bursting yet.
+- An item only produces a textured drop when its definition has art
+  (`worldTextureId`); art-less items (currently the V1 collectibles, e.g.
+  `stone_shiny_pebble`) are still awarded — and now show a rarity-colored float +
+  sparkle stand-in burst — until real art is assigned.
 - This is deliberately hard to reverse: if we later want true ground pickups
   (loot the player must walk/click to collect), depletion would have to stop
   auto-awarding and instead spawn collectible entities, changing the sim contract

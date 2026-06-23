@@ -82,5 +82,11 @@
     "rotation": 0,
     "anchorX": 0.5,
     "anchorY": 0.84
+  },
+  "oak_tree": {
+    "scale": 1.44,
+    "rotation": 0,
+    "anchorX": 0.54,
+    "anchorY": 0.87
   }
 }

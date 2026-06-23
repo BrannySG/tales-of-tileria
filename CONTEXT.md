@@ -151,7 +151,10 @@ language in the design docs, this file wins and the docs should be reconciled.
   Resources and the Gold coin are Items. An Item is the identity; its count in
   the Inventory is separate. Stateful items are modeled as **separate Item
   definitions** (e.g. Bucket vs Bucket of Water), never per-instance state (see
-  ADR-0018).
+  ADR-0018). Items are **multi-function**: the same Item can be a crafting cost,
+  a sale good, and a Collection requirement. What an Item can do is conferred by
+  the systems that reference it (recipes, Collection Entries), never locked by
+  its Item category — the category is a presentational classification only.
 - **Item category** — A player-facing classification of an Item: `resource`,
   `consumable`, `quest`, or `currency`. Drives Bag grouping and the tooltip.
   `currency` Items (Gold) are tracked in the Inventory but shown as the profile
@@ -174,7 +177,9 @@ language in the design docs, this file wins and the docs should be reconciled.
   the toggle disarms it.
 - **Rarity** — A tier classifying how scarce/valuable an Item is, surfaced to
   players as a signature color. Ordered common, uncommon, rare, epic,
-  legendary. Generic placeholder colors for now.
+  legendary. Generic placeholder colors for now. Rarity drives presentation
+  (loot-burst flourish, discovery toast) and informs collectible drop tuning; it
+  is not itself a gate on Collection completion.
 - **Loot burst** — The in-world reward moment shown when an entity is depleted:
   the rolled Items visibly burst from the entity, arc out, and settle on the
   floor, each glowing in its Rarity color. Purely presentational — the loot is
@@ -196,6 +201,21 @@ language in the design docs, this file wins and the docs should be reconciled.
   of an Entity definition (scale, rotation, anchor). Edits apply to every
   instance of that type across all Levels. Concerns *what a type looks like*
   (global), not where instances are placed. Complements the Level Editor.
+- **Sprite** — The umbrella term for a generated transparent art asset (an item
+  Icon, an entity, an FX texture). A Sprite is the cut-out artwork itself; how it
+  is used in-game (small in the Bag, large in the world) is a separate concern.
+  Wired into the game through an Item's or Entity's `worldTextureId`.
+- **Icon** — The specific small-art use of a Sprite: an Item's artwork as shown
+  in the Bag and loot bursts. Every Icon is a Sprite, but not every Sprite is an
+  Icon (entity and FX Sprites are not Icons).
+- **Sprite Pipeline** — A local-only development tool that generates game-ready
+  Sprites on demand (item Icons and world Entities): it prompts an image model
+  against curated reference Sprites for visual consistency, removes the
+  background, frames and downscales the result to the target sizes, and QA-checks
+  it. A shared style core keeps every preset's output on one look. Callable by
+  hand or by an AI agent (typically via a background subagent), which reads its
+  structured verdict to accept or retry, and can scaffold the new Item/Entity
+  wiring. Not shipped to players.
 
 ## Tools & Gating
 
@@ -241,7 +261,47 @@ language in the design docs, this file wins and the docs should be reconciled.
   entity is depleted (its XP reward) and when a craft completes. The single source
   of truth for a Skill's progress.
 - **Skill level** — The rank derived from Skill XP via the authored XP curve;
-  recomputed (and stored) on every gain. Drives Wield requirements and gating.
+  recomputed (and stored) on every gain. Uses a Melvor-style exponential threshold
+  ladder and caps at level 99 (XP can continue accruing beyond cap for future
+  progression). Drives Wield requirements and gating.
+
+## Collections & Skill Points
+
+- **Collectible Item** — An Item that can be Registered toward a Collection
+  Entry. Not a distinct kind of Item: any Item referenced by a Collection Entry's
+  requirements is collectible (generic Resources like Stone and Wood included).
+  Stored as ordinary Inventory counts and consumed on Registration.
+- **Source Family** — A class of gatherable Entity with its own collectible loot
+  table, e.g. Basic Stone (Mining) or Basic Tree (Woodcutting). Future families
+  (Oak Trees, Hard Rocks, Magic Stones) each get their own drops and Collections.
+- **Collection** — A themed set of Collection Entries tied to a Skill (and, by
+  framing, a Source Family or zone). V1: The Stone Ledger (Mining) and The Timber
+  Archive (Woodcutting). Authored content.
+- **Collection Book** — The HUD modal surface onto the player's Collections: it
+  lists each Collection and its Entries, shows Collection Progress, and is where
+  the player triggers Registration (single requirement or whole Entry). The Book
+  is presentation; Collections, Entries, and Progress are the data.
+- **Collection Entry** — One completable requirement within a Collection: a set
+  of item requirements that are consumed on Registration in exchange for a Skill
+  Point reward. Completed at most once. Authored content; quantities and rewards
+  are data-tunable.
+- **Registration** — The player action of donating Items into a Collection Entry,
+  consuming the required quantities from the Inventory. Sim-authoritative and
+  partial-allowed: it registers as much as the player owns toward the targeted
+  requirement(s). A Registration may target a single required Item (registering
+  just that Item) or the whole Entry (every requirement at once, "register all
+  available"). The player chooses to register; drops are never auto-registered.
+- **Collection Progress** — The Registered amount per required item on an Entry,
+  plus whether it is complete. Personal authoritative Player state, portable
+  across Levels.
+- **Skill Point** — A permanent point awarded by completing a Collection Entry,
+  pooled per Skill and spendable only within that Skill's Upgrade panel. Distinct
+  from Skill XP (which still comes from depleting Entities).
+- **Skill Upgrade** — A permanent per-Skill effect bought with Skill Points. V1
+  has one per Skill: a repeatable +1 Active click damage (Steady Strike for
+  Mining, Sure Chop for Woodcutting), each costing one Skill Point. Tools still
+  own access and tier jumps; Skill Upgrades grow damage within a Skill (see
+  ADR-0020).
 
 ## Crafting
 
@@ -299,6 +359,13 @@ language in the design docs, this file wins and the docs should be reconciled.
   unlocked Cursor skin or completed Achievement) on the HUD avatar and within the
   Profile. "Seen" is a per-device read-receipt held on the client, not
   authoritative Player state, so it may differ between browsers.
+- **Leaderboard** — A cross-player ranking opened from a HUD trophy, showing the
+  top players by a metric. V1 boards: Woodcutting level, Mining level, and Total
+  level (combined across Skills). It is the game's **first persistent server
+  state** — a single global SQLite Durable Object written server-side from the
+  authoritative Instance, read over HTTP, never written by the client (see
+  ADR-0019). Only players who have set a Divine name appear; only progress made
+  while connected to a multiplayer Instance is recorded.
 
 ## Building & Prompts
 
@@ -342,10 +409,11 @@ language in the design docs, this file wins and the docs should be reconciled.
   world effects) as a unit, so the view can focus and reframe. It is pure
   presentation; it never changes authoritative world state. The Cursor and HUD
   live in screen space and are unaffected by the Camera. It is driven either by
-  the **player** (free panning to navigate a world larger than the viewport) or
-  by the **Director** (scripted focus/reframe for cinematic moments); while a
-  cinematic owns the Camera, player panning is suspended and handed back to the
-  player's resting view when the cinematic releases it.
+  the **player** (free panning to navigate a world larger than the viewport, and
+  pointer-anchored zoom in/out clamped to the World bounds) or by the
+  **Director** (scripted focus/reframe for cinematic moments); while a cinematic
+  owns the Camera, player pan/zoom is suspended and handed back to the player's
+  resting view (position and zoom) when the cinematic releases it.
 - **Viewport** — The fixed-size window the Camera shows onto the world (the
   authored virtual resolution). Distinct from the World, which may be larger:
   the player pans the Camera to bring different parts of the World into the

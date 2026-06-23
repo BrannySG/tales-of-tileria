@@ -196,21 +196,26 @@ Cursor cannot interact with an entity because requirements are not met, another 
 
 High damage from clicking. This should be the most efficient progression method.
 
-#### Passive Hover Damage
+#### Passive Damage
 
-Low damage while hovering.
+A slower damage-over-time applied to the current Target while hovering **or**
+Locked. Per `CONTEXT.md` (canonical), the Passive rate is the **same** whether the
+target was hovered or Locked — Lock is a hands-free state, not a higher damage
+tier. The early draft below treated hover and lock as separate rates; that is
+superseded.
 
-#### Lock Damage
+#### Lock
 
-Medium passive damage while locked. This is the main idle-open gameplay mode.
+A hands-free state, not a damage type: the player pins a Target and Passive damage
+keeps ticking with no further input (true idle). While Locked the player may still
+tap for Active damage.
 
 ### 4.3 Suggested Balance Direction
 
-Initial rough target:
+Initial rough target (Active is meant to dominate; Passive is the idle floor):
 
-- Active clicking: 100% efficiency
-- Locked idle damage: 50–70% efficiency
-- Simple hover damage: 20–40% efficiency
+- Active clicking: 100% efficiency (the optimal path)
+- Passive (hover or lock): a slower idle rate, tuned well below Active
 
 This should be tuned heavily through playtesting.
 
@@ -375,168 +380,80 @@ The first zone is a small grassy area similar to the mockup.
 
 The tutorial should be playful and story-driven. The player should learn by causing chaos in the world.
 
-### 8.2 Tutorial Sequence
+### 8.2 Onboarding Phases
 
-#### Step 1: Darkness and Shack
+Onboarding has two phases (see CONTEXT.md: Onboarding) and ends with the
+Banishment arc that hands the player into the shared Open World.
 
-The screen begins mostly dark. A small shoddy wooden shack is visible.
+#### Phase 1 — Void cinematic (presentation only)
 
-Prompt:
-
-> Tap the shack.
-
-Player clicks the shack repeatedly. The shack shakes, cracks, and breaks.
-
-#### Step 2: Area Reveal
-
-When the shack breaks, the surrounding area reveals. A shocked NPC appears beside the broken shack.
-
-NPC reaction example:
+Over blackness, drifting Wisps and decorative props (a rock, a tree, a house)
+unveil and break on cue — three taps shatter each in turn. These props are
+Director-owned sprites, **not** real Entities; they never touch authoritative HP
+(ADR-0005). The final tap reveals the live tutorial Level with the shack already
+destroyed and a bewildered NPC beside it.
 
 > “MY SHACK! By the roots and rocks, what invisible menace has done this?!”
 
-#### Step 3: First Quest
+The player is granted **Smite** (a temporary Divine power) at the intro start
+(ADR-0012).
 
-The NPC complains that they need wood to repair the shack but are too exhausted to gather it.
+#### Phase 2 — Playable tutorial
 
-NPC:
+The revealed Level runs on the real sim: Entities have HP, are gated by Tools,
+and the player follows an authored Quest chain (§9). The Director grants only the
+first quest; the rest self-propagates in the sim, and claiming a quest unlocks
+the next interactable via `enableEntityTag` (ADR-0009). Teaching beats:
 
-> “I’d fix it myself, but after being personally attacked by the heavens, I need a minute. If only five bits of wood would mysteriously appear…”
+- Tap an Entity for Active damage; hover or Lock for Passive damage.
+- Tools gate what you can damage (no Axe → the tree won't budge, and the world
+  reports *why* it is Blocked).
+- Crafting is physical: resources fly into the Furnace, and the result waits as an
+  Offering on the Shrine to be claimed (ADR-0010).
 
-Quest unlocked:
+#### Phase 3 — Ancient Tree, Council, Banishment
 
-> New Beginnings — Gather 5 Wood
+The chain ends at the **Ancient Tree** — an effectively unbreakable gate. Striking
+it (especially with Smite) triggers the **Council of Clickers**: an authored Level
+of celestial Cursor-beings who judge the player and enact the **Banishment**,
+stripping Smite (ADR-0013). The player is then dropped into the shared **Open
+World** (`bigworld_01`) — their first genuine multiplayer space (ADR-0016) — with
+Tools, Skills, Inventory, Divine name, and Quests all retained.
 
-#### Step 4: Pick Up Axe
-
-An axe appears nearby.
-
-Prompt:
-
-> Tap the axe.
-
-The axe floats to the player’s inventory.
-
-NPC reaction:
-
-> “Oh good. The axe is floating away. That’s normal. Completely normal.”
-
-#### Step 5: Chop Tree
-
-Player uses the axe to damage a nearby tree.
-
-Teaching points:
-
-- Click tree to chop faster
-- Hover to deal slow passive damage
-- Lock cursor to idle chop
-- Tree has HP and respawn timer
-
-#### Step 6: Turn In Quest
-
-After collecting 5 wood, materials fall near the NPC or shrine.
-
-NPC:
-
-> “The gods provide! Also destroy. But mostly provide, I hope.”
-
-Reward:
-
-- Coins
-- Woodcutting XP
-- Unlock Mining quest
-
-#### Step 7: Mining Introduction
-
-NPC notices rocks nearby.
-
-NPC:
-
-> “Since the sky-being is feeling helpful, perhaps the rocks could be persuaded to become stone?”
-
-Player receives or collects a pickaxe.
-
-Quest unlocked:
-
-> Rock Bottom — Mine 5 Stone
+Throughout, NPC voice stays sincerely bewildered and never names mechanics (§2.6).
 
 ---
 
 ## 9. First Quest Chain
 
-### Quest 1: New Beginnings
+The authored chain lives in `packages/shared/src/content/quests.ts` and advances
+from generic gameplay events (ADR-0009). Each claim auto-grants the next quest
+and, where noted, enables the next interactable Entity. Every quest rewards Gold +
+XP; the "Unlocks" column lists the `enableEntityTag` effect.
 
-Objective:
+| # | Quest | Objective | Unlocks on claim |
+|---|-------|-----------|------------------|
+| 1 | A Rude Awakening | Pick up the Axe | — |
+| 2 | Timber! | Chop 3 Trees | — |
+| 3 | Home Sweet Home | Rebuild the Shack | the Pickaxe pickup |
+| 4 | A Sturdier Tool | Pick up the Pickaxe | — |
+| 5 | Stone Cold | Mine 10 Stone | the Furnace (Buildable) |
+| 6 | Forge Ahead | Build the Furnace | the Shrine (enables Dedication) |
+| 7 | A Gift Worthy of Gods | Craft & claim the Stone Axe | — |
+| 8 | A Pick to Match | Craft & claim the Stone Pickaxe | — |
+| 9 | The Path Beyond | Strike the Ancient Tree | triggers the Council cutscene |
 
-- Gather 5 Wood
+Notes:
 
-Teaches:
-
-- Picking up tool
-- Chopping trees
-- Entity HP
-- Resource drops
-- Quest tracking
-
-Reward:
-
-- Coins
-- Woodcutting XP
-- Unlock Pickaxe
-
-### Quest 2: Rock Bottom
-
-Objective:
-
-- Mine 5 Stone
-
-Teaches:
-
-- Mining
-- Tool requirements
-- Different entity types
-- Respawn timing
-
-Reward:
-
-- Mining XP
-- Basic crafting unlock
-
-### Quest 3: An Offering for the Smith
-
-Objective:
-
-- Bring 5 Wood and 5 Stone to the Blacksmith / crafting NPC
-
-Teaches:
-
-- Crafting request flow
-- Materials dropping near NPC
-- NPC crafting animation
-- Shrine/offering collection
-
-Reward:
-
-- Stone Sword
-- Unlock combat target / training dummy
-
-### Quest 4: Something in the Grass
-
-Objective:
-
-- Defeat 3 Grass Slimes or Training Dummies
-
-Teaches:
-
-- Combat interaction
-- Enemy HP
-- Drops
-- Combat XP
-
-Reward:
-
-- First combat item
-- Unlock next area preview
+- Crafting unlocks at the **Shrine Dedication** (the player naming themselves), a
+  scripted client beat — not a quest reward (ADR-0011, and ADR-0009's noted
+  exception).
+- "The Path Beyond" is a tracker/flavour quest: the Ancient Tree never depletes,
+  so the Director watches for the scripted strike and runs the Council/Banishment
+  arc (ADR-0013).
+- The Combat skill, enemies (Grass Slimes / training dummies), and the Stone Sword
+  from earlier drafts are **not** in the current chain. Woodcutting, Mining, and
+  Crafting are the V1 loops (see §16: "Deepen before you widen").
 
 ---
 
@@ -619,12 +536,21 @@ In the first 10 minutes, the player should:
 
 The player should quickly experience a noticeable improvement.
 
-Example:
+Damage growth and node access are separate concerns (see ADR-0020):
 
-- Basic Axe: 1 damage per click
-- Reinforced Axe: 3 damage per click
+- **Tools** gate *access* and tier identity: which Entities a player may damage,
+  and major capability jumps. A higher-tier pickaxe unlocks harder rocks; it does
+  not, by itself, add click damage.
+- **Skill Points** (earned by completing Collection Entries) grow *Active click
+  damage* within a Skill, one repeatable `+1` upgrade per Skill in V1 (Steady
+  Strike for Mining, Sure Chop for Woodcutting). Base Active damage is the
+  Level's `CombatConfig.activeDamage`; the per-Skill bonus stacks on top for
+  Entities of that Skill.
 
-This makes progression feel real immediately.
+So the early power spike is: gather → fill a Collection Entry → earn a Skill
+Point → buy `+1 Active click damage` → feel the next node die faster. This makes
+progression feel real immediately while keeping tools responsible for unlocking
+new content.
 
 ---
 

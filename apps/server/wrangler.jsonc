@@ -11,8 +11,10 @@
   "assets": {
     "directory": "../client/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/play", "/health", "/leaderboard"]
+    "run_worker_first": ["/play", "/health", "/leaderboard", "/admin/wipe"]
   },
+  // Required for live wipe operations:
+  // `pnpm --filter @tot/server exec wrangler secret put ADMIN_WIPE_TOKEN`
   "durable_objects": {
     "bindings": [
       { "name": "INSTANCE", "class_name": "InstanceDO" },

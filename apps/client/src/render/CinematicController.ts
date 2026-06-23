@@ -33,10 +33,11 @@ export interface CinematicDeps {
    */
   setCameraInputEnabled: (on: boolean) => void;
   /**
-   * The player camera's last clamped resting position, so a cinematic reset
-   * hands the view back to where the player was looking rather than the origin.
+   * The player camera's last clamped resting transform (position + zoom), so a
+   * cinematic reset hands the view back to where (and how zoomed) the player was
+   * looking rather than the origin at 1:1.
    */
-  restingCameraTarget: () => { x: number; y: number };
+  restingCameraTarget: () => { x: number; y: number; scale: number };
 }
 
 /**
@@ -154,14 +155,15 @@ export class CinematicController {
 
   /**
    * Eases the camera back to the player's resting view (its last clamped pan
-   * position; world-centre on a fresh load) at 1:1, then hands control back to
-   * the player. In a viewport-sized world the resting position is the origin,
-   * so this matches the old identity-reset behaviour.
+   * position and zoom; world-centre at 1:1 on a fresh load), then hands control
+   * back to the player. In a viewport-sized world with no player zoom the
+   * resting transform is the origin at 1:1, so this matches the old
+   * identity-reset behaviour.
    */
   cameraReset(opts: { durationMs?: number } = {}): Promise<void> {
     if (!CINEMATIC_CAMERA) return Promise.resolve();
     const resting = this.deps.restingCameraTarget();
-    return this.tweenCamera(1, resting.x, resting.y, opts.durationMs ?? 1200).then(() => {
+    return this.tweenCamera(resting.scale, resting.x, resting.y, opts.durationMs ?? 1200).then(() => {
       this.deps.setCameraInputEnabled(true);
     });
   }

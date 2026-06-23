@@ -6,7 +6,9 @@ Zoo** for tuning game feel, and a **Level Editor** whose saved levels load
 directly into the game.
 
 See [`CONTEXT.md`](CONTEXT.md) for the canonical vocabulary (Player vs Cursor,
-Active vs Passive damage, Lock, Level vs Level instance, etc.).
+Active vs Passive damage, Lock, Level vs Level instance, etc.),
+[`AGENTS.md`](AGENTS.md) for how to work in the repo (invariants, commands, where
+content lives), and [`docs/adr`](docs/adr/README.md) for the key decisions.
 
 ## Architecture
 
@@ -78,11 +80,52 @@ pnpm dev            # run the client
 pnpm dev:server     # run the multiplayer game server (wrangler dev)
 pnpm build          # production build of the client
 pnpm deploy:server  # deploy the game server to Cloudflare (needs wrangler login)
+pnpm live:wipe      # manually wipe live data only (prompted)
+pnpm live:wipe:deploy # manually wipe live data, then deploy
+pnpm live:wipe:smoke # validates admin guard + idempotent wipe behavior
 pnpm test           # run sim unit tests (Vitest)
 pnpm typecheck      # typecheck all packages
 pnpm lint           # ESLint
 pnpm format         # Prettier
 ```
+
+## Manual live wipe runbook
+
+Use this only during early iteration when you intentionally want a fresh live
+state before shipping.
+
+### One-time setup
+
+1. Set the Worker secret:
+   `pnpm --filter @tot/server exec wrangler secret put ADMIN_WIPE_TOKEN`
+2. Export the same token in your shell before running wipe commands:
+   `set ADMIN_WIPE_TOKEN=...` (PowerShell: `$env:ADMIN_WIPE_TOKEN="..."`).
+
+### Wipe only
+
+```bash
+pnpm live:wipe -- --url https://tileria.saucegames.io --scope all
+```
+
+### Wipe + deploy
+
+```bash
+pnpm live:wipe:deploy -- --url https://tileria.saucegames.io --scope all
+```
+
+- Default scope is `leaderboard`; use `all` for leaderboard + router registry.
+- The command prompts for `WIPE_LIVE_DATA` before doing anything destructive.
+- Add `--fast` to skip typecheck/tests (not recommended for live pushes).
+- If the wipe call fails, deploy does not run.
+- Optional smoke check:
+  `pnpm live:wipe:smoke -- --url https://tileria.saucegames.io --scope leaderboard`
+
+### Full reset behavior for players
+
+The client now applies a manual epoch gate in
+`apps/client/src/persistence/liveReset.ts`. Bump `LIVE_RESET_EPOCH` when you
+want a release to clear browser-local `tot.*` keys once (save, identity,
+onboarding, and UI persistence) so players start fresh after your live wipe.
 
 ## Notes / deviations
 

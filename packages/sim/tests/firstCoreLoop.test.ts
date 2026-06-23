@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_SKILL_LEVEL,
   createPlayer,
   emptySkills,
+  levelXpBounds,
   xpToLevel,
   xpToReach,
   type LevelDefinition,
@@ -57,7 +59,7 @@ function rockLevel(count: number): LevelDefinition {
 describe('skills — XP + level up', () => {
   it('awards woodcutting XP on deplete and levels up at the curve thresholds', () => {
     const world = new World(richLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 100 } });
-    // L2 needs 40 XP; each tree = 12 woodcutting XP -> 4 trees = 48 XP > 40.
+    // L2 needs 83 XP; each tree = 12 woodcutting XP, so early trees stay level 1.
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'tree1' });
     expect(typesOf(events)).toContain('skill.xpGained');
     const gained = events.find((e) => e.type === 'skill.xpGained');
@@ -73,10 +75,28 @@ describe('skills — XP + level up', () => {
   });
 
   it('xpToLevel inverts the curve', () => {
+    expect(xpToReach(1)).toBe(0);
+    expect(xpToReach(2)).toBe(83);
+    expect(xpToReach(3)).toBe(174);
+    expect(xpToReach(4)).toBe(276);
     expect(xpToLevel(0)).toBe(1);
     expect(xpToLevel(xpToReach(2))).toBe(2);
     expect(xpToLevel(xpToReach(3))).toBe(3);
     expect(xpToLevel(xpToReach(3) - 1)).toBe(2);
+  });
+
+  it('caps level at 99 while allowing XP above the cap threshold', () => {
+    const capXp = xpToReach(MAX_SKILL_LEVEL);
+    expect(xpToLevel(capXp)).toBe(MAX_SKILL_LEVEL);
+    expect(xpToLevel(capXp + 1_000_000)).toBe(MAX_SKILL_LEVEL);
+  });
+
+  it('returns stable XP bounds at cap for HUD progress', () => {
+    const capXp = xpToReach(MAX_SKILL_LEVEL);
+    const bounds = levelXpBounds(capXp + 50_000);
+    expect(bounds.level).toBe(MAX_SKILL_LEVEL);
+    expect(bounds.current).toBe(capXp);
+    expect(bounds.next).toBe(xpToReach(MAX_SKILL_LEVEL + 1));
   });
 });
 
@@ -327,6 +347,18 @@ describe('quest chaining + world unlocks', () => {
 });
 
 describe('portable player snapshot (ADR-0011)', () => {
+  it('recomputes snapshot skill levels from preserved XP on load', () => {
+    const player = createPlayer('hero-id', 'Aurelia');
+    player.skills = emptySkills();
+    player.skills.woodcutting = { xp: xpToReach(3), level: 99 };
+
+    const world = new World(richLevel(), { seed: 1, player });
+    const got = world.getPlayer();
+
+    expect(got.skills.woodcutting.xp).toBe(xpToReach(3));
+    expect(got.skills.woodcutting.level).toBe(3);
+  });
+
   it('seeds a new World with the carried name, tools, skills, inventory, and quests', () => {
     const player = createPlayer('hero-id', 'Aurelia');
     player.ownedTools = ['axe_rusty', 'pickaxe_stone', 'axe_stone'];

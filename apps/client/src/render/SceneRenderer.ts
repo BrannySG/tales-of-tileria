@@ -27,12 +27,13 @@ import {
   type ToolId,
   type ToolType,
 } from '@tot/shared';
-import { VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
+import { PLAYER_ZOOM, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
 import { EntityView } from './EntityView';
 import { CursorView } from './CursorView';
 import { RemoteCursorManager } from './RemoteCursorManager';
 import { ParticleSystem, driftBurstOptions, type BurstOptions } from './particles';
 import { LootDropSystem } from './LootDropSystem';
+import { RARITY_STYLE } from './rarity';
 import { DamageNumbers } from './damageNumbers';
 import { WispSystem, type WispOptions } from './WispSystem';
 import { FallingLeavesSystem } from './FallingLeavesSystem';
@@ -54,6 +55,9 @@ interface FloatingText {
   maxLife: number;
   vy: number;
 }
+
+/** Multiplicative zoom applied per mouse-wheel notch (see PLAYER_ZOOM). */
+const WHEEL_ZOOM_STEP = 1.1;
 
 const TOOL_LABEL: Record<ToolType, string> = {
   axe: 'Axe',
@@ -173,6 +177,7 @@ export class SceneRenderer {
    */
   private prevCameraX = 0;
   private prevCameraY = 0;
+  private prevCameraScale = 1;
   /**
    * Last real DOM pointer position (clientX/Y), its id and type. When the camera
    * pans under a still cursor we re-dispatch a synthetic pointermove here so Pixi
@@ -420,10 +425,42 @@ export class SceneRenderer {
    * read screen-space pointer coords (the cursor never leaves screen space, so
    * no world conversion is needed). Below the tap threshold a touch falls
    * through as a normal tap, so tap-to-damage still works.
+   *
+   * When PLAYER_ZOOM is on it also wires pointer-anchored zoom: the mouse wheel
+   * (desktop) and a two-finger pinch (touch), both feeding CameraController.zoomAt
+   * so the world point under the pointer / pinch midpoint stays put. Pinch
+   * suspends single-finger pan while two fingers are down.
    */
   private setupCameraInput(app: Application): void {
     const stage = app.stage;
+    // Live touch points (stage space) for pinch-zoom, keyed by pointerId, plus
+    // the last two-finger distance (0 when not pinching, so the next move seeds).
+    const touches = new Map<number, { x: number; y: number }>();
+    let lastPinchDist = 0;
+    const pinching = () => PLAYER_ZOOM && touches.size >= 2;
+    const updatePinch = () => {
+      const pts = [...touches.values()];
+      if (pts.length < 2) {
+        lastPinchDist = 0;
+        return;
+      }
+      const [a, b] = pts as [{ x: number; y: number }, { x: number; y: number }];
+      const dist = Math.hypot(b.x - a.x, b.y - a.y);
+      if (lastPinchDist > 0 && dist > 0) {
+        this.camera.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, dist / lastPinchDist);
+      }
+      lastPinchDist = dist;
+    };
+
     stage.on('globalpointermove', (e: FederatedPointerEvent) => {
+      if (PLAYER_ZOOM && e.pointerType === 'touch' && touches.has(e.pointerId)) {
+        touches.set(e.pointerId, { x: e.global.x, y: e.global.y });
+        if (pinching()) {
+          // Two fingers own the gesture: zoom, and skip pan/edge for this frame.
+          updatePinch();
+          return;
+        }
+      }
       this.camera.setPointer(e.global.x, e.global.y, e.pointerType !== 'touch');
       this.camera.dragMove(e.global.x, e.global.y);
       // Remember the real pointer so a camera pan can re-poll hover at it.
@@ -434,15 +471,57 @@ export class SceneRenderer {
       this.pointerInsideCanvas = true;
     });
     stage.on('pointerdown', (e: FederatedPointerEvent) => {
-      if (e.pointerType === 'touch') this.camera.beginDrag(e.global.x, e.global.y);
+      if (e.pointerType !== 'touch') return;
+      if (PLAYER_ZOOM) {
+        touches.set(e.pointerId, { x: e.global.x, y: e.global.y });
+        if (touches.size >= 2) {
+          // A second finger starts a pinch: stop the single-finger pan and
+          // reseed the distance on the next move.
+          this.camera.endDrag();
+          lastPinchDist = 0;
+          return;
+        }
+      }
+      this.camera.beginDrag(e.global.x, e.global.y);
     });
-    stage.on('pointerup', () => this.camera.endDrag());
-    stage.on('pointerupoutside', () => this.camera.endDrag());
+    const onPointerLift = (e: FederatedPointerEvent) => {
+      this.camera.endDrag();
+      if (!PLAYER_ZOOM) return;
+      touches.delete(e.pointerId);
+      lastPinchDist = 0;
+      // Dropping from two fingers to one: resume panning from the finger that
+      // remains so the world doesn't freeze under it.
+      if (touches.size === 1) {
+        const [remaining] = [...touches.values()] as [{ x: number; y: number }];
+        this.camera.beginDrag(remaining.x, remaining.y);
+      }
+    };
+    stage.on('pointerup', onPointerLift);
+    stage.on('pointerupoutside', onPointerLift);
     // Stop edge-push (and hover re-polling) the moment the mouse leaves the canvas.
     app.canvas.addEventListener('pointerleave', () => {
       this.camera.clearPointer();
       this.pointerInsideCanvas = false;
     });
+
+    if (PLAYER_ZOOM) {
+      // Mouse wheel zoom, anchored at the cursor. Convert the native client
+      // coords into fixed design/stage space via the canvas' displayed rect
+      // (CSS cover-scaled), matching what CameraController.zoomAt expects.
+      app.canvas.addEventListener(
+        'wheel',
+        (e: WheelEvent) => {
+          e.preventDefault();
+          const rect = app.canvas.getBoundingClientRect();
+          if (!rect.width || !rect.height) return;
+          const sx = ((e.clientX - rect.left) / rect.width) * VIRTUAL_WIDTH;
+          const sy = ((e.clientY - rect.top) / rect.height) * VIRTUAL_HEIGHT;
+          const factor = e.deltaY < 0 ? WHEEL_ZOOM_STEP : 1 / WHEEL_ZOOM_STEP;
+          this.camera.zoomAt(sx, sy, factor);
+        },
+        { passive: false },
+      );
+    }
   }
 
   /** Builds, registers, and wires the view for an entity instance. */
@@ -822,11 +901,47 @@ export class SceneRenderer {
       }
       case 'loot.rolled': {
         this.opts.sound?.play('loot');
+        const order = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+        let topRarity = -1;
         for (const item of event.items) {
           const def = getItemDefinition(item.itemId);
-          // Only items with art burst; the loot is already awarded regardless.
-          if (def?.worldTextureId) this.lootDrops.spawn(def, item.quantity, event.x, event.y);
+          if (!def) continue;
+          topRarity = Math.max(topRarity, order.indexOf(def.rarity));
+          if (def.worldTextureId) {
+            this.lootDrops.spawn(def, item.quantity, event.x, event.y);
+          } else {
+            // Art-less collectible: a rarity-colored float + sparkle stands in for
+            // the textured loot burst until the item gets a worldTextureId.
+            const style = RARITY_STYLE[def.rarity];
+            this.floatText(event.x, event.y - 70, `+${item.quantity} ${def.displayName}`, {
+              color: style.color,
+              size: def.rarity === 'common' ? 22 : 30,
+              life: 1.6,
+              vy: -42,
+            });
+            this.particleBurstWorld('fx_sparkle', event.x, event.y - 30, {
+              count: def.rarity === 'legendary' ? 24 : def.rarity === 'epic' ? 16 : 10,
+              speed: 260,
+              scale: 0.7,
+            });
+          }
         }
+        // Standout cue for the rarest drop in the roll (legendary gets the bolt).
+        if (order[topRarity] === 'legendary') this.opts.sound?.play('lightning');
+        break;
+      }
+      case 'collection.registered': {
+        this.opts.sound?.play('loot');
+        break;
+      }
+      case 'collection.entryCompleted': {
+        // The celebration card + Skill Point increment are DOM (HUD store); here
+        // we just play the positive chime.
+        this.opts.sound?.play('respawn');
+        break;
+      }
+      case 'skill.upgradePurchased': {
+        this.opts.sound?.play('respawn');
         break;
       }
       case 'inventory.changed': {
@@ -1116,9 +1231,11 @@ export class SceneRenderer {
    */
   private refreshHoverAfterCameraPan(): void {
     const { x, y } = this.worldCamera.position;
-    if (x === this.prevCameraX && y === this.prevCameraY) return;
+    const scale = this.worldCamera.scale.x;
+    if (x === this.prevCameraX && y === this.prevCameraY && scale === this.prevCameraScale) return;
     this.prevCameraX = x;
     this.prevCameraY = y;
+    this.prevCameraScale = scale;
     if (!this.pointerInsideCanvas) return;
     this.app.canvas.dispatchEvent(
       new PointerEvent('pointermove', {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { clearOnboarded, hasOnboarded } from '../onboarding';
+import { clearOnboarded, hasOnboarded, markOnboarded } from '../onboarding';
 
 /**
  * Dev-only control for resetting the first-time onboarding flag. Shown on the
@@ -22,9 +22,20 @@ export function OnboardingDevControl() {
     window.location.hash = '/onboarding';
   };
 
+  // Skip the first-time arc and drop straight into the playable shared world.
+  // Marks onboarding done so GameMode (not OnboardingMode) renders at #/game.
+  const skipToGame = () => {
+    markOnboarded();
+    setOnboarded(true);
+    window.location.hash = '/game';
+  };
+
   return (
     <div className="dev-onboarding">
       <span className="dev-onboarding-status">{onboarded ? 'Onboarded' : 'New player'}</span>
+      <button type="button" className="dev-onboarding-btn" onClick={skipToGame}>
+        Skip → game
+      </button>
       <button type="button" className="dev-onboarding-btn" onClick={resetToTitle}>
         Reset → title
       </button>

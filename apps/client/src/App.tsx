@@ -6,7 +6,9 @@ import { GameMode } from './modes/GameMode';
 import { EntityEditorMode } from './modes/EntityEditorMode';
 import { TitleMode } from './modes/TitleMode';
 import { OnboardingMode } from './modes/OnboardingMode';
+import { consumeLiveResetNotice } from './persistence/liveReset';
 import { OnboardingDevControl } from './ui/OnboardingDevControl';
+import { LiveResetNotice } from './ui/LiveResetNotice';
 import { hasOnboarded } from './onboarding';
 import { VERSION_LABEL } from './version';
 
@@ -48,11 +50,16 @@ const APP_CURSOR = `url(${cursorUrl}) 2 2, auto`;
 
 export function App() {
   const [mode, setMode] = useState<Mode>(readMode);
+  const [showLiveResetNotice, setShowLiveResetNotice] = useState(false);
 
   useEffect(() => {
     const onHashChange = () => setMode(readMode());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (consumeLiveResetNotice()) setShowLiveResetNotice(true);
   }, []);
 
   const navigate = (next: Mode) => {
@@ -95,6 +102,7 @@ export function App() {
       <span className="version-badge" aria-hidden>
         {VERSION_LABEL}
       </span>
+      {showLiveResetNotice && <LiveResetNotice onClose={() => setShowLiveResetNotice(false)} />}
     </div>
   );
 }

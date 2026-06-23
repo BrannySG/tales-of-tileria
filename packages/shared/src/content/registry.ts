@@ -6,6 +6,7 @@ import type { QuestDefinition } from '../types/quest';
 import type { RecipeDefinition } from '../types/recipe';
 import type { ToolDefinition } from '../types/tool';
 import type { ToolId, ToolType } from '../types/ids';
+import type { CollectionDefinition, CollectionEntryDefinition } from '../types/collection';
 import { ENTITY_DEFINITIONS } from './entities';
 import { ITEM_DEFINITIONS } from './items';
 import { ITEM_INTERACTIONS } from './itemInteractions';
@@ -13,6 +14,7 @@ import { LOOT_TABLES } from './lootTables';
 import { QUEST_DEFINITIONS } from './quests';
 import { RECIPE_DEFINITIONS } from './recipes';
 import { TOOL_DEFINITIONS } from './tools';
+import { COLLECTION_DEFINITIONS, COLLECTION_ENTRY_DEFINITIONS } from './collections';
 import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
 import { ACHIEVEMENT_DEFINITIONS, type Achievement } from './achievements';
 
@@ -24,6 +26,12 @@ const toolById = new Map<ToolId, ToolDefinition>(TOOL_DEFINITIONS.map((t) => [t.
 const recipeById = new Map<string, RecipeDefinition>(RECIPE_DEFINITIONS.map((r) => [r.id, r]));
 const cursorSkinById = new Map<string, CursorSkin>(CURSOR_SKINS.map((s) => [s.id, s]));
 const achievementById = new Map<string, Achievement>(ACHIEVEMENT_DEFINITIONS.map((a) => [a.id, a]));
+const collectionById = new Map<string, CollectionDefinition>(
+  COLLECTION_DEFINITIONS.map((c) => [c.id, c]),
+);
+const collectionEntryById = new Map<string, CollectionEntryDefinition>(
+  COLLECTION_ENTRY_DEFINITIONS.map((e) => [e.id, e]),
+);
 
 export function getEntityDefinition(id: string): EntityDefinition | undefined {
   return entityById.get(id);
@@ -94,6 +102,46 @@ export function listLootTables(): readonly LootTable[] {
   return LOOT_TABLES;
 }
 
+/**
+ * Reverse map of Item id -> display names of the Entities that drop it, derived
+ * from each Entity's loot table (see CONTEXT.md: Source Family). Powers the
+ * "Dropped by: ..." hints in the Collection Book. Built once at module load.
+ */
+const sourceNamesByItemId: Map<string, string[]> = (() => {
+  const map = new Map<string, string[]>();
+  for (const entity of ENTITY_DEFINITIONS) {
+    const tableId = entity.loot?.lootTableId;
+    if (!tableId) continue;
+    const table = lootTableById.get(tableId);
+    if (!table) continue;
+    const itemIds = new Set(table.rolls.map((r) => r.itemId));
+    for (const itemId of itemIds) {
+      const names = map.get(itemId) ?? [];
+      if (!names.includes(entity.displayName)) names.push(entity.displayName);
+      map.set(itemId, names);
+    }
+  }
+  return map;
+})();
+
+/** Display names of the Entities whose loot table drops `itemId` (may be empty). */
+export function sourcesForItem(itemId: string): readonly string[] {
+  return sourceNamesByItemId.get(itemId) ?? [];
+}
+
+/**
+ * A short, player-facing source label for `itemId`: the source names joined
+ * (capped at the first few, with a `+N` overflow), e.g. "Small Rock" or
+ * "Small Rock, Hard Rock". Empty string when nothing drops it. Callers choose
+ * the prefix ("Dropped by:" vs "Found in:") from the source count.
+ */
+export function sourceLabelForItem(itemId: string, max = 3): string {
+  const names = sourcesForItem(itemId);
+  if (names.length === 0) return '';
+  if (names.length <= max) return names.join(', ');
+  return `${names.slice(0, max).join(', ')} +${names.length - max}`;
+}
+
 export function listQuestDefinitions(): readonly QuestDefinition[] {
   return QUEST_DEFINITIONS;
 }
@@ -146,6 +194,35 @@ export function getAchievement(id: string): Achievement | undefined {
 
 export function listAchievements(): readonly Achievement[] {
   return ACHIEVEMENT_DEFINITIONS;
+}
+
+export function getCollection(id: string): CollectionDefinition | undefined {
+  return collectionById.get(id);
+}
+
+export function listCollections(): readonly CollectionDefinition[] {
+  return COLLECTION_DEFINITIONS;
+}
+
+export function getCollectionEntry(id: string): CollectionEntryDefinition | undefined {
+  return collectionEntryById.get(id);
+}
+
+export function requireCollectionEntry(id: string): CollectionEntryDefinition {
+  const def = collectionEntryById.get(id);
+  if (!def) throw new Error(`Unknown collection entry definition: ${id}`);
+  return def;
+}
+
+export function listCollectionEntries(): readonly CollectionEntryDefinition[] {
+  return COLLECTION_ENTRY_DEFINITIONS;
+}
+
+/** The entries belonging to a Collection, in `sortOrder`. */
+export function collectionEntries(collectionId: string): readonly CollectionEntryDefinition[] {
+  return COLLECTION_ENTRY_DEFINITIONS.filter((e) => e.collectionId === collectionId).sort(
+    (a, b) => a.sortOrder - b.sortOrder,
+  );
 }
 
 /**

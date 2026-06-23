@@ -42,9 +42,11 @@ function isLeaderboardKey(value: string | null): value is LeaderboardKey {
  */
 export class LeaderboardDO {
   private readonly sql: SqlStorage;
+  private readonly adminToken: string;
 
-  constructor(state: DurableObjectState, _env: Env) {
+  constructor(state: DurableObjectState, env: Env) {
     this.sql = state.storage.sql;
+    this.adminToken = env.ADMIN_WIPE_TOKEN;
     this.sql.exec(
       `CREATE TABLE IF NOT EXISTS scores (
         player_id TEXT PRIMARY KEY,
@@ -78,10 +80,24 @@ export class LeaderboardDO {
     if (req.method === 'POST' && url.pathname === '/submit') {
       return this.submit(req);
     }
+    if (req.method === 'POST' && url.pathname === '/admin/wipe') {
+      return this.adminWipe(req);
+    }
     if (req.method === 'GET' && url.pathname === '/top') {
       return this.top(url);
     }
     return new Response('Not found', { status: 404 });
+  }
+
+  /** Internal-only: clear every leaderboard row during a controlled live reset. */
+  private adminWipe(req: Request): Response {
+    if (req.headers.get('X-Admin-Token') !== this.adminToken) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+    const before =
+      this.sql.exec<{ n: number }>('SELECT COUNT(*) AS n FROM scores').toArray()[0]?.n ?? 0;
+    this.sql.exec('DELETE FROM scores');
+    return Response.json({ ok: true, deleted: before });
   }
 
   /** Upsert a player's ranked skills. Players without a divine name are skipped. */

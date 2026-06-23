@@ -11,8 +11,8 @@ the live Level with the shack destroyed and an NPC reacting. This is a one-off
 authored sequence, not normal HP-based gameplay.
 
 ADR-0002 keeps the simulation (`packages/sim`) a portable, server-authoritative
-core of game *rules* — no scripting, no timers, no presentation. The design docs
-(TECHNICAL_REQUIREMENTS §10.3) also warn against one-off tutorial logic baked into
+core of game *rules* — no scripting, no timers, no presentation. The project
+invariants (see `AGENTS.md`) also warn against one-off tutorial logic baked into
 core systems. Putting a cutscene state machine inside `World` would bloat the
 portable core with non-reusable, presentation-coupled logic that would have to ride
 along into the Durable Object later.

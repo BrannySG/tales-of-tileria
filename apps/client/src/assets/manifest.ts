@@ -11,6 +11,7 @@ import magicStone from '@assets/T_Entity_MagicStone.png';
 import veinedRock from '@assets/T_Entity_VeinedRock.png';
 import tree from '@assets/T_Entity_Tree01.png';
 import treeAncient from '@assets/T_Entity_AncientTree.png';
+import treeOak from '@assets/T_Entity_OakTree.png';
 import npcSmith from '@assets/T_Entity_Char_MrSmith_Black.png';
 import shack from '@assets/T_Entity_WoodShack_Built.png';
 import shackBroken from '@assets/T_Entity_WoodShack_Destroyed.png';
@@ -43,6 +44,18 @@ import itemWood from '@assets/T_Item_WoodLogs.png';
 import itemStone from '@assets/T_Item_Stone.png';
 import itemBucket from '@assets/T_Item_Bucket.png';
 import itemBucketWater from '@assets/T_Item_BucketWater.png';
+import stoneFlintShard from '@assets/T_Item_StoneFlintShard.png';
+import stoneShinyPebble from '@assets/T_Item_StoneShinyPebble.png';
+import stoneTinyGeode from '@assets/T_Item_StoneTinyGeode.png';
+import stoneStarFragment from '@assets/T_Item_StoneStarFragment.png';
+import treeKnottedRoot from '@assets/T_Item_TreeKnottedRoot.png';
+import treeBirdNest from '@assets/T_Item_TreeBirdNest.png';
+import treeWhisperingAcorn from '@assets/T_Item_TreeWhisperingAcorn.png';
+import treeAncientHeartwood from '@assets/T_Item_TreeAncientHeartwood.png';
+import oakBarkStrip from '@assets/T_Item_OakBarkStrip.png';
+import oakGall from '@assets/T_Item_OakGall.png';
+import oakMistletoeSprig from '@assets/T_Item_OakMistletoeSprig.png';
+import oakGoldenAcorn from '@assets/T_Item_OakGoldenAcorn.png';
 import coinGold from '@assets/Coin 2 Gold Outline 256.png';
 import coinGoldHud from '@assets/Coin 2 Gold Outline 64.png';
 import type { ToolType } from '@tot/shared';
@@ -62,6 +75,7 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   veined_rock: veinedRock,
   tree,
   tree_ancient: treeAncient,
+  tree_oak: treeOak,
   npc_smith: npcSmith,
   shack,
   shack_broken: shackBroken,
@@ -94,6 +108,18 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   item_stone: itemStone,
   item_bucket: itemBucket,
   item_bucket_water: itemBucketWater,
+  item_stone_flint_shard: stoneFlintShard,
+  item_stone_shiny_pebble: stoneShinyPebble,
+  item_stone_tiny_geode: stoneTinyGeode,
+  item_stone_star_fragment: stoneStarFragment,
+  item_tree_knotted_root: treeKnottedRoot,
+  item_tree_bird_nest: treeBirdNest,
+  item_tree_whispering_acorn: treeWhisperingAcorn,
+  item_tree_ancient_heartwood: treeAncientHeartwood,
+  item_oak_bark_strip: oakBarkStrip,
+  item_oak_gall: oakGall,
+  item_oak_mistletoe_sprig: oakMistletoeSprig,
+  item_oak_golden_acorn: oakGoldenAcorn,
   coin_gold: coinGold,
   coin_gold_hud: coinGoldHud,
 };

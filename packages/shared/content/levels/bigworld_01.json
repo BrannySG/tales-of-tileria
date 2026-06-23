@@ -17,8 +17,8 @@
       {
         "instanceId": "bw_tree_tl_1",
         "definitionId": "basic_tree",
-        "x": 1345,
-        "y": 1501,
+        "x": 1362,
+        "y": 1518,
         "overrides": {}
       },
       {
@@ -360,8 +360,8 @@
       {
         "instanceId": "oak_tree_mqktj85i_15",
         "definitionId": "oak_tree",
-        "x": 4241,
-        "y": 2352,
+        "x": 4299,
+        "y": 2385,
         "overrides": {}
       },
       {
@@ -416,7 +416,7 @@
       {
         "instanceId": "oak_tree_mqktjrw8_23",
         "definitionId": "oak_tree",
-        "x": 572,
+        "x": 614,
         "y": 1950,
         "overrides": {}
       },
@@ -489,6 +489,36 @@
         "x": 2876,
         "y": 1697,
         "overrides": {}
+      },
+      {
+        "instanceId": "boulder_mqpl5cyo_1",
+        "definitionId": "boulder",
+        "x": 4171,
+        "y": 2694
+      },
+      {
+        "instanceId": "small_rock_mqpl5h5s_2",
+        "definitionId": "small_rock",
+        "x": 4345,
+        "y": 2561
+      },
+      {
+        "instanceId": "small_rock_mqpl5leo_3",
+        "definitionId": "small_rock",
+        "x": 4436,
+        "y": 2644
+      },
+      {
+        "instanceId": "small_rock_mqpl5pb0_4",
+        "definitionId": "small_rock",
+        "x": 3987,
+        "y": 2553
+      },
+      {
+        "instanceId": "small_rock_mqpl5s4u_5",
+        "definitionId": "small_rock",
+        "x": 3887,
+        "y": 2678
       }
     ],
     "multiplayer": {

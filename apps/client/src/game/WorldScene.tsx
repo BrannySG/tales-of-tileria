@@ -1,5 +1,14 @@
 import { useEffect, useState, type CSSProperties } from 'react';
-import type { CombatConfig, LevelDefinition, Player, Rarity, ToolId, ToolType } from '@tot/shared';
+import type {
+  CombatConfig,
+  LevelDefinition,
+  Player,
+  Rarity,
+  SkillId,
+  SkillUpgradeId,
+  ToolId,
+  ToolType,
+} from '@tot/shared';
 import { LocalTransport } from '@tot/sim';
 import { useWorldScene, type WorldSession } from './useWorldScene';
 import type { MusicTrack } from '../audio/SoundSystem';
@@ -8,6 +17,8 @@ import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
 import { CraftingMenu } from '../ui/CraftingMenu';
 import { SettingsMenu } from '../ui/SettingsMenu';
+import { CollectionBookModal, type ProgressionTab } from '../ui/CollectionBookModal';
+import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
 
 export interface WorldSceneProps {
   level: LevelDefinition;
@@ -52,6 +63,10 @@ export function WorldScene({
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The Collections + Skill Upgrades surface is one fullscreen modal with two
+  // tabs; both HUD buttons (and the completion CTA) open it on the right tab.
+  const [progressionOpen, setProgressionOpen] = useState(false);
+  const [progressionTab, setProgressionTab] = useState<ProgressionTab>('collections');
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
@@ -78,6 +93,24 @@ export function WorldScene({
   };
   const onClaimQuest = (questId: string) => {
     sessionRef.current?.transport.send({ type: 'quest.claim', questId });
+  };
+  // Registration + upgrade purchases are sim-authoritative: send the command and
+  // let the echoed events update the HUD store (see ADR-0006 / ADR-0020).
+  const onRegisterCollection = (entryId: string, itemId?: string) => {
+    sessionRef.current?.transport.send({ type: 'collection.register', entryId, itemId });
+  };
+  const onPurchaseUpgrade = (skillId: SkillId, upgradeId: SkillUpgradeId) => {
+    sessionRef.current?.transport.send({ type: 'skill.purchaseUpgrade', skillId, upgradeId });
+  };
+  const openCollections = () => {
+    acknowledgeDiscoveries();
+    useHud.getState().setNewCollectibles(false);
+    setProgressionTab('collections');
+    setProgressionOpen(true);
+  };
+  const openUpgrades = () => {
+    setProgressionTab('upgrades');
+    setProgressionOpen(true);
   };
   // Equipping a Cursor skin is authoritative; the echoed `cosmetic.equipped`
   // updates the HUD store + re-skins the cursor (see store.ts / SceneRenderer).
@@ -145,6 +178,8 @@ export function WorldScene({
               onPassiveDamageChange={onPassiveDamageChange}
               onToggleSound={onToggleSound}
               onOpenSettings={() => setSettingsOpen(true)}
+              onOpenCollections={openCollections}
+              onOpenUpgrades={openUpgrades}
               onEquipCursor={onEquipCursor}
               onTestLootBurst={onTestLootBurst}
             />
@@ -155,6 +190,15 @@ export function WorldScene({
                 onSfxVolumeChange={onSfxVolumeChange}
                 onToggleSound={onToggleSound}
                 onClose={() => setSettingsOpen(false)}
+              />
+            )}
+            {progressionOpen && (
+              <CollectionBookModal
+                activeTab={progressionTab}
+                onChangeTab={setProgressionTab}
+                onRegister={onRegisterCollection}
+                onPurchaseUpgrade={onPurchaseUpgrade}
+                onClose={() => setProgressionOpen(false)}
               />
             )}
           </div>

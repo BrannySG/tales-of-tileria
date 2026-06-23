@@ -4,12 +4,21 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.10.0",
+  "pnpm": {
+    "overrides": {
+      "sharp": "^0.35.2"
+    },
+    "onlyBuiltDependencies": ["sharp", "onnxruntime-node"]
+  },
   "scripts": {
     "dev": "pnpm --filter @tot/client dev",
     "dev:server": "pnpm --filter @tot/server dev",
     "build": "pnpm --filter @tot/client build",
     "preview": "pnpm --filter @tot/client preview",
     "deploy:server": "pnpm --filter @tot/client build && pnpm --filter @tot/server run deploy",
+    "live:wipe": "node scripts/live-wipe-and-deploy.mjs --wipe-only",
+    "live:wipe:deploy": "node scripts/live-wipe-and-deploy.mjs",
+    "live:wipe:smoke": "node scripts/live-wipe-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",

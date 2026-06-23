@@ -10,3 +10,13 @@ export const VIRTUAL_HEIGHT = 1080;
  * Director to remove the experiment entirely.
  */
 export const CINEMATIC_CAMERA = true;
+
+/**
+ * Master switch for the experimental player-driven camera zoom (mouse wheel and
+ * touch pinch, anchored to the pointer, over the world layers). When false the
+ * zoom input is never wired, the camera scale stays locked at 1, and the pan
+ * clamp falls back to its scale-1 math, so normal play is provably unaffected.
+ * Flip to disable, or delete this flag plus the zoom methods on CameraController
+ * and the wheel/pinch wiring in SceneRenderer to remove the experiment entirely.
+ */
+export const PLAYER_ZOOM = true;

@@ -20,7 +20,8 @@ The onboarding work needs two things the client-only model can't do faithfully:
    progress as server-validated, personal state.
 
 Enforcing these on the client would split authority across two places and diverge
-from the server-authoritative direction in TECHNICAL_REQUIREMENTS (§3.3, §10).
+from the server-authoritative direction (the single-authority `World` invariant;
+see `AGENTS.md`).
 
 ## Decision
 
