@@ -79,9 +79,17 @@ export interface RequirementsComponent {
   skill?: SkillRequirement;
   toolType?: ToolType;
   /**
-   * Minimum tool tier required (paired with `toolType`). Defaults to 1. An Oak
-   * Tree, say, declares `{ toolType: 'axe', minTier: 2 }` so only a stone-tier
-   * (or better) axe can damage it (see ADR-0008).
+   * Entity Tier (see CONTEXT.md: Tier, ADR-0022). The player may harvest this
+   * entity only once they have unlocked this Tier in the matching Skill tree
+   * (their `maxTierUnlocked` for `skill.skillId`). Defaults to 1 (always
+   * available). Tier 1 needs no tree node; higher tiers are unlocked by
+   * `tierUnlock` nodes. `skill.skillId` selects which tree gates the tier.
+   */
+  tier?: number;
+  /**
+   * @deprecated Tool tier no longer gates harvesting (see ADR-0022). Tools gate
+   * by TYPE only now; Tier is gated by the Skill tree. Retained for back-compat
+   * with older authored content; ignored by the sim.
    */
   minTier?: number;
 }

@@ -41,7 +41,7 @@ function carriedPlayer(
  * read progress from it and keep id / divinePowers from the transport's base
  * snapshot (untracked by the HUD).
  */
-function snapshotPlayerForSave(transport: SimTransport): Player {
+export function snapshotPlayerForSave(transport: SimTransport): Player {
   const base = transport.getSnapshot().player;
   const hud = useHud.getState();
   let craftingJob: typeof base.craftingJob;
@@ -108,6 +108,8 @@ export function useWorldScene(
     onOpenCrafting?: () => void;
     /** Invoked when an entity inspect gesture opens Inspect. */
     onInspect?: (inspect: InspectInfo) => void;
+    /** Invoked when a Beacon is tapped, to offer Travel (see ADR-0023). */
+    onBeaconActivate?: (instanceId: string) => void;
     /** Invoked once the session is live; return an optional cleanup. */
     onReady?: (session: WorldSession) => (() => void) | void;
   },
@@ -186,6 +188,7 @@ export function useWorldScene(
         initialPresence: wsTransport?.getPresence(),
         onOpenCrafting: options.onOpenCrafting,
         onInspect: options.onInspect,
+        onBeaconActivate: options.onBeaconActivate,
       });
       if (cancelled) {
         renderer.destroy();

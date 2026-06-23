@@ -4,6 +4,7 @@ import { buildInspectModel } from './inspectModel';
 import { isDiscovered } from './discoveredCollectibles';
 import { ItemIcon } from './ItemIcon';
 import { RARITY_COLOR } from './rarityColor';
+import { SkillIcon } from './SkillIcon';
 
 interface Size {
   width: number;
@@ -39,6 +40,7 @@ export function InspectPanel() {
   const closeInspect = useHud((s) => s.closeInspect);
   const ownedToolIds = useHud((s) => s.ownedToolIds);
   const skills = useHud((s) => s.skills);
+  const stats = useHud((s) => s.stats);
   const panelRef = useRef<HTMLDivElement>(null);
   const panelSize = usePanelSize(panelRef);
   const viewport = useViewportSize();
@@ -49,9 +51,10 @@ export function InspectPanel() {
       definitionId: inspect.definitionId,
       ownedToolIds,
       skills,
+      stats,
       isDiscovered,
     });
-  }, [inspect, ownedToolIds, skills]);
+  }, [inspect, ownedToolIds, skills, stats]);
 
   useEffect(() => {
     if (!inspect) return;
@@ -89,7 +92,7 @@ export function InspectPanel() {
         ? 'Reqs met'
         : 'Reqs unmet'
       : undefined;
-  const xpSummary = model.xpRows.length > 0 ? model.xpRows.join(' / ') : undefined;
+  const xpSummary = model.xpRows.length > 0 ? model.xpRows.map((row) => row.label).join(' / ') : undefined;
 
   return (
     <div className="inspect-overlay" aria-hidden={false}>
@@ -122,8 +125,15 @@ export function InspectPanel() {
             </span>
           )}
           {xpSummary && (
-            <span className="inspect-chip" title={xpSummary}>
-              {xpSummary}
+            <span className="inspect-chip inspect-xp-chip" title={xpSummary}>
+              {model.xpRows.map((row, index) => (
+                <span key={row.skillId} className="inspect-xp-row">
+                  {index > 0 && <span className="inspect-xp-separator">/</span>}
+                  <span>+{row.amount}</span>
+                  <SkillIcon skillId={row.skillId} size={18} />
+                  <span>XP</span>
+                </span>
+              ))}
             </span>
           )}
           {model.respawnSeconds !== undefined && (

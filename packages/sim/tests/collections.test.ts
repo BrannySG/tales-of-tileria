@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createPlayer,
   getLootTable,
+  xpToReach,
   type LevelDefinition,
   type Player,
   type SimEvent,
@@ -134,7 +135,7 @@ describe('collectible loot tables', () => {
 });
 
 describe('collection registration', () => {
-  it('registers owned items, consumes them, and completes the entry with a Skill Point', () => {
+  it('registers owned items, consumes them, and completes the entry with Skill XP', () => {
     const world = new World(emptyLevel(), { seed: 1, player: playerWith({ inventory: { stone: 10 } }) });
     const events = world.applyCommand({ type: 'collection.register', entryId: 'stone_first_fragments' });
 
@@ -143,22 +144,24 @@ describe('collection registration', () => {
         'inventory.changed',
         'collection.registered',
         'collection.entryCompleted',
-        'skill.pointsChanged',
+        'skill.xpGained',
       ]),
     );
+    const completed = events.find((e) => e.type === 'collection.entryCompleted');
+    expect(completed?.type === 'collection.entryCompleted' && completed.xpAwarded).toBe(40);
     const player = world.getPlayer();
     expect(player.inventory.stone).toBe(0);
     expect(player.collections.stone_first_fragments!.registered.stone).toBe(10);
     expect(player.collections.stone_first_fragments!.completed).toBe(true);
-    expect(player.skillPoints.mining).toBe(1);
+    expect(player.skills.mining.xp).toBe(40);
   });
 
-  it('registers an Oak Codex entry, consuming oak collectibles for a Woodcutting Skill Point', () => {
+  it('registers an Oak Codex entry, consuming oak collectibles for Woodcutting XP', () => {
     const world = new World(emptyLevel(), {
       seed: 1,
       player: playerWith({ inventory: { oak_bark_strip: 10 } }),
     });
-    // "Bark and Bough" needs 10 Oak Bark Strips.
+    // "Bark and Bough" needs 10 Oak Bark Strips and awards 120 Woodcutting XP.
     const events = world.applyCommand({ type: 'collection.register', entryId: 'oak_bark_and_bough' });
 
     expect(typesOf(events)).toEqual(
@@ -166,13 +169,13 @@ describe('collection registration', () => {
         'inventory.changed',
         'collection.registered',
         'collection.entryCompleted',
-        'skill.pointsChanged',
+        'skill.xpGained',
       ]),
     );
     const player = world.getPlayer();
     expect(player.inventory.oak_bark_strip).toBe(0);
     expect(player.collections.oak_bark_and_bough!.completed).toBe(true);
-    expect(player.skillPoints.woodcutting).toBe(1);
+    expect(player.skills.woodcutting.xp).toBe(120);
   });
 
   it('registers partially (clamped to remaining) without completing, and never over-registers', () => {
@@ -182,7 +185,7 @@ describe('collection registration', () => {
     expect(player.inventory.stone).toBe(0);
     expect(player.collections.stone_first_fragments!.registered.stone).toBe(5);
     expect(player.collections.stone_first_fragments!.completed).toBe(false);
-    expect(player.skillPoints.mining ?? 0).toBe(0);
+    expect(player.skills.mining.xp).toBe(0);
   });
 
   it('cannot register more than owned, and stops at the required quantity', () => {
@@ -204,7 +207,7 @@ describe('collection registration', () => {
     const partial = world.getPlayer();
     expect(partial.collections.stone_spark_beneath!.registered.stone_flint_shard).toBe(10);
     expect(partial.collections.stone_spark_beneath!.completed).toBe(false);
-    expect(partial.skillPoints.mining ?? 0).toBe(0);
+    expect(partial.skills.mining.xp).toBe(0);
 
     // Carry the progress to a new World, acquire the geode, and finish the entry
     // (also proves partial progress survives a Level swap).
@@ -216,7 +219,7 @@ describe('collection registration', () => {
     const done = next.getPlayer();
     expect(done.collections.stone_spark_beneath!.completed).toBe(true);
     expect(done.collections.stone_spark_beneath!.registered.stone_tiny_geode).toBe(1);
-    expect(done.skillPoints.mining).toBe(1);
+    expect(done.skills.mining.xp).toBe(200);
   });
 
   it('targets a single item when itemId is given, leaving other requirements untouched', () => {
@@ -246,7 +249,7 @@ describe('collection registration', () => {
     expect(typesOf(events)).toContain('collection.entryCompleted');
     const done = world.getPlayer();
     expect(done.collections.stone_spark_beneath!.completed).toBe(true);
-    expect(done.skillPoints.mining).toBe(1);
+    expect(done.skills.mining.xp).toBe(200);
   });
 
   it('is a no-op when the targeted itemId is not a requirement of the entry', () => {
@@ -257,16 +260,16 @@ describe('collection registration', () => {
     expect(world.getPlayer().inventory.wood).toBe(50);
   });
 
-  it('cannot register to an already-completed entry (no duplicate Skill Point)', () => {
+  it('cannot register to an already-completed entry (no duplicate XP)', () => {
     const world = new World(emptyLevel(), { seed: 1, player: playerWith({ inventory: { stone: 20 } }) });
     world.applyCommand({ type: 'collection.register', entryId: 'stone_first_fragments' });
-    expect(world.getPlayer().skillPoints.mining).toBe(1);
+    expect(world.getPlayer().skills.mining.xp).toBe(40);
     expect(world.getPlayer().inventory.stone).toBe(10); // 10 consumed, 10 left
 
     // A second register on the completed entry is a no-op and consumes nothing.
     const again = world.applyCommand({ type: 'collection.register', entryId: 'stone_first_fragments' });
     expect(again).toEqual([]);
-    expect(world.getPlayer().skillPoints.mining).toBe(1);
+    expect(world.getPlayer().skills.mining.xp).toBe(40);
     expect(world.getPlayer().inventory.stone).toBe(10);
   });
 
@@ -287,61 +290,108 @@ describe('collection registration', () => {
   });
 });
 
-describe('skill upgrades', () => {
-  it('spends one Skill Point for +1 active click damage and emits the events', () => {
-    const world = new World(emptyLevel(), { seed: 1, player: playerWith({ skillPoints: { mining: 1 } }) });
-    const events = world.applyCommand({
-      type: 'skill.purchaseUpgrade',
-      skillId: 'mining',
-      upgradeId: 'active_click_damage',
-    });
+/**
+ * A high-level player who has leveled enough to allocate freely (so allocation
+ * tests aren't gated by level). 50 levels' worth of XP funds plenty of points.
+ */
+function leveledPlayer(overrides: Partial<Player> = {}): Player {
+  const base = createPlayer('local', 'Hero');
+  for (const id of Object.keys(base.skills) as (keyof typeof base.skills)[]) {
+    base.skills[id] = { xp: xpToReach(50), level: 50 };
+  }
+  return { ...base, ...overrides };
+}
+
+describe('skill tree allocation', () => {
+  it('allocates a root-adjacent node, spending a point and emitting the new stats', () => {
+    const world = new World(emptyLevel(), { seed: 1, player: leveledPlayer({ ownedTools: ['pickaxe_rusty'] }) });
+    const events = world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_a1' });
+
     expect(typesOf(events)).toEqual(
-      expect.arrayContaining(['skill.pointsChanged', 'skill.upgradePurchased']),
+      expect.arrayContaining(['skill.nodeAllocated', 'player.statsChanged']),
     );
     const player = world.getPlayer();
-    expect(player.skillPoints.mining).toBe(0);
-    expect(player.skillUpgrades.mining?.activeClickDamage).toBe(1);
+    expect(player.skillTrees.mining?.allocated).toContain('mining_a1');
+    // mining_a1 is +1 Tap Damage; snapshot stats reflect base(3) + 1.
+    expect(world.getStats().mining?.tapDamage).toBe(4);
   });
 
-  it('cannot purchase without a Skill Point', () => {
-    const world = new World(emptyLevel(), { seed: 1, player: playerWith({ skillPoints: {} }) });
-    expect(
-      world.applyCommand({ type: 'skill.purchaseUpgrade', skillId: 'mining', upgradeId: 'active_click_damage' }),
-    ).toEqual([]);
-    expect(world.getPlayer().skillUpgrades.mining?.activeClickDamage ?? 0).toBe(0);
+  it('rejects a node with no connected path to the root', () => {
+    const world = new World(emptyLevel(), { seed: 1, player: leveledPlayer({ ownedTools: ['pickaxe_rusty'] }) });
+    // mining_a2 neighbors mining_a1 (not the root); allocating it first is invalid.
+    expect(world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_a2' })).toEqual([]);
+    expect(world.getPlayer().skillTrees.mining?.allocated ?? []).toEqual([]);
   });
 
-  it('applies the bonus only to the matching skill: Mining upgrade raises rock damage, not tree', () => {
-    const player = playerWith({
-      ownedTools: ['pickaxe_rusty', 'axe_rusty'],
-      skillUpgrades: { mining: { activeClickDamage: 2 } },
-    });
+  it('rejects a node above the player level requirement', () => {
+    // Fresh player is level 1; mining_t2 needs level 5.
+    const world = new World(emptyLevel(), { seed: 1, player: playerWith({ ownedTools: ['pickaxe_rusty'] }) });
+    world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_c1' });
+    expect(world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_t2' })).toEqual([]);
+  });
+
+  it('rejects allocation when no Skill Points remain', () => {
+    // Level 1 grants exactly 1 point; spend it, then a second allocation fails.
+    const world = new World(emptyLevel(), { seed: 1, player: playerWith({ ownedTools: ['pickaxe_rusty'] }) });
+    expect(world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_a1' })).not.toEqual([]);
+    expect(world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_b1' })).toEqual([]);
+  });
+
+  it('respec refunds every allocated node and resets the stats', () => {
+    const world = new World(emptyLevel(), { seed: 1, player: leveledPlayer({ ownedTools: ['pickaxe_rusty'] }) });
+    world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_a1' });
+    world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_a2' });
+    expect(world.getStats().mining?.tapDamage).toBe(5); // base 3 + 1 + 1
+
+    const events = world.applyCommand({ type: 'skill.respecTree', skillId: 'mining' });
+    expect(typesOf(events)).toEqual(expect.arrayContaining(['skill.treeRespecced', 'player.statsChanged']));
+    expect(world.getPlayer().skillTrees.mining?.allocated ?? []).toEqual([]);
+    expect(world.getStats().mining?.tapDamage).toBe(3);
+  });
+
+  it('respec is a no-op when nothing is allocated', () => {
+    const world = new World(emptyLevel(), { seed: 1, player: leveledPlayer() });
+    expect(world.applyCommand({ type: 'skill.respecTree', skillId: 'mining' })).toEqual([]);
+  });
+});
+
+describe('tier gating + tap damage from the tree', () => {
+  it('a Tier-2 entity is tierLocked until the Unlock Tier 2 node is allocated', () => {
+    const level: LevelDefinition = {
+      id: 'b',
+      displayName: 'B',
+      backgroundTextureId: 'bg',
+      width: 50,
+      height: 50,
+      entities: [{ instanceId: 'boulder', definitionId: 'boulder', x: 1, y: 1, overrides: { maxHp: 1000 } }],
+    };
+    const player = leveledPlayer({ ownedTools: ['pickaxe_rusty'] });
+    const world = new World(level, { seed: 1, player });
+
+    const blocked = world.applyCommand({ type: 'entity.tap', instanceId: 'boulder' });
+    const block = blocked.find((e) => e.type === 'entity.blocked');
+    expect(block?.type === 'entity.blocked' && block.reason).toBe('tierLocked');
+
+    // Path to the Tier-2 keystone (root -> c1 -> t2) and the boulder is mineable.
+    world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_c1' });
+    world.applyCommand({ type: 'skill.allocateNode', skillId: 'mining', nodeId: 'mining_t2' });
+    const hit = world.applyCommand({ type: 'entity.tap', instanceId: 'boulder' });
+    expect(typesOf(hit)).toContain('entity.damaged');
+  });
+
+  it('Tap Damage nodes raise only the matching skill', () => {
+    const player = leveledPlayer({ ownedTools: ['pickaxe_rusty', 'axe_rusty'] });
+    player.skillTrees = { mining: { allocated: ['mining_a1', 'mining_a2'] } };
     const world = new World(rockAndTree(), { seed: 1, player, combat: { activeDamage: 3 } });
-
-    const rockHit = world.applyCommand({ type: 'entity.tap', instanceId: 'rock' });
-    const rockDmg = rockHit.find((e) => e.type === 'entity.damaged');
-    expect(rockDmg?.type === 'entity.damaged' && rockDmg.amount).toBe(5); // 3 base + 2 mining
-
-    const treeHit = world.applyCommand({ type: 'entity.tap', instanceId: 'tree' });
-    const treeDmg = treeHit.find((e) => e.type === 'entity.damaged');
-    expect(treeDmg?.type === 'entity.damaged' && treeDmg.amount).toBe(3); // woodcutting unaffected
-  });
-
-  it('a Woodcutting upgrade raises tree damage only', () => {
-    const player = playerWith({
-      ownedTools: ['pickaxe_rusty', 'axe_rusty'],
-      skillUpgrades: { woodcutting: { activeClickDamage: 4 } },
-    });
-    const world = new World(rockAndTree(), { seed: 1, player, combat: { activeDamage: 3 } });
-
-    const treeDmg = world
-      .applyCommand({ type: 'entity.tap', instanceId: 'tree' })
-      .find((e) => e.type === 'entity.damaged');
-    expect(treeDmg?.type === 'entity.damaged' && treeDmg.amount).toBe(7); // 3 + 4
 
     const rockDmg = world
       .applyCommand({ type: 'entity.tap', instanceId: 'rock' })
       .find((e) => e.type === 'entity.damaged');
-    expect(rockDmg?.type === 'entity.damaged' && rockDmg.amount).toBe(3); // mining unaffected
+    expect(rockDmg?.type === 'entity.damaged' && rockDmg.amount).toBe(5); // 3 + 1 + 1 mining
+
+    const treeDmg = world
+      .applyCommand({ type: 'entity.tap', instanceId: 'tree' })
+      .find((e) => e.type === 'entity.damaged');
+    expect(treeDmg?.type === 'entity.damaged' && treeDmg.amount).toBe(3); // woodcutting unaffected
   });
 });

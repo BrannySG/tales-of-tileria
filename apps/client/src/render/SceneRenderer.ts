@@ -116,6 +116,11 @@ export interface SceneRendererOptions {
   initialPresence?: PresenceInfo[];
   /** Invoked when an entity should open the Inspect panel. */
   onInspect?: (inspect: InspectInfo) => void;
+  /**
+   * Invoked when a Beacon is tapped (no armed item). The mode resolves the
+   * placement's destination and offers Travel (client-orchestrated, ADR-0023).
+   */
+  onBeaconActivate?: (instanceId: string) => void;
 }
 
 export type { Updatable };
@@ -575,7 +580,8 @@ export class SceneRenderer {
     } else if (def.kind === 'prop') {
       // Props (water/fire) are non-combat scenery; their only interaction is
       // being the target of an armed Item (see CONTEXT.md: Item interaction).
-      if (this.opts.interactive !== false) this.wireProp(view, inst.instanceId);
+      // Beacons are also props, but a plain tap offers Travel (see wireProp).
+      if (this.opts.interactive !== false) this.wireProp(view, inst.instanceId, def);
     } else if (this.opts.interactive !== false) {
       if (def.buildable) {
         // Buildables are inert; their only interaction is the Build Prompt,
@@ -805,13 +811,15 @@ export class SceneRenderer {
   }
 
   /**
-   * Wires a prop (water source, campfire): hovering shows its name + cursor
-   * targeting; tapping uses the armed Item on it (no-op when nothing is armed).
-   * Props have no combat behavior, so we drive the name purely client-side
-   * rather than through the sim's hover/target path.
+   * Wires a prop (water source, campfire, Beacon): hovering shows its name +
+   * cursor targeting; tapping uses the armed Item on it (no-op when nothing is
+   * armed). A Beacon with no armed item instead offers Travel via the mode
+   * callback (see CONTEXT.md: Beacon/Travel, ADR-0023). Props have no combat
+   * behavior, so we drive the name purely client-side.
    */
-  private wireProp(view: EntityView, instanceId: string): void {
+  private wireProp(view: EntityView, instanceId: string, def: EntityDefinition): void {
     const target = view.hitTarget;
+    const isBeacon = def.tags?.includes('beacon') ?? false;
     this.wireInspectGesture(target, instanceId);
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
@@ -824,7 +832,9 @@ export class SceneRenderer {
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
       if (this.suppressTapPointerIds.delete(e.pointerId)) return;
-      this.tryUseArmedItemOn(instanceId);
+      // An armed Item still takes precedence on any prop.
+      if (this.tryUseArmedItemOn(instanceId)) return;
+      if (isBeacon) this.opts.onBeaconActivate?.(instanceId);
     });
   }
 
@@ -882,10 +892,16 @@ export class SceneRenderer {
           // The spark + sound were already played optimistically on the local tap;
           // just surface the authoritative damage number now.
           if (!suppressNumber) {
-            this.damageNumbers.spawn(view.container.x, view.container.y + view.hitOffsetY, event.amount, event.source);
+            this.damageNumbers.spawn(
+              view.container.x,
+              view.container.y + view.hitOffsetY,
+              event.amount,
+              event.source,
+              event.crit,
+            );
           }
         } else {
-          this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber);
+          this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber, event.crit);
           // Action cue: pulse the acting player's remote cursor on their hit.
           if (this.networked && event.by && event.by !== this.opts.localPlayerId) {
             this.remoteCursors?.hit(event.by);
@@ -1091,12 +1107,12 @@ export class SceneRenderer {
         break;
       }
       case 'collection.entryCompleted': {
-        // The celebration card + Skill Point increment are DOM (HUD store); here
-        // we just play the positive chime.
+        // The celebration card + XP gain are DOM (HUD store); here we just play
+        // the positive chime.
         this.opts.sound?.play('respawn');
         break;
       }
-      case 'skill.upgradePurchased': {
+      case 'skill.nodeAllocated': {
         this.opts.sound?.play('respawn');
         break;
       }
@@ -1217,6 +1233,7 @@ export class SceneRenderer {
     source: DamageSource,
     deplete: boolean,
     suppressNumber = false,
+    crit = false,
   ): void {
     const view = this.views.get(instanceId);
     const def = this.defs.get(instanceId);
@@ -1239,7 +1256,7 @@ export class SceneRenderer {
     if (dtex) this.particles.burst(dtex, x, y, driftBurstOptions(deplete));
 
     if (!deplete) {
-      if (!suppressNumber) this.damageNumbers.spawn(x, y, amount, source);
+      if (!suppressNumber) this.damageNumbers.spawn(x, y, amount, source, crit);
       const isRock = def.art.textureId === 'rock';
       this.opts.sound?.play(isRock ? 'hitRock' : 'hitTree', { pitchVariation: 0.12 });
     }
@@ -1286,16 +1303,21 @@ export class SceneRenderer {
     switch (event.reason) {
       case 'missingTool':
         return `Need ${indefiniteArticle(toolLabel)} ${toolLabel}`;
+      case 'tierLocked':
+        return event.requiredSkillId && event.requiredTier
+          ? `Unlock ${skillLabel(event.requiredSkillId)} Tier ${event.requiredTier} in the Skill Tree`
+          : 'Tier locked — unlock it in the Skill Tree';
+      case 'skillLevel':
+        return event.requiredSkillId && event.requiredSkillLevel
+          ? `Need ${skillLabel(event.requiredSkillId)} ${event.requiredSkillLevel}`
+          : 'Skill too low';
+      // Retained reasons (no longer emitted; see ADR-0022).
       case 'toolTierTooLow':
         return `Need a stronger ${toolLabel}`;
       case 'toolWieldLevel':
         return event.requiredSkillId && event.requiredSkillLevel
           ? `Need ${skillLabel(event.requiredSkillId)} ${event.requiredSkillLevel} to wield the ${toolLabel}`
           : `Can't wield this ${toolLabel} yet`;
-      case 'skillLevel':
-        return event.requiredSkillId && event.requiredSkillLevel
-          ? `Need ${skillLabel(event.requiredSkillId)} ${event.requiredSkillLevel}`
-          : 'Skill too low';
     }
   }
 

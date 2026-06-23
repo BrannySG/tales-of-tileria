@@ -10,14 +10,14 @@ export const COLLECTION_DEFINITIONS: readonly CollectionDefinition[] = [
   {
     id: 'the_stone_ledger',
     name: 'The Stone Ledger',
-    description: 'Complete entries to earn Mining Skill Points.',
+    description: 'Complete entries to earn Mining XP.',
     skill: 'mining',
     sortOrder: 0,
   },
   {
     id: 'the_timber_archive',
     name: 'The Timber Archive',
-    description: 'Complete entries to earn Woodcutting Skill Points.',
+    description: 'Complete entries to earn Woodcutting XP.',
     skill: 'woodcutting',
     sortOrder: 1,
   },
@@ -41,7 +41,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Every great delve starts with a handful of plain rock.',
     skill: 'mining',
     requirements: [{ itemId: 'stone', quantity: 10 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 40 },
     sortOrder: 0,
   },
   {
@@ -51,7 +51,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Enough stone to make the ledger keeper nod approvingly.',
     skill: 'mining',
     requirements: [{ itemId: 'stone', quantity: 50 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 150 },
     sortOrder: 1,
   },
   {
@@ -64,7 +64,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'stone', quantity: 25 },
       { itemId: 'stone_shiny_pebble', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 100 },
     sortOrder: 2,
   },
   {
@@ -77,7 +77,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'stone_flint_shard', quantity: 10 },
       { itemId: 'stone_tiny_geode', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 200 },
     sortOrder: 3,
   },
   {
@@ -87,7 +87,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'A fragment fallen from the sky. A chase for the dedicated.',
     skill: 'mining',
     requirements: [{ itemId: 'stone_star_fragment', quantity: 1 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 300 },
     sortOrder: 4,
   },
 
@@ -99,7 +99,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'A first armful of honest wood.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'wood', quantity: 10 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 40 },
     sortOrder: 0,
   },
   {
@@ -109,7 +109,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'A hoard of timber worthy of the archive.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'wood', quantity: 50 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 150 },
     sortOrder: 1,
   },
   {
@@ -122,7 +122,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'wood', quantity: 25 },
       { itemId: 'tree_bird_nest', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 100 },
     sortOrder: 2,
   },
   {
@@ -135,7 +135,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'tree_knotted_root', quantity: 10 },
       { itemId: 'tree_whispering_acorn', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 200 },
     sortOrder: 3,
   },
   {
@@ -145,7 +145,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'The ancient heart of living timber. A long chase.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'tree_ancient_heartwood', quantity: 1 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 300 },
     sortOrder: 4,
   },
 
@@ -157,7 +157,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Oak gives its timber grudgingly, but generously.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'wood', quantity: 40 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 120 },
     sortOrder: 0,
   },
   {
@@ -167,7 +167,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Strips of rugged oak bark, gathered by the armful.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'oak_bark_strip', quantity: 10 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 120 },
     sortOrder: 1,
   },
   {
@@ -180,7 +180,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'wood', quantity: 25 },
       { itemId: 'oak_gall', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 150 },
     sortOrder: 2,
   },
   {
@@ -193,7 +193,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'oak_bark_strip', quantity: 10 },
       { itemId: 'oak_mistletoe_sprig', quantity: 1 },
     ],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 220 },
     sortOrder: 3,
   },
   {
@@ -203,7 +203,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'An acorn of solid golden light. The rarest oak prize.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'oak_golden_acorn', quantity: 1 }],
-    rewards: { skillPoints: 1 },
+    rewards: { xp: 350 },
     sortOrder: 4,
   },
 ];

@@ -23,16 +23,16 @@ export class DamageNumbers {
     parent.addChild(this.layer);
   }
 
-  spawn(x: number, y: number, amount: number, source: DamageSource): void {
+  spawn(x: number, y: number, amount: number, source: DamageSource, crit = false): void {
     const active = source === 'active';
     const text = new Text({
-      text: String(amount),
+      text: crit ? `${amount}!` : String(amount),
       style: {
         fontFamily: GAME_FONT_FAMILY,
-        fontSize: active ? 30 : 18,
-        fontWeight: active ? '800' : '600',
-        fill: active ? 0xfff1a8 : 0xd7e7ff,
-        stroke: { color: 0x1a1206, width: active ? 5 : 3 },
+        fontSize: crit ? 40 : active ? 30 : 18,
+        fontWeight: active || crit ? '800' : '600',
+        fill: crit ? 0xff7a3c : active ? 0xfff1a8 : 0xd7e7ff,
+        stroke: { color: 0x1a1206, width: crit ? 6 : active ? 5 : 3 },
         align: 'center',
       },
     });

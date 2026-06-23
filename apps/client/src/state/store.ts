@@ -11,7 +11,8 @@ import {
   type SimTransport,
   type SkillId,
   type SkillState,
-  type SkillUpgradeState,
+  type SkillStats,
+  type SkillTreeState,
   type ToolId,
   type ToolType,
 } from '@tot/shared';
@@ -53,7 +54,8 @@ export interface CompletionInfo {
   key: number;
   entryId: string;
   skillId: SkillId;
-  pointsAwarded: number;
+  /** Skill XP granted by completing the entry (see ADR-0022). */
+  xpAwarded: number;
 }
 
 /** Client-side view of the player's in-flight craft (for menu progress). */
@@ -143,10 +145,10 @@ interface HudState {
   skills: Record<SkillId, SkillState>;
   /** Collection Entry progress keyed by entry id (mirrors `Player.collections`). */
   collections: Record<string, CollectionEntryProgress>;
-  /** Unspent Skill Points per skill (mirrors `Player.skillPoints`). */
-  skillPoints: Partial<Record<SkillId, number>>;
-  /** Purchased per-skill upgrades (mirrors `Player.skillUpgrades`). */
-  skillUpgrades: Partial<Record<SkillId, SkillUpgradeState>>;
+  /** Per-skill Skill Tree allocations (mirrors `Player.skillTrees`). */
+  skillTrees: Partial<Record<SkillId, SkillTreeState>>;
+  /** Sim-derived per-skill Stat blocks (mirrors the snapshot `stats`). */
+  stats: Partial<Record<SkillId, SkillStats>>;
   craftingUnlocked: boolean;
   craftingJob: CraftingJobView | undefined;
   /** Pending shrine offerings keyed by shrine instanceId -> granted tool id. */
@@ -194,10 +196,10 @@ interface HudState {
   setSkills: (skills: Record<SkillId, SkillState>) => void;
   setCollections: (collections: Record<string, CollectionEntryProgress>) => void;
   setCollectionProgress: (entryId: string, progress: CollectionEntryProgress) => void;
-  setSkillPoints: (skillPoints: Partial<Record<SkillId, number>>) => void;
-  setSkillPointsFor: (skillId: SkillId, points: number) => void;
-  setSkillUpgrades: (upgrades: Partial<Record<SkillId, SkillUpgradeState>>) => void;
-  setSkillUpgrade: (skillId: SkillId, upgrade: SkillUpgradeState) => void;
+  setSkillTrees: (skillTrees: Partial<Record<SkillId, SkillTreeState>>) => void;
+  setSkillTreeAllocated: (skillId: SkillId, allocated: string[]) => void;
+  setStats: (stats: Partial<Record<SkillId, SkillStats>>) => void;
+  setStatsFor: (skillId: SkillId, stats: SkillStats) => void;
   setCraftingUnlocked: (unlocked: boolean) => void;
   setCraftingJob: (job: CraftingJobView | undefined) => void;
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
@@ -253,8 +255,8 @@ export const useHud = create<HudState>((set) => ({
   equippedTool: undefined,
   skills: emptySkills(),
   collections: {},
-  skillPoints: {},
-  skillUpgrades: {},
+  skillTrees: {},
+  stats: {},
   craftingUnlocked: false,
   craftingJob: undefined,
   offerings: {},
@@ -304,12 +306,12 @@ export const useHud = create<HudState>((set) => ({
   setCollections: (collections) => set({ collections: { ...collections } }),
   setCollectionProgress: (entryId, progress) =>
     set((state) => ({ collections: { ...state.collections, [entryId]: progress } })),
-  setSkillPoints: (skillPoints) => set({ skillPoints: { ...skillPoints } }),
-  setSkillPointsFor: (skillId, points) =>
-    set((state) => ({ skillPoints: { ...state.skillPoints, [skillId]: points } })),
-  setSkillUpgrades: (skillUpgrades) => set({ skillUpgrades: { ...skillUpgrades } }),
-  setSkillUpgrade: (skillId, upgrade) =>
-    set((state) => ({ skillUpgrades: { ...state.skillUpgrades, [skillId]: upgrade } })),
+  setSkillTrees: (skillTrees) => set({ skillTrees: { ...skillTrees } }),
+  setSkillTreeAllocated: (skillId, allocated) =>
+    set((state) => ({ skillTrees: { ...state.skillTrees, [skillId]: { allocated: [...allocated] } } })),
+  setStats: (stats) => set({ stats: { ...stats } }),
+  setStatsFor: (skillId, stats) =>
+    set((state) => ({ stats: { ...state.stats, [skillId]: stats } })),
   setCraftingUnlocked: (craftingUnlocked) => set({ craftingUnlocked }),
   setCraftingJob: (craftingJob) => set({ craftingJob }),
   setOffering: (instanceId, toolId) =>
@@ -385,8 +387,8 @@ export const useHud = create<HudState>((set) => ({
       equippedTool: undefined,
       skills: emptySkills(),
       collections: {},
-      skillPoints: {},
-      skillUpgrades: {},
+      skillTrees: {},
+      stats: {},
       craftingUnlocked: false,
       craftingJob: undefined,
       offerings: {},
@@ -424,8 +426,8 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setEquippedTool(snapshot.player.equippedToolType);
   hud.setSkills(snapshot.player.skills);
   hud.setCollections(snapshot.player.collections ?? {});
-  hud.setSkillPoints(snapshot.player.skillPoints ?? {});
-  hud.setSkillUpgrades(snapshot.player.skillUpgrades ?? {});
+  hud.setSkillTrees(snapshot.player.skillTrees ?? {});
+  hud.setStats(snapshot.stats ?? {});
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
   // Seed already-owned collectibles as discovered (silently, no toast flood),
   // then surface the New badge if any discovery is still unacknowledged.
@@ -548,16 +550,20 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
           key: nextToastId(),
           entryId: event.entryId,
           skillId: event.skillId,
-          pointsAwarded: event.pointsAwarded,
+          xpAwarded: event.xpAwarded,
         });
         break;
       }
-      case 'skill.pointsChanged': {
-        useHud.getState().setSkillPointsFor(event.skillId, event.points);
+      case 'skill.nodeAllocated': {
+        useHud.getState().setSkillTreeAllocated(event.skillId, event.allocated);
         break;
       }
-      case 'skill.upgradePurchased': {
-        useHud.getState().setSkillUpgrade(event.skillId, { activeClickDamage: event.activeClickDamage });
+      case 'skill.treeRespecced': {
+        useHud.getState().setSkillTreeAllocated(event.skillId, event.allocated);
+        break;
+      }
+      case 'player.statsChanged': {
+        useHud.getState().setStatsFor(event.skillId, event.stats);
         break;
       }
       case 'cosmetic.unlocked': {

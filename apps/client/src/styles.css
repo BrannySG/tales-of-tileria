@@ -1607,6 +1607,10 @@ button.bag-slot:hover {
 
 .leaderboard-tab {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 8px 12px;
   font-weight: 700;
   font-size: 14px;
@@ -1740,6 +1744,28 @@ button.bag-slot:hover {
 
 .name-confirm:disabled {
   opacity: 0.5;
+}
+
+/* ---- Beacon Travel prompt (see ADR-0023) ---- */
+.travel-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+}
+
+.travel-cancel {
+  padding: 12px 28px;
+  font-size: 22px;
+  font-weight: 800;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.travel-cancel:hover {
+  border-color: var(--accent);
 }
 
 /* ---- Arrival fade + out-of-world dev welcome ---- */
@@ -2177,12 +2203,15 @@ button.bag-slot:hover {
 
 .profile-stat-row {
   display: grid;
-  grid-template-columns: 140px 56px 1fr;
+  grid-template-columns: 170px 56px 1fr;
   align-items: center;
   gap: 12px;
 }
 
 .profile-stat-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   font-size: 18px;
   font-weight: 700;
 }
@@ -2423,6 +2452,36 @@ button.bag-slot:hover {
   box-shadow: 0 0 10px -1px currentColor inset, 0 0 8px -3px currentColor;
 }
 
+/* ---- Skill icon (real texture or compact initial fallback) ---- */
+.skill-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+}
+
+.skill-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.skill-icon-placeholder {
+  border: 1px solid rgba(255, 210, 74, 0.45);
+  background: radial-gradient(circle at 50% 35%, rgba(255, 210, 74, 0.18), rgba(0, 0, 0, 0.42));
+  color: var(--accent);
+  font-weight: 900;
+  box-shadow: inset 0 0 8px -3px currentColor;
+}
+
+.skill-reward-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
 /* ============================================================================
    Progression surface (Collections + Skill Upgrades) — fullscreen, responsive
    ========================================================================= */
@@ -2563,6 +2622,13 @@ button.bag-slot:hover {
   cursor: not-allowed;
 }
 
+.prog-rail-name {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .prog-rail-count {
   flex: none;
   font-size: 13px;
@@ -2626,6 +2692,13 @@ button.bag-slot:hover {
   font-weight: 800;
   letter-spacing: 0.3px;
   color: var(--accent);
+}
+
+.prog-title-skill,
+.prog-skill-points-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .prog-list-head p {
@@ -3149,7 +3222,7 @@ button.bag-slot:hover {
 
 .prog-upgrade-points {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   margin-bottom: 6px;
 }
@@ -3162,12 +3235,18 @@ button.bag-slot:hover {
 }
 
 .prog-upgrade-points-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 14px;
   font-weight: 700;
   color: var(--muted);
 }
 
 .prog-upgrade-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 20px;
   font-weight: 800;
 }
@@ -3228,6 +3307,294 @@ button.bag-slot:hover {
   padding: 40px 20px;
   text-align: center;
   color: var(--muted);
+}
+
+.prog-heading {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.prog-detail-points-sub {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ===== Skill Tree modal (ADR-0022) ===== */
+.skilltree-panel {
+  width: min(1280px, 96vw);
+  height: min(880px, 94vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+  outline: none;
+}
+
+.skilltree-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+}
+
+.skilltree-viewport {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(120, 150, 210, 0.08), transparent 60%),
+    var(--panel);
+  touch-action: none;
+  cursor: grab;
+}
+
+.skilltree-viewport:active {
+  cursor: grabbing;
+}
+
+.skilltree-svg {
+  display: block;
+  user-select: none;
+}
+
+/* Edges */
+.skilltree-edge {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 4;
+}
+
+.skilltree-edge.active {
+  stroke: var(--accent);
+  stroke-width: 5;
+}
+
+/* Nodes */
+.skilltree-node {
+  cursor: pointer;
+}
+
+.skilltree-node circle {
+  fill: #2a2f38;
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 3;
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.skilltree-node.tier circle {
+  fill: #34302a;
+}
+
+.skilltree-node.available circle {
+  stroke: var(--accent);
+  fill: #2f3a36;
+}
+
+.skilltree-node.allocated circle {
+  fill: var(--accent);
+  stroke: #fff;
+}
+
+.skilltree-node.locked circle {
+  opacity: 0.55;
+}
+
+.skilltree-node.selected circle {
+  stroke: #ffd479;
+  stroke-width: 4;
+}
+
+.skilltree-node-label {
+  fill: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 3px;
+}
+
+.skilltree-node.allocated .skilltree-node-tier {
+  fill: #1a1d23;
+}
+
+.skilltree-node-tier {
+  fill: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.skilltree-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skilltree-zoom button {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-solid);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.skilltree-zoom button:hover {
+  border-color: var(--accent);
+}
+
+.skilltree-points {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.skilltree-points strong {
+  color: var(--accent);
+}
+
+.skilltree-points-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.skilltree-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-left: 1px solid var(--panel-border);
+  overflow-y: auto;
+}
+
+.skilltree-stats-head,
+.skilltree-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.skilltree-stats-grid {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skilltree-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.skilltree-stat-row dt {
+  color: var(--muted);
+}
+
+.skilltree-stat-row dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.skilltree-detail {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+}
+
+.skilltree-detail-effect {
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.skilltree-detail-meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.skilltree-detail-state {
+  font-weight: 700;
+}
+
+.skilltree-detail-state.allocated {
+  color: var(--accent-2, #5cc861);
+}
+
+.skilltree-detail-state.locked {
+  color: var(--muted);
+}
+
+.skilltree-respec {
+  margin-top: auto;
+}
+
+.skilltree-respec-button,
+.skilltree-respec-confirm,
+.skilltree-respec-actions button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 16px;
+}
+
+.skilltree-respec-button {
+  width: 100%;
+}
+
+.skilltree-respec-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skilltree-respec-warn {
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
+.skilltree-respec-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.skilltree-respec-actions button {
+  flex: 1;
+}
+
+.skilltree-respec-confirm {
+  background: #b3402f;
+  border-color: #b3402f;
+  color: #fff;
 }
 
 /* ---- Tablet: rail becomes a horizontal chip row ---- */
@@ -3322,6 +3689,24 @@ button.bag-slot:hover {
     width: 52px;
     height: 52px;
     padding: 4px;
+  }
+
+  .skilltree-panel {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+  }
+
+  .skilltree-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+
+  .skilltree-side {
+    border-left: none;
+    border-top: 1px solid var(--panel-border);
+    max-height: 42vh;
   }
 }
 
@@ -3591,6 +3976,22 @@ button.bag-slot:hover {
 .inspect-chip.miss {
   color: #ffacac;
   background: rgba(229, 72, 77, 0.16);
+}
+
+.inspect-xp-chip {
+  gap: 5px;
+}
+
+.inspect-xp-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inspect-xp-separator {
+  color: var(--muted);
+  opacity: 0.65;
+  margin-right: 1px;
 }
 
 .inspect-status {

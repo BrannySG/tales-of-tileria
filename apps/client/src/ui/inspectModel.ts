@@ -1,11 +1,12 @@
 import {
-  bestUsableTool,
   getItemDefinition,
   getLootTable,
+  getToolDefinition,
   requireEntityDefinition,
   type Rarity,
   type SkillId,
   type SkillState,
+  type SkillStats,
   type ToolId,
 } from '@tot/shared';
 import { isCollectibleItem } from './discoveredCollectibles';
@@ -47,6 +48,8 @@ export interface BuildInspectModelInput {
   definitionId: string;
   ownedToolIds: readonly ToolId[];
   skills: Record<SkillId, SkillState>;
+  /** Sim-derived per-skill Stat blocks (for Tier gating; see ADR-0022). */
+  stats?: Partial<Record<SkillId, SkillStats>>;
   isDiscovered: (itemId: string) => boolean;
 }
 
@@ -108,22 +111,27 @@ function buildRequirements(input: BuildInspectModelInput): InspectRequirementRow
   const req = def.requirements;
   if (!req) return [];
   const rows: InspectRequirementRow[] = [];
+  // Tools gate by TYPE only now (see ADR-0022): you just need to own one.
   if (req.toolType) {
-    const minTier = req.minTier ?? 1;
-    const usable = bestUsableTool(input.ownedToolIds, req.toolType, (sid) => skillLevel(input.skills, sid));
-    const met = !!usable && usable.tier >= minTier;
+    const owns = input.ownedToolIds.some((id) => getToolDefinition(id)?.toolType === req.toolType);
     const typeLabel = req.toolType === 'pickaxe' ? 'Pickaxe' : req.toolType === 'axe' ? 'Axe' : 'Tool';
-    const equippedLabel = usable ? ` (usable: ${usable.displayName})` : '';
+    rows.push({ label: `Requires ${typeLabel}`, met: owns });
+  }
+  // Tier gating: the Entity's Tier must be unlocked in the matching Skill tree.
+  const tier = req.tier ?? 1;
+  const skillId = req.skill?.skillId;
+  if (tier > 1 && skillId) {
+    const maxTier = input.stats?.[skillId]?.maxTierUnlocked ?? 1;
     rows.push({
-      label: `Requires ${typeLabel} Tier ${minTier}+${equippedLabel}`,
-      met,
+      label: `Requires ${skillLabel(skillId)} Tier ${tier} (unlocked: ${maxTier})`,
+      met: maxTier >= tier,
     });
   }
-  if (req.skill) {
+  // A non-trivial skill-level requirement (level 1 is implicit, so it's hidden).
+  if (req.skill && req.skill.level > 1) {
     const current = skillLevel(input.skills, req.skill.skillId);
-    const label = skillLabel(req.skill.skillId);
     rows.push({
-      label: `Requires ${label} ${req.skill.level} (you: ${current})`,
+      label: `Requires ${skillLabel(req.skill.skillId)} ${req.skill.level} (you: ${current})`,
       met: current >= req.skill.level,
     });
   }

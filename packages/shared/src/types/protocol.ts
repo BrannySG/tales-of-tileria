@@ -4,6 +4,7 @@ import type { CursorMode, CursorState } from './cursor';
 import type { SkillId, ToolId, ToolType } from './ids';
 import type { Player } from './player';
 import type { QuestState } from './quest';
+import type { SkillStats } from './skillTree';
 
 /**
  * Commands sent INTO the sim (client -> sim today; client -> server later).
@@ -58,10 +59,10 @@ export type SimCommand =
        * Register (donate/consume) owned Items toward a Collection Entry (see
        * CONTEXT.md: Registration). Consumes as much as the player owns toward the
        * still-needed requirement(s) (partial allowed) and completes the entry +
-       * awards Skill Points when every requirement is met. When `itemId` is given,
-       * only that one requirement is targeted; otherwise every requirement of the
-       * entry is processed ("register all available"). A no-op if the entry is
-       * unknown, already complete, or nothing can be registered.
+       * awards Skill XP when every requirement is met (see ADR-0022). When
+       * `itemId` is given, only that one requirement is targeted; otherwise every
+       * requirement of the entry is processed ("register all available"). A no-op
+       * if the entry is unknown, already complete, or nothing can be registered.
        */
       type: 'collection.register';
       entryId: string;
@@ -69,17 +70,24 @@ export type SimCommand =
     }
   | {
       /**
-       * Spend one Skill Point on a per-skill upgrade (see CONTEXT.md: Skill
-       * Upgrade). A no-op if the player lacks the point or the upgrade is unknown.
+       * Allocate a node in a Skill's tree (see CONTEXT.md: Skill Tree, ADR-0022).
+       * A no-op unless the node exists, is connected to an already-allocated node
+       * (or the root), the player meets its level requirement, and has enough
+       * unspent Skill Points (1 per Skill level).
        */
-      type: 'skill.purchaseUpgrade';
+      type: 'skill.allocateNode';
       skillId: SkillId;
-      upgradeId: SkillUpgradeId;
+      nodeId: string;
+    }
+  | {
+      /**
+       * Refund every allocated node in a Skill's tree (see CONTEXT.md: Respec).
+       * A no-op if nothing is allocated.
+       */
+      type: 'skill.respecTree';
+      skillId: SkillId;
     }
   | { type: 'cosmetic.equip'; cursorSkinId: string };
-
-/** Identifier of a purchasable Skill Upgrade (see CONTEXT.md: Skill Upgrade). */
-export type SkillUpgradeId = 'active_click_damage';
 
 /** Identifier of a removable divine power (see CONTEXT.md: Divine power). */
 export type DivinePowerId = 'smite';
@@ -94,12 +102,19 @@ export type PlayerId = string;
 export type DamageSource = 'active' | 'passive';
 
 /**
- * Why an interaction was rejected (see ADR-0008). `missingTool` = owns no tool
- * of the required type; `toolTierTooLow` = owns one but below the entity's
- * `minTier`; `toolWieldLevel` = owns a high-enough tool but lacks the skill to
- * wield it; `skillLevel` = the entity's own skill requirement is unmet.
+ * Why an interaction was rejected. `missingTool` = owns no tool of the required
+ * type (tools gate by TYPE only now, see ADR-0022); `tierLocked` = the entity's
+ * Tier is not yet unlocked in the matching Skill tree; `skillLevel` = the
+ * entity's own skill-level requirement is unmet. `toolTierTooLow` /
+ * `toolWieldLevel` are retained for back-compat but no longer emitted (tool tier
+ * and wield level stopped gating in ADR-0022).
  */
-export type BlockReason = 'missingTool' | 'toolTierTooLow' | 'toolWieldLevel' | 'skillLevel';
+export type BlockReason =
+  | 'missingTool'
+  | 'tierLocked'
+  | 'skillLevel'
+  | 'toolTierTooLow'
+  | 'toolWieldLevel';
 
 /**
  * Events emitted OUT of the sim (sim -> client today; server -> client later).
@@ -119,6 +134,8 @@ export type SimEvent =
        * legacy single-player call sites that don't address a player.
        */
       by?: PlayerId;
+      /** True when this was a critical Active hit (see CONTEXT.md: Crit). Presentation hook. */
+      crit?: boolean;
     }
   | {
       type: 'entity.depleted';
@@ -222,7 +239,7 @@ export type SimEvent =
     }
   | { type: 'divinePowerChanged'; power: DivinePowerId; unlocked: boolean }
   | { type: 'passiveDamageChanged'; amount: number }
-  // --- Collections & Skill Points (see CONTEXT.md: Collection / Skill Point) ---
+  // --- Collections, Skill Trees & Stats (see CONTEXT.md, ADR-0022) ---
   | {
       /**
        * Items were Registered toward a Collection Entry: `registered` is the new
@@ -238,22 +255,27 @@ export type SimEvent =
       type: 'collection.entryCompleted';
       entryId: string;
       skillId: SkillId;
-      /** Skill Points granted by this completion. */
-      pointsAwarded: number;
+      /** Skill XP granted by this completion (see ADR-0022). The XP itself rides `skill.xpGained`. */
+      xpAwarded: number;
     }
   | {
-      /** A skill's unspent Skill Point total changed (award or spend). */
-      type: 'skill.pointsChanged';
+      /** A Skill Tree node was allocated; carries the new full allocation set. */
+      type: 'skill.nodeAllocated';
       skillId: SkillId;
-      points: number;
+      nodeId: string;
+      allocated: string[];
     }
   | {
-      /** A Skill Upgrade was purchased; carries the new per-skill bonus total. */
-      type: 'skill.upgradePurchased';
+      /** A Skill Tree was fully refunded (respec); `allocated` is now empty. */
+      type: 'skill.treeRespecced';
       skillId: SkillId;
-      upgradeId: SkillUpgradeId;
-      /** New flat Active click-damage bonus for the skill. */
-      activeClickDamage: number;
+      allocated: string[];
+    }
+  | {
+      /** A Skill's derived Stat block changed (allocation/respec). Sim-authoritative. */
+      type: 'player.statsChanged';
+      skillId: SkillId;
+      stats: SkillStats;
     }
   // --- Cosmetics (see CONTEXT.md: Cursor skin / Achievement) ---
   | {
@@ -339,11 +361,12 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   smiteTriggered: 'player',
   divinePowerChanged: 'player',
   passiveDamageChanged: 'player',
-  // Collections & Skill Points: a single player's private progression.
+  // Collections, Skill Trees & Stats: a single player's private progression.
   'collection.registered': 'player',
   'collection.entryCompleted': 'player',
-  'skill.pointsChanged': 'player',
-  'skill.upgradePurchased': 'player',
+  'skill.nodeAllocated': 'player',
+  'skill.treeRespecced': 'player',
+  'player.statsChanged': 'player',
   // Cosmetics: unlocks are private; an equip must be seen by everyone.
   'cosmetic.unlocked': 'player',
   'cosmetic.equipped': 'world',
@@ -388,6 +411,12 @@ export interface ZoneSnapshot {
   entities: EntityInstance[];
   cursor: CursorState;
   player: Player;
+  /**
+   * The player's sim-derived per-Skill Stat blocks (see CONTEXT.md: Stat,
+   * ADR-0022). Authoritative: the client renders these and never recomputes
+   * Stats for gameplay. Keyed by the skills that have a Skill Tree.
+   */
+  stats: Partial<Record<SkillId, SkillStats>>;
 }
 
 /**

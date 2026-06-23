@@ -17,6 +17,9 @@ import { TOOL_DEFINITIONS } from './tools';
 import { COLLECTION_DEFINITIONS, COLLECTION_ENTRY_DEFINITIONS } from './collections';
 import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
 import { ACHIEVEMENT_DEFINITIONS, type Achievement } from './achievements';
+import { SKILL_TREE_DEFINITIONS } from './skillTrees';
+import type { SkillTreeDefinition, SkillTreeNode } from '../types/skillTree';
+import type { SkillId } from '../types/ids';
 
 const entityById = new Map<string, EntityDefinition>(ENTITY_DEFINITIONS.map((d) => [d.id, d]));
 const itemById = new Map<string, ItemDefinition>(ITEM_DEFINITIONS.map((d) => [d.id, d]));
@@ -31,6 +34,9 @@ const collectionById = new Map<string, CollectionDefinition>(
 );
 const collectionEntryById = new Map<string, CollectionEntryDefinition>(
   COLLECTION_ENTRY_DEFINITIONS.map((e) => [e.id, e]),
+);
+const skillTreeBySkill = new Map<SkillId, SkillTreeDefinition>(
+  SKILL_TREE_DEFINITIONS.map((t) => [t.skillId, t]),
 );
 
 export function getEntityDefinition(id: string): EntityDefinition | undefined {
@@ -223,6 +229,20 @@ export function collectionEntries(collectionId: string): readonly CollectionEntr
   return COLLECTION_ENTRY_DEFINITIONS.filter((e) => e.collectionId === collectionId).sort(
     (a, b) => a.sortOrder - b.sortOrder,
   );
+}
+
+/** The Skill Tree for a skill, if one is authored (see CONTEXT.md: Skill Tree). */
+export function getSkillTree(skillId: SkillId): SkillTreeDefinition | undefined {
+  return skillTreeBySkill.get(skillId);
+}
+
+export function listSkillTrees(): readonly SkillTreeDefinition[] {
+  return SKILL_TREE_DEFINITIONS;
+}
+
+/** A single node within a Skill's tree, by node id (or undefined). */
+export function getSkillTreeNode(skillId: SkillId, nodeId: string): SkillTreeNode | undefined {
+  return skillTreeBySkill.get(skillId)?.nodes.find((n) => n.id === nodeId);
 }
 
 /**

@@ -1,14 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
+import { snapshotPlayerForSave, type WorldSession } from '../game/useWorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
 import { loadPlayerSave } from '../persistence/playerSave';
 import { buildStarterPlayer } from '../persistence/starterPlayer';
+import type { MusicTrack } from '../audio/SoundSystem';
 import { WelcomeNotice } from '../ui/WelcomeNotice';
+import { TravelPrompt } from '../ui/TravelPrompt';
 
 /** The canonical shared open world: every returning player lands here together. */
 const SHARED_ZONE_ID = 'bigworld_01';
+
+/** Per-Level looping music. Omitted Levels fall back to the meadow ambience. */
+const LEVEL_MUSIC: Record<string, MusicTrack | null> = {
+  // The Black Market is a shadowed trade Level; the meadow loop would clash, so
+  // it runs silent for now (no dedicated track yet).
+  blackmarket_01: null,
+};
 
 /**
  * A returning player's seed snapshot. If a persisted save exists (see
@@ -34,6 +44,14 @@ export function GameMode() {
   // Returning players see the welcome + update notes on every load (tap to close).
   const [showWelcome, setShowWelcome] = useState(true);
 
+  // --- Beacon Travel (see ADR-0023) ---
+  // The carried snapshot survives the Level swap in memory; the fade covers the
+  // teardown + reconnect; the prompt offers the Travel after a Beacon tap.
+  const [carried, setCarried] = useState<Player | null>(null);
+  const [fadeBlack, setFadeBlack] = useState(false);
+  const [pendingTravel, setPendingTravel] = useState<LevelDefinition | null>(null);
+  const sessionRef = useRef<WorldSession | null>(null);
+
   useEffect(() => {
     // Returning players default straight into the bundled shared open world (it
     // matches the server and needs no dev middleware). Only in local dev do we
@@ -51,10 +69,52 @@ export function GameMode() {
   const onPick = async (id: string) => {
     if (!id) return;
     try {
+      // A manual dev pick is a fresh start in that Level, not a Travel: drop any
+      // carried snapshot so the returning-player seed applies.
+      setCarried(null);
       setLevel(await loadLevel(id));
     } catch (err) {
       setError(String(err));
     }
+  };
+
+  const onSceneReady = (session: WorldSession) => {
+    sessionRef.current = session;
+    // Lift the arrival fade once the (possibly networked) world is actually live.
+    window.setTimeout(() => setFadeBlack(false), 600);
+    return () => {
+      sessionRef.current = null;
+    };
+  };
+
+  // A Beacon was tapped: resolve its destination from the placement data and
+  // offer Travel. The sim never sees this — Travel is client-orchestrated.
+  const onBeaconActivate = (instanceId: string) => {
+    if (!level) return;
+    const placement = level.entities.find((e) => e.instanceId === instanceId);
+    const targetId = placement?.travelTargetLevelId;
+    if (!targetId) return;
+    const dest = getBundledLevel(targetId);
+    if (!dest) {
+      setError(`Unknown travel destination: ${targetId}`);
+      return;
+    }
+    setPendingTravel(dest);
+  };
+
+  const confirmTravel = () => {
+    const dest = pendingTravel;
+    setPendingTravel(null);
+    if (!dest) return;
+    // Snapshot live progress from the HUD projection (the networked transport's
+    // own snapshot is frozen at join, see useWorldScene). Fade, then swap: the
+    // `key={level.id}` change tears down the session/transport and builds the new
+    // one, seeded with the carried snapshot (see ADR-0011 / ADR-0023).
+    const snapshot = sessionRef.current ? snapshotPlayerForSave(sessionRef.current.transport) : null;
+    setCarried(snapshot);
+    setShowWelcome(false);
+    setFadeBlack(true);
+    setLevel(dest);
   };
 
   return (
@@ -100,8 +160,11 @@ export function GameMode() {
             playerName={getPlayerName() ?? 'Wanderer'}
             locationName={level.displayName}
             variant="game"
-            player={buildReturningPlayer()}
+            player={carried ?? buildReturningPlayer()}
+            music={level.id in LEVEL_MUSIC ? LEVEL_MUSIC[level.id] : undefined}
             persistPlayer
+            onBeaconActivate={onBeaconActivate}
+            onReady={onSceneReady}
           />
         ) : (
           <WorldScene
@@ -111,6 +174,9 @@ export function GameMode() {
             tool="pickaxe"
             locationName={level.displayName}
             variant="game"
+            music={level.id in LEVEL_MUSIC ? LEVEL_MUSIC[level.id] : undefined}
+            onBeaconActivate={onBeaconActivate}
+            onReady={onSceneReady}
           />
         )
       ) : (
@@ -125,6 +191,14 @@ export function GameMode() {
         </div>
       )}
 
+      <div className={`arc-fade ${fadeBlack ? 'on' : ''}`} aria-hidden={!fadeBlack} />
+      {pendingTravel && (
+        <TravelPrompt
+          destinationName={pendingTravel.displayName}
+          onConfirm={confirmTravel}
+          onCancel={() => setPendingTravel(null)}
+        />
+      )}
       {showWelcome && <WelcomeNotice variant="return" onClose={() => setShowWelcome(false)} />}
     </>
   );

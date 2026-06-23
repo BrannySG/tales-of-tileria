@@ -1,7 +1,13 @@
 # ADR 0020 — Skill Points from Collections drive per-skill Active damage; Tools gate access
 
-- Status: Accepted
+- Status: Superseded by [ADR-0022](0022-skill-trees-replace-flat-upgrades.md)
 - Date: 2026-06-21
+
+> **Update (2026-06-23):** Superseded by ADR-0022. Collections now award **Skill
+> XP** (not Skill Points); "Skill Point" is redefined as a per-level tree point;
+> the flat `skillUpgrades`/`active_click_damage` purchase is replaced by per-Skill
+> **Skill Trees**; and **Tier access is gated by the tree**, not by tool tier or
+> wield level. The reasoning below is preserved as a point-in-time record.
 
 ## Context
 

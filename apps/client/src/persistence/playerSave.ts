@@ -46,10 +46,12 @@ export function loadPlayerSave(): Player | null {
       inventory: { ...saved.inventory },
       ownedTools: [...(saved.ownedTools ?? [])],
       quests: [...(saved.quests ?? [])],
-      // Collections/Skill Points added later: default for pre-collection saves.
+      // Collections added later: default for pre-collection saves.
       collections: { ...(saved.collections ?? base.collections) },
-      skillPoints: { ...(saved.skillPoints ?? base.skillPoints) },
-      skillUpgrades: { ...(saved.skillUpgrades ?? base.skillUpgrades) },
+      // Skill Trees (ADR-0022) replace the old Skill-Point/upgrade system. Older
+      // saves keep their XP/levels (above) but start with empty trees; the legacy
+      // `skillPoints`/`skillUpgrades` fields are intentionally dropped here.
+      skillTrees: { ...(saved.skillTrees ?? base.skillTrees) },
       divinePowers: { ...base.divinePowers, ...saved.divinePowers },
       unlockedCursorSkins,
       cursorSkinId: saved.cursorSkinId ?? base.cursorSkinId,

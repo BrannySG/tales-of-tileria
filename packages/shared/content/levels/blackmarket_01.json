@@ -54,7 +54,19 @@
         "overrides": {
           "skinId": "blackmarket_generic"
         }
+      },
+      {
+        "instanceId": "beacon_blackmarket_return_1",
+        "definitionId": "beacon",
+        "x": 960,
+        "y": 940,
+        "overrides": {},
+        "travelTargetLevelId": "bigworld_01"
       }
-    ]
+    ],
+    "multiplayer": {
+      "maxPlayers": 6,
+      "interactionDefault": "lastHit"
+    }
   }
 }

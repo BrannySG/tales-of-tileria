@@ -87,6 +87,14 @@ language in the design docs, this file wins and the docs should be reconciled.
   one Level. A Player's personal state (Divine name, Owned tools, Skills,
   Inventory, Quests) is **portable across Level instances**: a snapshot can seed a
   new instance, so progress survives a Level swap (e.g. tutorial → Shared zone).
+- **Travel** — Moving a Player from one Level to another at runtime, carrying
+  their portable Player state. Mechanically a Level swap: the current Level
+  instance/connection is torn down and a new one is built or joined from the
+  carried snapshot, wrapped in a fade. It is **client-orchestrated** — there is no
+  Travel sim command; the client reuses the same carry mechanism as onboarding and
+  (for multiplayer Levels) reconnects to a new instance density-first. Triggered
+  in-world by a Beacon (see ADR-0011, ADR-0023). The fade is informally called a
+  "teleport"; the canonical verb is Travel.
 - **Shared zone** — The canonical networked open world (`bigworld_01`, "The Open
   World"), the active destination right after first-run onboarding and the default
   destination for returning players in Game mode. The player's first time
@@ -144,6 +152,12 @@ language in the design docs, this file wins and the docs should be reconciled.
   of [name]". In the active minimal onboarding flow, naming happens before
   entering the shared world and is separate from Crafting unlock. The
   shrine-centric Dedication beat is currently parked with the full arc.
+- **Beacon** — An in-world Travel point: a landmark Entity that links two Levels.
+  Tapping a Beacon prompts the Player to Travel to its destination Level. Each
+  Beacon *placement* declares its own destination (authored as data on the placed
+  Entity), so the same Beacon definition can link different Levels in different
+  places. The prompt and the fade are presentation; the Travel itself is a client
+  reconnect, not an authoritative sim action (see ADR-0023).
 
 ## Economy
 
@@ -241,25 +255,25 @@ language in the design docs, this file wins and the docs should be reconciled.
   (Woodcutting) and Pickaxe (Mining) lines.
 - **Tool type** — The category a tool belongs to (axe, pickaxe, sword), used by
   a Tool requirement to say *what kind* of tool an entity needs.
-- **Tool tier** — A numeric rank on a Tool definition (higher = more capable). A
-  Tool requirement may demand a minimum tier, so a basic tool of the right type is
-  not always enough (e.g. an Oak Tree needs a tier-2 axe).
-- **Wield requirement** — A Skill level a Tool definition needs to *use* it.
-  Owning a tool is not enough if its wield requirement is unmet (e.g. the Stone
-  Axe needs Woodcutting 3). A tool is *usable* only when its wield requirement is
-  met.
+- **Tool tier** — A numeric rank on a Tool definition (higher = more capable).
+  Tool tier **no longer gates** harvesting (see ADR-0022): tiers/crafting remain
+  in content for flavour and the future Gear sprint, but access is decided by the
+  Skill Tree's Tier unlocks, not by which tool tier you hold.
+- **Wield requirement** — A legacy Skill-level gate on a Tool definition. **No
+  longer enforced** (see ADR-0022); tools gate by *type ownership* only. The field
+  stays in content for now but does not block use.
 - **Owned tool** — A tool the player has acquired (a tool id in their set). The
   set of owned tools is authoritative state.
 - **Equipped tool** — The tool whose icon the cursor ring shows. Presentation-
-  derived, not a gating input: the world auto-selects the best *usable* tool of
-  the type an interaction needs, so the player never manually equips.
-- **Tool requirement** — A gate on an entity declaring the Tool type (and
-  optional minimum Tool tier) needed to damage it. Satisfied when the player owns
-  a usable tool of that type at or above the tier.
+  derived, not a gating input: the world auto-selects an owned tool of the type an
+  interaction needs, so the player never manually equips.
+- **Tool requirement** — A gate on an entity declaring the Tool *type* needed to
+  damage it (e.g. needs *an* axe). Satisfied when the player owns any tool of that
+  type; tier is irrelevant (see ADR-0022).
 - **Blocked** — The outcome of an interaction whose requirement is unmet. The
-  world reports *why* so the presentation can explain it. Reasons: missing tool,
-  tool tier too low, tool wield level unmet (owns it but Skill too low), or Skill
-  level too low. (Design-doc cursor "Disabled / Blocked" maps here.)
+  world reports *why* so the presentation can explain it. Reasons: missing tool
+  (`missingTool`), Tier not unlocked in the Skill Tree (`tierLocked`), or Skill
+  level too low (`skillLevel`). (Design-doc cursor "Disabled / Blocked" maps here.)
 - **Locked pickup** — A pickup that exists in the Level but is not yet
   collectible. It becomes collectible only when enabled (e.g. when the player is
   asked to take it), letting authored items sit inertly in the world beforehand.
@@ -267,17 +281,19 @@ language in the design docs, this file wins and the docs should be reconciled.
 ## Skills
 
 - **Skill** — A trainable proficiency the player levels by acting (Woodcutting,
-  Mining, Combat, Crafting). Skills gate Wield requirements and some entity
-  interactions, and are personal authoritative state.
+  Mining, Combat, Crafting). Each Skill has its own Skill Tree; levelling grants
+  Skill Points to spend in it. Personal authoritative state.
 - **Skill XP** — Experience accumulated in a Skill. Awarded by the world when an
-  entity is depleted (its XP reward) and when a craft completes. The single source
+  entity is depleted (its XP reward), when a craft completes, and when a
+  Collection Entry is completed (its XP reward, see ADR-0022). The single source
   of truth for a Skill's progress.
 - **Skill level** — The rank derived from Skill XP via the authored XP curve;
   recomputed (and stored) on every gain. Uses a Melvor-style exponential threshold
   ladder and caps at level 99 (XP can continue accruing beyond cap for future
-  progression). Drives Wield requirements and gating.
+  progression). Each level grants **one Skill Point** for that Skill's tree, and
+  gates which Tree Nodes can be allocated.
 
-## Collections & Skill Points
+## Collections & Skill Trees
 
 - **Collectible Item** — An Item that can be Registered toward a Collection
   Entry. Not a distinct kind of Item: any Item referenced by a Collection Entry's
@@ -294,9 +310,9 @@ language in the design docs, this file wins and the docs should be reconciled.
   the player triggers Registration (single requirement or whole Entry). The Book
   is presentation; Collections, Entries, and Progress are the data.
 - **Collection Entry** — One completable requirement within a Collection: a set
-  of item requirements that are consumed on Registration in exchange for a Skill
-  Point reward. Completed at most once. Authored content; quantities and rewards
-  are data-tunable.
+  of item requirements that are consumed on Registration in exchange for a **Skill
+  XP** reward (see ADR-0022). Completed at most once. Authored content; quantities
+  and rewards are data-tunable.
 - **Registration** — The player action of donating Items into a Collection Entry,
   consuming the required quantities from the Inventory. Sim-authoritative and
   partial-allowed: it registers as much as the player owns toward the targeted
@@ -306,14 +322,35 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Collection Progress** — The Registered amount per required item on an Entry,
   plus whether it is complete. Personal authoritative Player state, portable
   across Levels.
-- **Skill Point** — A permanent point awarded by completing a Collection Entry,
-  pooled per Skill and spendable only within that Skill's Upgrade panel. Distinct
-  from Skill XP (which still comes from depleting Entities).
-- **Skill Upgrade** — A permanent per-Skill effect bought with Skill Points. V1
-  has one per Skill: a repeatable +1 Active click damage (Steady Strike for
-  Mining, Sure Chop for Woodcutting), each costing one Skill Point. Tools still
-  own access and tier jumps; Skill Upgrades grow damage within a Skill (see
-  ADR-0020).
+- **Skill Point** — A per-Skill point earned **one per Skill level** (see
+  ADR-0022), spent allocating Tree Nodes in that Skill's tree. `available =
+  level − Σ(cost of allocated nodes)`. (Redefined from the old Collection-reward
+  meaning, which is superseded by Skill XP.)
+- **Skill Tree** — A per-Skill, PoE-style connected graph of Tree Nodes the
+  player allocates to grow Stats and unlock Tiers. One per starter Skill (Mining,
+  Woodcutting) in V1. The tree is the single gate on Tier access and the source of
+  per-Skill Stat bonuses. Sim-authoritative (allocation is a command; the resolved
+  Stat block ships in the snapshot and on change).
+- **Tree Node** — One allocatable point in a Skill Tree: an `x/y` position, edges
+  to neighbours, a `cost` (Skill Points), a `levelReq`, and an effect — either a
+  **Stat** bonus or a **Tier unlock**. Allocatable only when a neighbour (or the
+  free root) is allocated, the level requirement is met, and enough Skill Points
+  remain. The root is free, always allocated, and grants Tier 1.
+- **Respec** — Refunding every allocated Tree Node in a Skill's tree at once
+  (full refund), returning all its Skill Points. A per-Skill action in the Skill
+  Tree modal.
+- **Tier** — A numeric rank on a gatherable Entity (T1, T2, …) declaring how far
+  a Skill must have progressed to harvest it. The player may damage an Entity only
+  when their Skill Tree has unlocked a Tier at or above the Entity's Tier (see
+  ADR-0022). Replaces tool-tier/wield gating.
+- **Stat** — A sim-resolved per-Skill combat/gathering value: **Tap Damage**
+  (active click), **Hover Damage** (passive tick), **Hover Rate** (passive tick
+  cadence, lower = faster), **Crit Chance**, **Crit Damage**. Resolved per
+  interaction by the target Entity's Skill as `base + Skill Tree (+ future Gear)`
+  through one resolver (`deriveStats`); never computed anywhere else.
+- **Crit** — A chance-based bonus on **Tap** damage only (seeded sim RNG for
+  determinism): a crit multiplies Tap Damage by Crit Damage. Stacks
+  multiplicatively with Smite (see ADR-0022).
 
 ## Crafting
 

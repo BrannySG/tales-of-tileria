@@ -16,7 +16,7 @@ export const smallRock: EntityDefinition = {
   damageable: { maxHp: 15 },
   respawns: { respawnSeconds: 8 },
   loot: { lootTableId: 'rock_basic' },
-  requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', minTier: 1 },
+  requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 1 },
   xp: { rewards: { mining: 8 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable'],
@@ -41,16 +41,16 @@ export const basicTree: EntityDefinition = {
   damageable: { maxHp: 21 },
   respawns: { respawnSeconds: 10 },
   loot: { lootTableId: 'tree_basic' },
-  requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', minTier: 1 },
+  requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 1 },
   xp: { rewards: { woodcutting: 12 } },
   interactionRule: 'claimed',
   tags: ['tree', 'choppable'],
 };
 
 /**
- * The Oak Tree payoff: needs a tier-2 (stone) axe to damage, and that axe needs
- * Woodcutting 3 to wield — gating splits across entity + tool (see ADR-0008).
- * A visible-but-blocked teaser in the tutorial; choppable in Zone 1.
+ * The Oak Tree payoff: a Tier 2 tree (see ADR-0022). Needs an axe (any tier)
+ * and the Woodcutting "Unlock Tier 2" tree node. A visible-but-blocked teaser
+ * in the tutorial; choppable once the tier is unlocked.
  */
 export const oakTree: EntityDefinition = {
   id: 'oak_tree',
@@ -69,15 +69,16 @@ export const oakTree: EntityDefinition = {
   damageable: { maxHp: 60 },
   respawns: { respawnSeconds: 45 },
   loot: { lootTableId: 'oak_basic' },
-  requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', minTier: 2 },
+  requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 2 },
   xp: { rewards: { woodcutting: 15 } },
   interactionRule: 'claimed',
   tags: ['tree', 'choppable', 'oak'],
 };
 
 /**
- * Unlocked by the crafted Stone Pickaxe: needs a tier-2 pickaxe + Mining 3.
- * The entry point to iron — always drops an Iron Chunk, rarely a second.
+ * A Tier 2 mining node (see ADR-0022): needs a pickaxe (any tier) and the
+ * Mining "Unlock Tier 2" tree node. The entry point to iron — always drops an
+ * Iron Chunk, rarely a second.
  */
 export const boulder: EntityDefinition = {
   id: 'boulder',
@@ -95,15 +96,16 @@ export const boulder: EntityDefinition = {
   damageable: { maxHp: 80 },
   respawns: { respawnSeconds: 30 },
   loot: { lootTableId: 'boulder' },
-  requirements: { skill: { skillId: 'mining', level: 3 }, toolType: 'pickaxe', minTier: 2 },
+  requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 2 },
   xp: { rewards: { mining: 20 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'hard'],
 };
 
 /**
- * Iron-rich rock: needs a tier-3 (Iron) pickaxe + Mining 5. Drops Iron Chunks
- * in higher quantity than a Boulder.
+ * Iron-rich rock: a Tier 3 mining node (see ADR-0022), needing a pickaxe and
+ * the Mining "Unlock Tier 3" tree node. Drops Iron Chunks in higher quantity
+ * than a Boulder.
  */
 export const veinedRock: EntityDefinition = {
   id: 'veined_rock',
@@ -121,15 +123,16 @@ export const veinedRock: EntityDefinition = {
   damageable: { maxHp: 110 },
   respawns: { respawnSeconds: 40 },
   loot: { lootTableId: 'veined_rock' },
-  requirements: { skill: { skillId: 'mining', level: 5 }, toolType: 'pickaxe', minTier: 3 },
+  requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 3 },
   xp: { rewards: { mining: 28 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'iron'],
 };
 
 /**
- * Arcane rock: needs a tier-3 (Iron) pickaxe + Mining 5. Drops stone plus a
- * rare chance of an Aether Shard.
+ * Arcane rock: a Tier 3 mining node (see ADR-0022), needing a pickaxe and the
+ * Mining "Unlock Tier 3" tree node. Drops stone plus a rare chance of an Aether
+ * Shard.
  */
 export const magicStone: EntityDefinition = {
   id: 'magic_stone',
@@ -147,7 +150,7 @@ export const magicStone: EntityDefinition = {
   damageable: { maxHp: 120 },
   respawns: { respawnSeconds: 45 },
   loot: { lootTableId: 'magic_stone' },
-  requirements: { skill: { skillId: 'mining', level: 5 }, toolType: 'pickaxe', minTier: 3 },
+  requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 3 },
   xp: { rewards: { mining: 30 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'magic'],
@@ -327,13 +330,15 @@ export const campfire: EntityDefinition = {
 };
 
 /**
- * A Beacon prop: decorative magical structure for marking points of interest.
- * No gameplay interactions yet — placeable scenery for level authoring.
+ * A Beacon: an in-world Travel point that links two Levels (see CONTEXT.md
+ * "Beacon"/"Travel" and ADR-0023). Tapping it prompts the player to Travel to
+ * the destination declared on the placement (`travelTargetLevelId`). Travel is
+ * client-orchestrated, so the Beacon stays a plain prop in the sim.
  */
 export const beacon: EntityDefinition = {
   id: 'beacon',
   displayName: 'Beacon',
-  description: 'A landmark structure that marks points of interest in the world.',
+  description: 'A shimmering gateway. Touch it to travel to another realm.',
   kind: 'prop',
   art: {
     textureId: 'entity_beacon',

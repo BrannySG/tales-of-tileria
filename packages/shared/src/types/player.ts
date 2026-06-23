@@ -11,13 +11,13 @@ export interface SkillState {
 }
 
 /**
- * Permanent per-skill bonuses bought with Skill Points (see CONTEXT.md: Skill
- * Upgrade). V1 has a single repeatable upgrade per skill; the shape is kept open
- * so later upgrades add fields rather than a new system.
+ * A player's allocation in one Skill's tree (see CONTEXT.md: Skill Tree). Only
+ * the allocated non-root node ids are stored; the root is always implicitly
+ * allocated. Skill Points are derived (1 per Skill level), not stored: the
+ * available pool is `level - sum(allocated node costs)` (see ADR-0022).
  */
-export interface SkillUpgradeState {
-  /** Flat bonus added to Active click damage against this skill's entities. */
-  activeClickDamage: number;
+export interface SkillTreeState {
+  allocated: string[];
 }
 
 /**
@@ -86,12 +86,11 @@ export interface Player {
    */
   collections: Record<string, CollectionEntryProgress>;
   /**
-   * Unspent Skill Points per skill (see CONTEXT.md: Skill Point), earned by
-   * completing Collection Entries and spent in the Skill Upgrades panel.
+   * Per-Skill Skill Tree allocations (see CONTEXT.md: Skill Tree, ADR-0022).
+   * Sparse: only skills the player has allocated into appear. Skill Points are
+   * derived from Skill level, so they are not stored here.
    */
-  skillPoints: Partial<Record<SkillId, number>>;
-  /** Permanent per-skill upgrades bought with Skill Points (see ADR-0020). */
-  skillUpgrades: Partial<Record<SkillId, SkillUpgradeState>>;
+  skillTrees: Partial<Record<SkillId, SkillTreeState>>;
   /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
   divinePowers: DivinePowers;
   /**
@@ -123,8 +122,7 @@ export function createPlayer(id: string, displayName: string): Player {
     craftingUnlocked: false,
     quests: [],
     collections: {},
-    skillPoints: {},
-    skillUpgrades: {},
+    skillTrees: {},
     divinePowers: emptyDivinePowers(),
     unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     cursorSkinId: DEFAULT_CURSOR_SKIN_ID,

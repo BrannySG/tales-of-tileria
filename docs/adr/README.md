@@ -31,8 +31,10 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0017](0017-cursor-skins-and-achievements.md) | Cursor skins as sim-authoritative cosmetics, unlocked by Achievements | Accepted |
 | [0018](0018-stateful-items-as-separate-definitions.md) | Stateful items as separate definitions; data-driven Item interaction table; armed cursor | Accepted |
 | [0019](0019-leaderboards-and-first-persistent-state.md) | Leaderboards: the first persistent server state (global SQLite Durable Object) | Accepted |
-| [0020](0020-skill-points-drive-per-skill-active-damage.md) | Skill Points from Collections drive per-skill Active damage; Tools gate access | Accepted — corrects CORE_GAME_DESIGN, clarifies 0008 |
+| [0020](0020-skill-points-drive-per-skill-active-damage.md) | Skill Points from Collections drive per-skill Active damage; Tools gate access | Superseded by 0022 |
 | [0021](0021-minimal-onboarding-arc-parked.md) | Minimal onboarding is active; full arc is parked behind a typed flag | Accepted — updates active flow from 0011/0013-era onboarding |
+| [0022](0022-skill-trees-replace-flat-upgrades.md) | Per-Skill Skill Trees replace flat upgrades; the tree gates Tier, tools gate type | Accepted — supersedes 0020, retires 0008 tier/wield gating |
+| [0023](0023-runtime-level-travel-via-beacons.md) | Runtime Level Travel is client-orchestrated via Beacons; destinations are placement data | Accepted — extends 0011's carry mechanism, builds on 0016 |
 
 ## Supersession map
 
@@ -48,6 +50,9 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 - **0021** made minimal onboarding the active flow and parked the full tutorial +
   Council arc behind a typed flag, updating live onboarding assumptions from
   **0011**/**0013** without deleting the authored arc.
+- **0022** superseded **0020** (Collections now grant Skill XP; Skill Points are
+  per-level tree points; per-Skill Skill Trees replace the flat upgrade) and
+  retired **0008**'s tool-tier/wield gating (the tree gates Tier; tools gate type).
 
 ## Adding an ADR
 

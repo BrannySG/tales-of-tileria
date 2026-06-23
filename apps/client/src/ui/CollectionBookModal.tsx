@@ -9,25 +9,18 @@ import {
   type CollectionRequirement,
   type Rarity,
   type SkillId,
-  type SkillUpgradeId,
 } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ItemIcon } from './ItemIcon';
 import { RARITY_COLOR } from './rarityColor';
 import { SkillIcon } from './SkillIcon';
-import { SkillUpgradePanel } from './SkillUpgradesModal';
 import { skillLabel } from './skillPresentation';
-
-export type ProgressionTab = 'collections' | 'upgrades';
 
 /** Register a whole entry (no itemId) or a single requirement (with itemId). */
 export type RegisterFn = (entryId: string, itemId?: string) => void;
 
 export interface ProgressionSurfaceProps {
-  activeTab: ProgressionTab;
-  onChangeTab: (tab: ProgressionTab) => void;
   onRegister: RegisterFn;
-  onPurchaseUpgrade: (skillId: SkillId, upgradeId: SkillUpgradeId) => void;
   onClose: () => void;
 }
 
@@ -154,14 +147,14 @@ function skillHasAction(
   });
 }
 
-/** The one-line reward summary for an entry (skill points only in V1). */
+/** The one-line reward summary for an entry (skill XP; see ADR-0022). */
 function rewardLine(entry: CollectionEntryDefinition) {
-  const n = entry.rewards.skillPoints;
+  const n = entry.rewards.xp;
   return (
     <span className="skill-reward-inline">
       +{n}
       <SkillIcon skillId={entry.skill} size={16} />
-      Skill Point{n === 1 ? '' : 's'}
+      XP
     </span>
   );
 }
@@ -352,7 +345,7 @@ function EntryDetail({
 }) {
   const progress = useHud((s) => s.collections[entry.id]);
   const inventory = useHud((s) => s.inventory);
-  const skillPoints = useHud((s) => s.skillPoints[entry.skill] ?? 0);
+  const skill = useHud((s) => s.skills[entry.skill]);
   const registered = progress?.registered ?? {};
   const completed = progress?.completed ?? false;
   const status = entryStatus(entry, registered, inventory, completed);
@@ -401,14 +394,15 @@ function EntryDetail({
         <span className="prog-detail-reward-label">Reward</span>
         <span className="prog-detail-reward-value">
           <span className="skill-reward-inline">
-            +{entry.rewards.skillPoints}
+            +{entry.rewards.xp}
             <SkillIcon skillId={entry.skill} size={22} />
-            Skill Point{entry.rewards.skillPoints === 1 ? '' : 's'}
+            XP
           </span>
         </span>
       </div>
       <div className="prog-detail-points">
-        {skillLabel(entry.skill)} Skill Points: <strong>{skillPoints}</strong>
+        {skillLabel(entry.skill)}: <strong>Level {skill?.level ?? 1}</strong>
+        <span className="prog-detail-points-sub"> · {skill?.xp ?? 0} XP</span>
       </div>
 
       {completed ? (
@@ -427,20 +421,14 @@ function EntryDetail({
 }
 
 /**
- * The fullscreen progression surface (see CONTEXT.md: Collection, Skill Upgrade).
- * Two tabs (Collections, Skill Upgrades) share a left skill rail. The Collections
- * tab is a master-detail: a filterable list of the selected skill's entries plus
- * an interaction panel. Reads the projected HUD state; registration/purchase are
- * sim-authoritative (buttons only send commands). Accessible: dialog semantics,
- * Esc to close, focus trap, tablist, keyboard list navigation.
+ * The fullscreen Collection Book (see CONTEXT.md: Collection). A left skill rail
+ * plus a master-detail: a filterable list of the selected skill's entries and an
+ * interaction panel. Completing an entry awards skill XP (ADR-0022). Reads the
+ * projected HUD state; registration is sim-authoritative (buttons only send
+ * commands). Accessible: dialog semantics, Esc to close, focus trap, keyboard
+ * list navigation.
  */
-export function CollectionBookModal({
-  activeTab,
-  onChangeTab,
-  onRegister,
-  onPurchaseUpgrade,
-  onClose,
-}: ProgressionSurfaceProps) {
+export function CollectionBookModal({ onRegister, onClose }: ProgressionSurfaceProps) {
   const collections = useMemo(
     () => [...listCollections()].sort((a, b) => a.sortOrder - b.sortOrder),
     [],
@@ -592,24 +580,7 @@ export function CollectionBookModal({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="prog-header">
-          <div className="prog-tabs" role="tablist" aria-label="Progression sections">
-            <button
-              role="tab"
-              aria-selected={activeTab === 'collections'}
-              className={`prog-tab ${activeTab === 'collections' ? 'active' : ''}`}
-              onClick={() => onChangeTab('collections')}
-            >
-              Collections
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === 'upgrades'}
-              className={`prog-tab ${activeTab === 'upgrades' ? 'active' : ''}`}
-              onClick={() => onChangeTab('upgrades')}
-            >
-              Skill Upgrades
-            </button>
-          </div>
+          <h1 className="prog-heading">Collection Book</h1>
           <button className="prog-close" onClick={onClose} aria-label="Close">
             {'\u00d7'}
           </button>
@@ -654,8 +625,7 @@ export function CollectionBookModal({
           </nav>
 
           <main className="prog-main">
-            {activeTab === 'collections' ? (
-              <div className="prog-collections">
+            <div className="prog-collections">
                 <section className="prog-list-pane">
                   <div className="prog-list-head">
                     <div>
@@ -671,7 +641,7 @@ export function CollectionBookModal({
                       </h2>
                       {showGroupHeaders ? (
                         <p className="prog-skill-points-copy">
-                          Collections that earn <SkillIcon skillId={selectedSkill} size={18} /> Skill Points.
+                          Collections that earn <SkillIcon skillId={selectedSkill} size={18} /> XP.
                         </p>
                       ) : (
                         activeCollection?.description && <p>{activeCollection.description}</p>
@@ -744,10 +714,7 @@ export function CollectionBookModal({
                     <p className="prog-empty">Select an entry to see its requirements.</p>
                   )}
                 </aside>
-              </div>
-            ) : (
-              <SkillUpgradePanel skill={selectedSkill} onPurchase={onPurchaseUpgrade} />
-            )}
+            </div>
           </main>
         </div>
       </div>

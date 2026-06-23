@@ -24,8 +24,8 @@ export interface HudCallbacks {
   onOpenSettings: () => void;
   /** Opens the Collection Book (game variant only). */
   onOpenCollections: () => void;
-  /** Opens the Skill Upgrades panel (game variant only). */
-  onOpenUpgrades: () => void;
+  /** Opens the Skill Tree modal (game variant only). */
+  onOpenSkillTree: () => void;
   /** Equips a Cursor skin (sends the authoritative command). */
   onEquipCursor: (cursorSkinId: string) => void;
   /** Content Zoo only: fire a loot burst of a chosen rarity to tune feel. */
@@ -70,13 +70,17 @@ function BookIcon() {
   );
 }
 
-function UpgradeIcon() {
+function SkillTreeIcon() {
   return (
     <svg viewBox="0 0 24 24" width="32" height="32" aria-hidden focusable="false">
-      <path
-        fill="currentColor"
-        d="M12 2.5 14.9 9l6.6.5-5 4.3 1.6 6.7L12 17l-6.1 3.5 1.6-6.7-5-4.3L9.1 9 12 2.5Z"
-      />
+      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M12 6v5m0 0-4 4m4-4 4 4" />
+      </g>
+      <g fill="currentColor">
+        <circle cx="12" cy="5" r="2.6" />
+        <circle cx="7" cy="17.5" r="2.4" />
+        <circle cx="17" cy="17.5" r="2.4" />
+      </g>
     </svg>
   );
 }
@@ -164,11 +168,11 @@ export function Hud(props: HudProps) {
           </button>
           <button
             className="hud-upgrades-button"
-            onClick={props.onOpenUpgrades}
-            aria-label="Skill Upgrades"
-            title="Skill Upgrades"
+            onClick={props.onOpenSkillTree}
+            aria-label="Skill Tree"
+            title="Skill Tree"
           >
-            <UpgradeIcon />
+            <SkillTreeIcon />
           </button>
         </>
       )}
@@ -180,7 +184,7 @@ export function Hud(props: HudProps) {
       {variant === 'game' && (
         <>
           <DiscoveryToasts />
-          <CompletionCelebration onOpenUpgrades={props.onOpenUpgrades} />
+          <CompletionCelebration onOpenSkillTree={props.onOpenSkillTree} />
         </>
       )}
       {variant === 'zoo' && (

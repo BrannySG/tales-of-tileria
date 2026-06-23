@@ -14,19 +14,21 @@ export interface CollectionRequirement {
 
 /**
  * A completable entry within a Collection (see CONTEXT.md: Collection Entry).
- * Consumes its `requirements` on Registration and grants Skill Points to its
- * `skill` on completion. Data-authored and tunable; completed at most once.
+ * Consumes its `requirements` on Registration and grants Skill XP to its
+ * `skill` on completion (see ADR-0022). Data-authored and tunable; completed at
+ * most once.
  */
 export interface CollectionEntryDefinition {
   id: string;
   collectionId: string;
   name: string;
   description?: string;
-  /** The skill this entry belongs to; its Skill Point reward pools here. */
+  /** The skill this entry belongs to; its XP reward feeds this skill. */
   skill: SkillId;
   requirements: CollectionRequirement[];
   rewards: {
-    skillPoints: number;
+    /** Skill XP awarded to `skill` on completion (see ADR-0022). */
+    xp: number;
   };
   /** Display order within its Collection. */
   sortOrder: number;

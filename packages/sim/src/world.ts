@@ -2,23 +2,26 @@ import {
   DEFAULT_COMBAT_CONFIG,
   DEFAULT_CURSOR_SKIN_ID,
   addressEvent,
-  bestOwnedToolTier,
-  bestUsableTool,
   createPlayer,
+  deriveStats,
   emptyDivinePowers,
   emptySkills,
   findItemInteraction,
   getCollectionEntry,
   getCursorSkin,
   getLootTable,
+  getSkillTree,
   listAchievements,
   listQuestDefinitions,
+  listSkillTrees,
   listToolDefinitions,
   objectiveGoal,
   requireEntityDefinition,
   requireQuestDefinition,
   requireRecipeDefinition,
   requireToolDefinition,
+  sandboxSkillTrees,
+  skillTreePoints,
   xpToLevel,
   xpToReach,
   type AddressedEvent,
@@ -39,7 +42,7 @@ import {
   type SimCommand,
   type SimEvent,
   type SkillId,
-  type SkillUpgradeId,
+  type SkillStats,
   type ToolId,
   type ToolType,
   type ZoneSnapshot,
@@ -179,6 +182,9 @@ export class World {
           player.skills[id] = { xp: xpToReach(SANDBOX_SKILL_LEVEL), level: SANDBOX_SKILL_LEVEL };
         }
         player.passiveDamage = SANDBOX_PASSIVE_DAMAGE;
+        // Unlock every Tier (tier nodes only) so the Zoo/editor can harvest all
+        // entities, without distorting base damage/crit (see ADR-0022).
+        player.skillTrees = sandboxSkillTrees();
       }
     }
 
@@ -322,7 +328,23 @@ export class World {
       entities: this.getEntities(),
       cursor: this.getCursor(playerId),
       player: this.getPlayer(playerId),
+      stats: this.getStats(playerId),
     };
+  }
+
+  /**
+   * The player's sim-derived per-Skill Stat blocks (see CONTEXT.md: Stat,
+   * ADR-0022), one per authored Skill Tree. Authoritative: the client renders
+   * these and never recomputes Stats for gameplay.
+   */
+  getStats(playerId: PlayerId = this.defaultPlayerId): Partial<Record<SkillId, SkillStats>> {
+    const session = this.sessions.get(playerId);
+    const player = session ? session.player : createPlayer(playerId, 'You');
+    const out: Partial<Record<SkillId, SkillStats>> = {};
+    for (const tree of listSkillTrees()) {
+      out[tree.skillId] = deriveStats(player, tree.skillId, this.combat);
+    }
+    return out;
   }
 
   getCombatConfig(): CombatConfig {
@@ -438,8 +460,11 @@ export class World {
       case 'collection.register':
         return this.registerCollection(cmd.entryId, session, cmd.itemId);
 
-      case 'skill.purchaseUpgrade':
-        return this.purchaseSkillUpgrade(cmd.skillId, cmd.upgradeId, session);
+      case 'skill.allocateNode':
+        return this.allocateSkillNode(cmd.skillId, cmd.nodeId, session);
+
+      case 'skill.respecTree':
+        return this.respecSkillTree(cmd.skillId, session);
 
       case 'cosmetic.equip':
         return this.equipCursorSkin(cmd.cursorSkinId, playerId, session);
@@ -523,8 +548,10 @@ export class World {
 
   /**
    * Structured block reason if the player cannot damage the entity, else
-   * undefined (see ADR-0008). Checks tool ownership / tier / wield, then the
-   * entity's own skill requirement.
+   * undefined (see ADR-0022). Tools gate by TYPE only (own *a* tool of the kind);
+   * the entity's Tier is gated by the matching Skill tree's unlocked tier; and
+   * the entity's own skill-level requirement is checked last. Tool tier and
+   * wield level no longer gate (see ADR-0020 supersession in ADR-0022).
    */
   private blockedReason(entity: EntityInstance, session: PlayerSession): BlockInfo | undefined {
     const def = requireEntityDefinition(entity.definitionId);
@@ -532,35 +559,28 @@ export class World {
     if (!req) return undefined;
     const player = session.player;
 
+    // Tool-type ownership (soft requirement): you still need *an* axe/pickaxe.
     if (req.toolType) {
-      const toolType = req.toolType;
-      const minTier = req.minTier ?? 1;
-      const owned = player.ownedTools
-        .map((id) => requireToolDefinition(id))
-        .filter((t) => t.toolType === toolType);
-
-      if (owned.length === 0) {
-        return { reason: 'missingTool', requiredToolType: toolType, requiredTier: minTier };
-      }
-      if (bestOwnedToolTier(player.ownedTools, toolType) < minTier) {
-        return { reason: 'toolTierTooLow', requiredToolType: toolType, requiredTier: minTier };
-      }
-      const usable = bestUsableTool(player.ownedTools, toolType, (s) => this.skillLevel(session, s));
-      if (!usable || usable.tier < minTier) {
-        const blocked = owned
-          .filter((t) => t.tier >= minTier && t.wieldRequirement)
-          .sort((a, b) => a.wieldRequirement!.level - b.wieldRequirement!.level)[0];
-        const wield = blocked?.wieldRequirement;
-        return {
-          reason: 'toolWieldLevel',
-          requiredToolType: toolType,
-          requiredTier: minTier,
-          requiredSkillId: wield?.skillId,
-          requiredSkillLevel: wield?.level,
-        };
+      const ownsType = player.ownedTools.some(
+        (id) => requireToolDefinition(id).toolType === req.toolType,
+      );
+      if (!ownsType) {
+        return { reason: 'missingTool', requiredToolType: req.toolType };
       }
     }
 
+    // Tier gating: the player must have unlocked this Entity's Tier in the tree
+    // for its skill (their `maxTierUnlocked`). Tier 1 is always available.
+    const tier = req.tier ?? 1;
+    const skillId = req.skill?.skillId;
+    if (tier > 1 && skillId) {
+      const maxTier = deriveStats(player, skillId, this.combat).maxTierUnlocked;
+      if (tier > maxTier) {
+        return { reason: 'tierLocked', requiredSkillId: skillId, requiredTier: tier };
+      }
+    }
+
+    // The entity's own (generic) skill-level requirement.
     if (req.skill && this.skillLevel(session, req.skill.skillId) < req.skill.level) {
       return {
         reason: 'skillLevel',
@@ -918,12 +938,12 @@ export class World {
    */
   private applyActiveTap(entity: EntityInstance, session: PlayerSession): SimEvent[] {
     const playerId = session.player.id;
-    const base = this.resolveActiveDamage(entity, session);
+    const { amount: base, crit } = this.resolveActiveDamage(entity, session);
     const smite = session.player.divinePowers.smite;
     if (!smite.unlocked || smite.everyNthClick <= 0) {
       session.smiteCount = 0;
       session.lastSmiteTargetId = entity.instanceId;
-      return this.applyDamage(entity, base, 'active', session);
+      return this.applyDamage(entity, base, 'active', session, crit);
     }
 
     if (session.lastSmiteTargetId !== entity.instanceId) {
@@ -933,41 +953,49 @@ export class World {
     session.smiteCount += 1;
 
     if (session.smiteCount % smite.everyNthClick !== 0) {
-      return this.applyDamage(entity, base, 'active', session);
+      return this.applyDamage(entity, base, 'active', session, crit);
     }
 
     const amount = base * smite.damageMultiplier;
     const events: SimEvent[] = [
       { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount, by: playerId },
     ];
-    events.push(...this.applyDamage(entity, amount, 'active', session));
+    events.push(...this.applyDamage(entity, amount, 'active', session, crit));
     return events;
   }
 
   /**
-   * The Active click damage for a tap on `entity`: the Level's base
-   * (`combat.activeDamage`) plus the player's per-skill Skill-Point upgrade bonus
-   * for the entity's skill (see ADR-0020). Tools gate access, not damage; the
-   * bonus only applies to entities whose `requirements.skill.skillId` matches a
-   * skill the player has upgraded, so a Mining upgrade never raises Woodcutting
-   * damage.
+   * The Active (tap) damage for a hit on `entity`, plus whether it crit (see
+   * CONTEXT.md: Crit, ADR-0022). The amount is the entity-skill's resolved
+   * `tapDamage` Stat (base `combat.activeDamage` + the player's Skill Tree). A
+   * crit is rolled (tap-only) off the same seeded RNG as loot, multiplying the
+   * amount by the resolved `critDamage`; Smite then multiplies on top. Tools
+   * gate access, not damage; entities with no skill use the flat base and never
+   * crit.
    */
-  private resolveActiveDamage(entity: EntityInstance, session: PlayerSession): number {
+  private resolveActiveDamage(
+    entity: EntityInstance,
+    session: PlayerSession,
+  ): { amount: number; crit: boolean } {
     const skillId = requireEntityDefinition(entity.definitionId).requirements?.skill?.skillId;
-    const bonus = skillId ? (session.player.skillUpgrades[skillId]?.activeClickDamage ?? 0) : 0;
-    return this.combat.activeDamage + bonus;
+    if (!skillId) return { amount: this.combat.activeDamage, crit: false };
+    const stats = deriveStats(session.player, skillId, this.combat);
+    if (stats.critChance > 0 && this.rng() < stats.critChance) {
+      return { amount: Math.round(stats.tapDamage * stats.critDamage), crit: true };
+    }
+    return { amount: stats.tapDamage, crit: false };
   }
 
-  // --- Collections & Skill Points (see CONTEXT.md: Collection / Skill Point) ---
+  // --- Collections, Skill Trees & Stats (see CONTEXT.md, ADR-0022) ---
 
   /**
    * Registers owned Items toward a Collection Entry (see CONTEXT.md:
    * Registration). Consumes as much as the player owns toward each still-needed
-   * requirement (partial allowed), then completes the entry and awards Skill
-   * Points when every requirement is met. When `itemId` is given, only that one
-   * requirement is targeted; otherwise every requirement is processed. No-op
-   * (returns []) when the entry is unknown, already complete, the targeted item
-   * is not a requirement, or nothing can be registered.
+   * requirement (partial allowed), then completes the entry and awards Skill XP
+   * when every requirement is met (see ADR-0022). When `itemId` is given, only
+   * that one requirement is targeted; otherwise every requirement is processed.
+   * No-op (returns []) when the entry is unknown, already complete, the targeted
+   * item is not a requirement, or nothing can be registered.
    */
   private registerCollection(
     entryId: string,
@@ -1013,49 +1041,66 @@ export class World {
       { type: 'collection.registered', entryId, registered: { ...progress.registered } },
     ];
 
-    if (complete && def.rewards.skillPoints > 0) {
-      const points = (player.skillPoints[def.skill] ?? 0) + def.rewards.skillPoints;
-      player.skillPoints[def.skill] = points;
+    if (complete && def.rewards.xp > 0) {
       events.push({
         type: 'collection.entryCompleted',
         entryId,
         skillId: def.skill,
-        pointsAwarded: def.rewards.skillPoints,
+        xpAwarded: def.rewards.xp,
       });
-      events.push({ type: 'skill.pointsChanged', skillId: def.skill, points });
+      // Award the XP itself (drives skill.xpGained / leveledUp + achievements).
+      events.push(...this.awardSkillXp({ [def.skill]: def.rewards.xp }, session));
     }
 
     return events;
   }
 
   /**
-   * Spends one Skill Point on a per-skill upgrade (see CONTEXT.md: Skill
-   * Upgrade). V1: `active_click_damage` adds +1 to the skill's Active click
-   * damage, repeatable at 1 point each. No-op when the player lacks a point.
+   * Allocates a node in a Skill's tree (see CONTEXT.md: Skill Tree, ADR-0022).
+   * Validates: the node exists and isn't the (always-allocated) root, isn't
+   * already taken, the player meets its level requirement, has enough unspent
+   * Skill Points, and the node neighbors an already-allocated node (or the root).
+   * Emits the new allocation set + the recomputed Stat block. No-op otherwise.
    */
-  private purchaseSkillUpgrade(
-    skillId: SkillId,
-    upgradeId: SkillUpgradeId,
-    session: PlayerSession,
-  ): SimEvent[] {
-    if (upgradeId !== 'active_click_damage') return [];
+  private allocateSkillNode(skillId: SkillId, nodeId: string, session: PlayerSession): SimEvent[] {
+    const tree = getSkillTree(skillId);
+    if (!tree) return [];
+    const node = tree.nodes.find((n) => n.id === nodeId);
+    if (!node || node.id === tree.rootNodeId) return [];
+
     const player = session.player;
-    const points = player.skillPoints[skillId] ?? 0;
-    if (points < 1) return [];
+    const state = player.skillTrees[skillId] ?? { allocated: [] };
+    if (state.allocated.includes(nodeId)) return [];
+    if (this.skillLevel(session, skillId) < node.levelReq) return [];
+    if (skillTreePoints(player, skillId).available < node.cost) return [];
 
-    player.skillPoints[skillId] = points - 1;
-    const upgrades = player.skillUpgrades[skillId] ?? { activeClickDamage: 0 };
-    upgrades.activeClickDamage += 1;
-    player.skillUpgrades[skillId] = upgrades;
+    const allocatedSet = new Set([tree.rootNodeId, ...state.allocated]);
+    const connected = node.edges.some((edgeId) => allocatedSet.has(edgeId));
+    if (!connected) return [];
 
+    const allocated = [...state.allocated, nodeId];
+    player.skillTrees[skillId] = { allocated };
+    const stats = deriveStats(player, skillId, this.combat);
     return [
-      { type: 'skill.pointsChanged', skillId, points: points - 1 },
-      {
-        type: 'skill.upgradePurchased',
-        skillId,
-        upgradeId,
-        activeClickDamage: upgrades.activeClickDamage,
-      },
+      { type: 'skill.nodeAllocated', skillId, nodeId, allocated: [...allocated] },
+      { type: 'player.statsChanged', skillId, stats },
+    ];
+  }
+
+  /**
+   * Refunds every allocated node in a Skill's tree (see CONTEXT.md: Respec).
+   * Emits the now-empty allocation set + the recomputed Stat block. No-op when
+   * nothing is allocated.
+   */
+  private respecSkillTree(skillId: SkillId, session: PlayerSession): SimEvent[] {
+    const player = session.player;
+    const state = player.skillTrees[skillId];
+    if (!state || state.allocated.length === 0) return [];
+    player.skillTrees[skillId] = { allocated: [] };
+    const stats = deriveStats(player, skillId, this.combat);
+    return [
+      { type: 'skill.treeRespecced', skillId, allocated: [] },
+      { type: 'player.statsChanged', skillId, stats },
     ];
   }
 
@@ -1123,8 +1168,17 @@ export class World {
   private tickPassiveDamage(dt: number, session: PlayerSession, events: SimEvent[]): void {
     const targetId = session.cursor.targetInstanceId;
     const target = targetId ? this.entities.get(targetId) : undefined;
-    const tickSeconds = this.combat.passiveTickSeconds;
-    const passiveDamage = session.player.passiveDamage;
+    // Hover damage + cadence are resolved per the target's skill (see ADR-0022):
+    // a Mining tree's Hover Damage only speeds mining, etc. Targets with no skill
+    // fall back to the player's base passive amount and the Level cadence.
+    const targetSkillId = target
+      ? requireEntityDefinition(target.definitionId).requirements?.skill?.skillId
+      : undefined;
+    const stats = targetSkillId
+      ? deriveStats(session.player, targetSkillId, this.combat)
+      : undefined;
+    const tickSeconds = stats ? stats.hoverRate : this.combat.passiveTickSeconds;
+    const passiveDamage = stats ? stats.hoverDamage : session.player.passiveDamage;
     const ticking = session.cursor.mode === 'hovering' || session.cursor.mode === 'locked';
 
     if (
@@ -1204,6 +1258,7 @@ export class World {
     amount: number,
     source: DamageSource,
     session: PlayerSession,
+    crit = false,
   ): SimEvent[] {
     const playerId = session.player.id;
     const rec = this.contentionFor(entity.instanceId);
@@ -1221,6 +1276,7 @@ export class World {
         amount,
         source,
         by: playerId,
+        ...(crit ? { crit: true } : {}),
       },
     ];
     if (entity.hp <= 0) events.push(...this.deplete(entity, session));
@@ -1356,12 +1412,22 @@ function clonePlayer(player: Player): Player {
   for (const [entryId, progress] of Object.entries(player.collections ?? {})) {
     collections[entryId] = { registered: { ...progress.registered }, completed: progress.completed };
   }
-  const skillUpgrades: Player['skillUpgrades'] = {};
-  for (const [skillId, upgrade] of Object.entries(player.skillUpgrades ?? {})) {
-    if (upgrade) skillUpgrades[skillId as SkillId] = { ...upgrade };
+  // Carried snapshots from before Skill Trees existed (or from the old Skill
+  // Point system, see ADR-0022) may omit this; default to empty.
+  const skillTrees: Player['skillTrees'] = {};
+  for (const [skillId, state] of Object.entries(player.skillTrees ?? {})) {
+    if (state) skillTrees[skillId as SkillId] = { allocated: [...state.allocated] };
   }
+  // Drop legacy Skill-Point fields from older snapshots (see ADR-0022 migration).
+  const {
+    skillPoints: _legacySkillPoints,
+    skillUpgrades: _legacySkillUpgrades,
+    ...rest
+  } = player as Player & { skillPoints?: unknown; skillUpgrades?: unknown };
+  void _legacySkillPoints;
+  void _legacySkillUpgrades;
   return {
-    ...player,
+    ...rest,
     passiveDamage: player.passiveDamage ?? 0,
     ownedTools: [...player.ownedTools],
     inventory: { ...player.inventory },
@@ -1369,8 +1435,7 @@ function clonePlayer(player: Player): Player {
     craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,
     quests: player.quests.map((q) => ({ ...q })),
     collections,
-    skillPoints: { ...(player.skillPoints ?? {}) },
-    skillUpgrades,
+    skillTrees,
     divinePowers,
     unlockedCursorSkins: unlocked,
     cursorSkinId: player.cursorSkinId ?? DEFAULT_CURSOR_SKIN_ID,

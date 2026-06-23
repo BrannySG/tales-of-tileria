@@ -5,7 +5,6 @@ import type {
   Player,
   Rarity,
   SkillId,
-  SkillUpgradeId,
   ToolId,
   ToolType,
 } from '@tot/shared';
@@ -17,7 +16,8 @@ import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
 import { CraftingMenu } from '../ui/CraftingMenu';
 import { SettingsMenu } from '../ui/SettingsMenu';
-import { CollectionBookModal, type ProgressionTab } from '../ui/CollectionBookModal';
+import { CollectionBookModal } from '../ui/CollectionBookModal';
+import { SkillTreeModal } from '../ui/SkillTreeModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
 import { InspectPanel } from '../ui/InspectPanel';
 
@@ -38,6 +38,8 @@ export interface WorldSceneProps {
   hudVisible?: boolean;
   /** Persist player progress to localStorage while this session runs (real game). */
   persistPlayer?: boolean;
+  /** Invoked when a Beacon is tapped, to offer Travel to its destination (ADR-0023). */
+  onBeaconActivate?: (instanceId: string) => void;
   /** Invoked once the session is live (e.g. to start the onboarding Director). */
   onReady?: (session: WorldSession) => (() => void) | void;
 }
@@ -60,14 +62,14 @@ export function WorldScene({
   music,
   hudVisible = true,
   persistPlayer,
+  onBeaconActivate,
   onReady,
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // The Collections + Skill Upgrades surface is one fullscreen modal with two
-  // tabs; both HUD buttons (and the completion CTA) open it on the right tab.
-  const [progressionOpen, setProgressionOpen] = useState(false);
-  const [progressionTab, setProgressionTab] = useState<ProgressionTab>('collections');
+  // Two distinct fullscreen surfaces now: the Collection Book and the Skill Tree.
+  const [collectionsOpen, setCollectionsOpen] = useState(false);
+  const [skillTreeOpen, setSkillTreeOpen] = useState(false);
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
@@ -77,6 +79,7 @@ export function WorldScene({
     persistPlayer,
     onOpenCrafting: () => setCraftingOpen(true),
     onInspect: (inspect) => useHud.getState().openInspect(inspect),
+    onBeaconActivate,
     onReady,
   });
   const stage = useStageScale(hostRef);
@@ -96,24 +99,23 @@ export function WorldScene({
   const onClaimQuest = (questId: string) => {
     sessionRef.current?.transport.send({ type: 'quest.claim', questId });
   };
-  // Registration + upgrade purchases are sim-authoritative: send the command and
-  // let the echoed events update the HUD store (see ADR-0006 / ADR-0020).
+  // Registration + tree allocation are sim-authoritative: send the command and
+  // let the echoed events update the HUD store (see ADR-0006 / ADR-0022).
   const onRegisterCollection = (entryId: string, itemId?: string) => {
     sessionRef.current?.transport.send({ type: 'collection.register', entryId, itemId });
   };
-  const onPurchaseUpgrade = (skillId: SkillId, upgradeId: SkillUpgradeId) => {
-    sessionRef.current?.transport.send({ type: 'skill.purchaseUpgrade', skillId, upgradeId });
+  const onAllocateNode = (skillId: SkillId, nodeId: string) => {
+    sessionRef.current?.transport.send({ type: 'skill.allocateNode', skillId, nodeId });
+  };
+  const onRespecTree = (skillId: SkillId) => {
+    sessionRef.current?.transport.send({ type: 'skill.respecTree', skillId });
   };
   const openCollections = () => {
     acknowledgeDiscoveries();
     useHud.getState().setNewCollectibles(false);
-    setProgressionTab('collections');
-    setProgressionOpen(true);
+    setCollectionsOpen(true);
   };
-  const openUpgrades = () => {
-    setProgressionTab('upgrades');
-    setProgressionOpen(true);
-  };
+  const openSkillTree = () => setSkillTreeOpen(true);
   // Equipping a Cursor skin is authoritative; the echoed `cosmetic.equipped`
   // updates the HUD store + re-skins the cursor (see store.ts / SceneRenderer).
   const onEquipCursor = (cursorSkinId: string) => {
@@ -181,7 +183,7 @@ export function WorldScene({
               onToggleSound={onToggleSound}
               onOpenSettings={() => setSettingsOpen(true)}
               onOpenCollections={openCollections}
-              onOpenUpgrades={openUpgrades}
+              onOpenSkillTree={openSkillTree}
               onEquipCursor={onEquipCursor}
               onTestLootBurst={onTestLootBurst}
             />
@@ -194,13 +196,17 @@ export function WorldScene({
                 onClose={() => setSettingsOpen(false)}
               />
             )}
-            {progressionOpen && (
+            {collectionsOpen && (
               <CollectionBookModal
-                activeTab={progressionTab}
-                onChangeTab={setProgressionTab}
                 onRegister={onRegisterCollection}
-                onPurchaseUpgrade={onPurchaseUpgrade}
-                onClose={() => setProgressionOpen(false)}
+                onClose={() => setCollectionsOpen(false)}
+              />
+            )}
+            {skillTreeOpen && (
+              <SkillTreeModal
+                onAllocate={onAllocateNode}
+                onRespec={onRespecTree}
+                onClose={() => setSkillTreeOpen(false)}
               />
             )}
             <InspectPanel />

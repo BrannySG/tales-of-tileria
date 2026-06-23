@@ -51,6 +51,10 @@ import itemWood from '@assets/Items/T_Item_WoodLogs.png';
 import itemStone from '@assets/Items/T_Item_Stone.png';
 import itemBucket from '@assets/Items/T_Item_Bucket.png';
 import itemBucketWater from '@assets/Items/T_Item_BucketWater.png';
+import skillWoodcutting from '@assets/Items/T_Item_SkillWoodcutting.png';
+import skillMining from '@assets/Items/T_Item_SkillMining.png';
+import skillCombat from '@assets/Items/T_Item_SkillCombat.png';
+import skillCrafting from '@assets/Items/T_Item_SkillCrafting.png';
 import stoneFlintShard from '@assets/Items/T_Item_StoneFlintShard.png';
 import stoneShinyPebble from '@assets/Items/T_Item_StoneShinyPebble.png';
 import stoneTinyGeode from '@assets/Items/T_Item_StoneTinyGeode.png';
@@ -122,6 +126,10 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   item_stone: itemStone,
   item_bucket: itemBucket,
   item_bucket_water: itemBucketWater,
+  item_skill_woodcutting: skillWoodcutting,
+  item_skill_mining: skillMining,
+  item_skill_combat: skillCombat,
+  item_skill_crafting: skillCrafting,
   item_stone_flint_shard: stoneFlintShard,
   item_stone_shiny_pebble: stoneShinyPebble,
   item_stone_tiny_geode: stoneTinyGeode,

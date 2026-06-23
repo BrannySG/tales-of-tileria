@@ -100,22 +100,23 @@ describe('skills — XP + level up', () => {
   });
 });
 
-describe('tiered tool gating', () => {
-  it('blocks the oak with only a rusty (tier-1) axe: toolTierTooLow', () => {
+describe('tier gating (see ADR-0022)', () => {
+  it('blocks a Tier-2 oak until the Unlock Tier 2 node is allocated: tierLocked', () => {
+    // Any axe is enough by type; the Tier-2 oak is gated by the tree, not the tool.
     const world = new World(richLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 100 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' });
     const blocked = events.find((e) => e.type === 'entity.blocked');
-    expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('toolTierTooLow');
+    expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('tierLocked');
+    expect(blocked && blocked.type === 'entity.blocked' && blocked.requiredTier).toBe(2);
     expect(world.getEntity('oak1')?.hp).toBe(6);
   });
 
-  it('blocks the oak when owning a stone axe below the wield level: toolWieldLevel', () => {
-    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_stone'], combat: { activeDamage: 100 } });
+  it('a high-tier tool does NOT unlock a higher tier (tools gate type only)', () => {
+    // Iron axe (tier 3) but no Tier-2 tree node: still tierLocked.
+    const world = new World(richLevel(), { seed: 1, startingTools: ['axe_iron'], combat: { activeDamage: 100 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' });
     const blocked = events.find((e) => e.type === 'entity.blocked');
-    expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('toolWieldLevel');
-    expect(blocked && blocked.type === 'entity.blocked' && blocked.requiredSkillId).toBe('woodcutting');
-    expect(blocked && blocked.type === 'entity.blocked' && blocked.requiredSkillLevel).toBe(3);
+    expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('tierLocked');
   });
 
   it('blocks a tree with no axe at all: missingTool', () => {
@@ -125,11 +126,13 @@ describe('tiered tool gating', () => {
     expect(blocked && blocked.type === 'entity.blocked' && blocked.reason).toBe('missingTool');
   });
 
-  it('fells the oak with a stone axe once Woodcutting 3 is met', () => {
+  it('fells the oak once Woodcutting Tier 2 is unlocked in the tree', () => {
     const player = createPlayer('local', 'Hero');
-    player.ownedTools = ['axe_stone'];
+    player.ownedTools = ['axe_rusty'];
     player.skills = emptySkills();
-    player.skills.woodcutting = { xp: xpToReach(3), level: 3 };
+    // Tier-2 node (woodcutting_t2) requires Woodcutting 5 to allocate.
+    player.skills.woodcutting = { xp: xpToReach(5), level: 5 };
+    player.skillTrees = { woodcutting: { allocated: ['woodcutting_c1', 'woodcutting_t2'] } };
     const world = new World(richLevel(), { seed: 1, player, combat: { activeDamage: 100 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' });
     expect(typesOf(events)).toContain('entity.damaged');

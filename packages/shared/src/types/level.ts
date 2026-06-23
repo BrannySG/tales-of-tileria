@@ -22,6 +22,13 @@ export interface PlacedEntity {
    * (see "Locked pickup" in CONTEXT.md). Defaults to false (collectible).
    */
   locked?: boolean;
+  /**
+   * For Beacons: the id of the Level this Beacon travels to. Presentation data
+   * only — the client mode reads it to offer Travel; the sim never consumes it
+   * (Travel is client-orchestrated, see CONTEXT.md "Beacon"/"Travel" and
+   * ADR-0023). Omit on non-Beacon placements.
+   */
+  travelTargetLevelId?: string;
 }
 
 /**

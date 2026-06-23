@@ -488,7 +488,8 @@
         "definitionId": "beacon",
         "x": 2876,
         "y": 1697,
-        "overrides": {}
+        "overrides": {},
+        "travelTargetLevelId": "blackmarket_01"
       },
       {
         "instanceId": "boulder_mqpl5cyo_1",
@@ -522,7 +523,7 @@
       }
     ],
     "multiplayer": {
-      "maxPlayers": 5,
+      "maxPlayers": 6,
       "interactionDefault": "lastHit"
     }
   }

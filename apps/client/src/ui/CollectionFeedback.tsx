@@ -49,9 +49,9 @@ export function DiscoveryToasts() {
 }
 
 /** A subtle completion toast for finished Collection Entries. Auto-dismisses. */
-export function CompletionCelebration({ onOpenUpgrades }: { onOpenUpgrades: () => void }) {
+export function CompletionCelebration({ onOpenSkillTree }: { onOpenSkillTree: () => void }) {
   const completion = useHud((s) => s.completion);
-  const skillTotal = useHud((s) => (completion ? s.skillPoints[completion.skillId] ?? 0 : 0));
+  const skill = useHud((s) => (completion ? s.skills[completion.skillId] : undefined));
 
   useEffect(() => {
     if (!completion) return;
@@ -71,23 +71,23 @@ export function CompletionCelebration({ onOpenUpgrades }: { onOpenUpgrades: () =
           <div className="completion-title">{entry?.name ?? 'Entry'}</div>
           <div className="completion-reward">
             <span className="skill-reward-inline">
-              +{completion.pointsAwarded}
+              +{completion.xpAwarded}
               <SkillIcon skillId={completion.skillId} size={22} />
-              Skill Point{completion.pointsAwarded === 1 ? '' : 's'}
+              XP
             </span>
           </div>
           <div className="completion-total">
-            {label} points: <strong>{skillTotal}</strong>
+            {label}: <strong>Level {skill?.level ?? 1}</strong>
           </div>
         </div>
         <button
           className="completion-cta"
           onClick={() => {
             useHud.getState().setCompletion(undefined);
-            onOpenUpgrades();
+            onOpenSkillTree();
           }}
         >
-          Upgrades
+          Skill Tree
         </button>
       </div>
     </div>
