@@ -426,6 +426,9 @@ export class World {
       case 'player.setName':
         return this.setName(cmd.name, session);
 
+      case 'player.setCraftingUnlocked':
+        return this.setCraftingUnlocked(cmd.unlocked, session);
+
       case 'player.setDivinePower':
         return this.setDivinePower(cmd.power, cmd.unlocked, session);
 
@@ -897,8 +900,13 @@ export class World {
     const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
     if (!name) return [];
     session.player.displayName = name;
-    session.player.craftingUnlocked = true;
     return [{ type: 'player.nameChanged', name }];
+  }
+
+  private setCraftingUnlocked(unlocked: boolean, session: PlayerSession): SimEvent[] {
+    if (session.player.craftingUnlocked === unlocked) return [];
+    session.player.craftingUnlocked = unlocked;
+    return [{ type: 'player.craftingUnlockedChanged', unlocked }];
   }
 
   // --- Divine powers (Smite) ---

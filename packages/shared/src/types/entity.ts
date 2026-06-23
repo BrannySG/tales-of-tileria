@@ -143,6 +143,8 @@ export interface ShrineComponent {
 export interface EntityDefinition {
   id: string;
   displayName: string;
+  /** Player-facing flavor text used by presentation surfaces like Inspect. */
+  description?: string;
   kind: EntityKind;
   art: EntityArt;
   damageable?: DamageableComponent;

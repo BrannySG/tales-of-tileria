@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import cursorUrl from '@assets/T_Cursor_Cracked_32.png';
+import { cursorSkinTextureId } from '@tot/shared';
+import { useEffect, useState, type CSSProperties } from 'react';
+import cursorUrl from '@assets/Cursors/T_Cursor_Cracked_32.png';
 import { ZooMode } from './modes/ZooMode';
 import { EditorMode } from './modes/EditorMode';
 import { GameMode } from './modes/GameMode';
@@ -10,6 +11,8 @@ import { consumeLiveResetNotice } from './persistence/liveReset';
 import { OnboardingDevControl } from './ui/OnboardingDevControl';
 import { LiveResetNotice } from './ui/LiveResetNotice';
 import { hasOnboarded } from './onboarding';
+import { ASSET_URL } from './assets/manifest';
+import { useHud } from './state/store';
 import { VERSION_LABEL } from './version';
 
 type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding';
@@ -43,14 +46,11 @@ function readMode(): Mode {
   return isMode(hash) ? hash : 'title';
 }
 
-// Same arrow art as the in-world cursor, used everywhere the OS cursor would
-// otherwise show (DOM panels). The world canvas hides this in favor of the
-// full Pixi cursor embodiment. Hotspot (~2,2) matches the arrow tip.
-const APP_CURSOR = `url(${cursorUrl}) 2 2, auto`;
-
 export function App() {
   const [mode, setMode] = useState<Mode>(readMode);
   const [showLiveResetNotice, setShowLiveResetNotice] = useState(false);
+  const cursorSkinId = useHud((s) => s.cursorSkinId);
+  const [appCursor, setAppCursor] = useState(`url(${cursorUrl}) 2 2, auto`);
 
   useEffect(() => {
     const onHashChange = () => setMode(readMode());
@@ -61,6 +61,30 @@ export function App() {
   useEffect(() => {
     if (consumeLiveResetNotice()) setShowLiveResetNotice(true);
   }, []);
+
+  useEffect(() => {
+    const textureId = cursorSkinTextureId(cursorSkinId);
+    const source = ASSET_URL[textureId] ?? cursorUrl;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 32;
+      canvas.height = 32;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        setAppCursor(`url(${cursorUrl}) 2 2, auto`);
+        return;
+      }
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, 32, 32);
+      ctx.drawImage(img, 0, 0, 32, 32);
+      setAppCursor(`url(${canvas.toDataURL('image/png')}) 2 2, auto`);
+    };
+    img.onerror = () => setAppCursor(`url(${cursorUrl}) 2 2, auto`);
+    img.src = source;
+  }, [cursorSkinId]);
+
+  const appStyle = { '--app-cursor': appCursor } as CSSProperties;
 
   const navigate = (next: Mode) => {
     window.location.hash = `/${next}`;
@@ -74,7 +98,7 @@ export function App() {
   const showGlobalDev = import.meta.env.DEV && mode === 'title';
 
   return (
-    <div className="app" style={{ cursor: APP_CURSOR }}>
+    <div className="app" style={appStyle}>
       {showGlobalDev && (
         <div className="dev-global">
           <OnboardingDevControl />
@@ -93,7 +117,7 @@ export function App() {
       {/* Onboarding is part of the game entry: first-time players run the arc,
           returning players drop straight into the world. */}
       {mode === 'game' && (hasOnboarded() ? <GameMode /> : <OnboardingMode />)}
-      {import.meta.env.DEV && mode === 'onboarding' && <OnboardingMode />}
+      {import.meta.env.DEV && mode === 'onboarding' && <OnboardingMode forceVariant="arc" />}
       {import.meta.env.DEV && mode === 'zoo' && <ZooMode />}
       {import.meta.env.DEV && mode === 'editor' && <EditorMode />}
       {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}

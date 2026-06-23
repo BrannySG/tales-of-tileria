@@ -59,6 +59,7 @@ button {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  cursor: var(--app-cursor, auto);
 }
 
 /* ---- Build version badge (always present, bottom-right of the screen) ---- */
@@ -222,6 +223,25 @@ button {
 
 .hud > * {
   pointer-events: auto;
+}
+
+/* Keep DOM overlays on the game cursor, even where components ask for pointer. */
+.world-frame-host .hud-layer,
+.world-frame-host .hud-layer * {
+  cursor: var(--app-cursor, auto) !important;
+}
+
+/* Preserve expected cursor semantics for text entry and disabled controls. */
+.world-frame-host .hud-layer input,
+.world-frame-host .hud-layer textarea {
+  cursor: text !important;
+}
+
+.world-frame-host .hud-layer :disabled,
+.world-frame-host .hud-layer [aria-disabled='true'],
+.world-frame-host .hud-layer .prog-rail-item.locked,
+.world-frame-host .hud-layer .prog-primary-button:disabled {
+  cursor: not-allowed !important;
 }
 
 /* ---- Profile card (top-left) ---- */
@@ -2656,11 +2676,10 @@ button.bag-slot:hover {
 .prog-entry {
   display: flex;
   align-items: center;
-  gap: 14px;
   width: 100%;
-  min-height: 64px;
+  height: 100px;
   margin-top: 10px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 14px;
@@ -2683,43 +2702,29 @@ button.bag-slot:hover {
   border-color: var(--accent-2, #5cc861);
 }
 
-.prog-entry-order {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--muted);
-}
-
-.prog-entry.completed .prog-entry-order {
-  background: var(--accent-2, #5cc861);
-  color: #10221a;
-}
-
 .prog-entry-heading {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .prog-entry-name {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .prog-entry-reward {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent);
+  line-height: 1.15;
 }
 
 .prog-status {
@@ -2787,23 +2792,20 @@ button.bag-slot:hover {
 /* ---- Center entry row internals ---- */
 .prog-entry-main {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.prog-entry-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
 .prog-entry-slots {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+  flex: none;
 }
 
 /* A compact, tappable square requirement slot: icon + count, rarity accent. */
@@ -2815,8 +2817,8 @@ button.bag-slot:hover {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 58px;
-  height: 58px;
+  width: 62px;
+  height: 62px;
   padding: 5px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--panel-border);
@@ -3298,6 +3300,29 @@ button.bag-slot:hover {
     flex: 1 1 0;
     padding: 10px 12px;
   }
+
+  .prog-entry {
+    height: 92px;
+    padding: 12px 14px;
+  }
+
+  .prog-entry-main {
+    gap: 10px;
+  }
+
+  .prog-entry-name {
+    font-size: 16px;
+  }
+
+  .prog-entry-slots {
+    gap: 6px;
+  }
+
+  .prog-slot {
+    width: 52px;
+    height: 52px;
+    padding: 4px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3442,4 +3467,150 @@ button.bag-slot:hover {
   font-weight: 800;
   padding: 9px 20px;
   cursor: pointer;
+}
+
+/* ---- Entity Inspect popover ---- */
+.inspect-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 88;
+  pointer-events: none;
+}
+
+.inspect-panel {
+  position: absolute;
+  width: 360px;
+  max-width: min(92vw, 420px);
+  background: var(--panel-solid);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  padding: 12px 14px;
+  pointer-events: auto;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.inspect-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inspect-head h3 {
+  margin: 2px 0 0;
+  font-size: 22px;
+}
+
+.inspect-kind {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.inspect-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.inspect-close:hover {
+  color: var(--text);
+}
+
+.inspect-desc {
+  margin: 6px 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.inspect-panel h4 {
+  margin: 10px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.inspect-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.inspect-ok {
+  color: var(--accent-2);
+}
+
+.inspect-miss {
+  color: #ffacac;
+}
+
+.inspect-hp-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.inspect-hp-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.inspect-hp-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6cc24a, #9be05a);
+}
+
+.inspect-meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.inspect-drops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inspect-drops li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.inspect-drop-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inspect-drop-main > span {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.inspect-drop-main > small {
+  color: var(--muted);
+  font-size: 12px;
 }

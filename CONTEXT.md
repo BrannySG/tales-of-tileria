@@ -17,10 +17,11 @@ language in the design docs, this file wins and the docs should be reconciled.
   player is a divine force whose only physical presence is the cursor. Used when
   the divine framing matters (hover ring, click impact, nameplate). Same actor as
   the Cursor.
-- **Divine name** — The name the player gives themselves at the shrine
-  Dedication. Sim-authoritative (a `player.setName` command sets it; it is the
-  Player's `displayName`) and persisted on the client, so the shrine label,
-  cursor nameplate, NPC lines, and welcome message all read it.
+- **Divine name** — The name the player gives themselves at the end of the
+  opening "tap rock, tap tree" intro (right before entering the shared world).
+  Sim-authoritative (a `player.setName` command sets it; it is the Player's
+  `displayName`) and persisted on the client, so the cursor nameplate, NPC
+  lines, and welcome message all read it.
 - **Cursor skin** — A cosmetic appearance for the player's Cursor: the arrow art
   shown for their in-world Cursor, their Networked cursor (as other players see
   them), and their HUD avatar. A player owns a set of *unlocked* Cursor skins and
@@ -42,16 +43,19 @@ language in the design docs, this file wins and the docs should be reconciled.
   third consecutive Active tap on the **same** target lands as a Smite — a single
   Active hit multiplied (not an extra swing), with a dramatic flash, oversized
   damage number, and impact sprite. The per-target counter is transient World
-  state; the unlock flag rides the Player snapshot. Granted at the intro start,
-  revoked by the Council at Banishment.
+  state; the unlock flag rides the Player snapshot. In the active minimal intro
+  flow, Smite is granted for the opening beats and revoked before entering the
+  shared world. The longer Council/Banishment arc remains parked.
 - **Banishment** — The arc beat in which the Council of Clickers strips the
   player's Divine power (Smite) and casts them into the mortal realm. It removes
   intro-only power **only** — Owned tools, Skills, Inventory, Divine name, and
   Quests are all retained — and is enacted as a real sim command, so the carried
-  snapshot inherits the change.
+  snapshot inherits the change. This beat is currently parked with the full
+  Council arc.
 - **Council of Clickers** — A court of celestial Cursor-beings who judge the
   player for meddling with mortals and enact the Banishment. Authored as a real
-  Level (`council_01`) of Cursor-being Entities, scripted by a Director.
+  Level (`council_01`) of Cursor-being Entities, scripted by a Director. This
+  authored Level is currently parked with the full onboarding arc.
 
 ## Damage & Targeting
 
@@ -84,7 +88,7 @@ language in the design docs, this file wins and the docs should be reconciled.
   Inventory, Quests) is **portable across Level instances**: a snapshot can seed a
   new instance, so progress survives a Level swap (e.g. tutorial → Shared zone).
 - **Shared zone** — The canonical networked open world (`bigworld_01`, "The Open
-  World") the player is dropped into after the Council, and the default
+  World"), the active destination right after first-run onboarding and the default
   destination for returning players in Game mode. The player's first time
   genuinely existing around other players: real, server-authoritative
   multiplayer (see ADR-0016), not faked presence. The retired `mortal_realm_01`
@@ -125,13 +129,16 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Ancient Tree** — An imposing, effectively unbreakable Resource that gates the
   path beyond the tutorial. Striking it (especially with Smite) triggers the
   Council of Clickers cutscene. It is never actually depleted and remains a
-  long-term aspirational gate ("you are not strong enough yet").
+  long-term aspirational gate ("you are not strong enough yet"). This gate and
+  cutscene trigger are currently parked with the full onboarding arc.
 - **Shrine** — A persistent Entity that receives crafted results: a completed
   Crafting job places its Offering on the Shrine to be claimed. Authored locked,
   enabled (undedicated) by a Quest reward, then Dedicated by the player.
 - **Dedication** — The presentational act of naming a Shrine. When the player
   sets their Divine name at the enabled Shrine, the client renders it as "Shrine
-  of [name]". Dedication is the beat at which Crafting unlocks.
+  of [name]". In the active minimal onboarding flow, naming happens before
+  entering the shared world and is separate from Crafting unlock. The
+  shrine-centric Dedication beat is currently parked with the full arc.
 
 ## Economy
 
@@ -355,6 +362,13 @@ language in the design docs, this file wins and the docs should be reconciled.
   owned Tools), the Cursor skin gallery, and Achievements. It doubles as the
   surface where the player previews and equips Cursor skins. Locked skins show a
   silhouette and their unlock condition.
+- **Inspect** — A contextual read action on a world Entity (right-click, long
+  press, or equivalent) that opens the Inspect panel for that specific Entity.
+  Inspect is presentation-only and never mutates authoritative world state.
+- **Inspect panel** — A lightweight, non-blocking popover anchored near an
+  Entity that summarizes what it is (kind/flavor), its requirements, rewards,
+  live status (HP/respawn), and its drop table presentation. Distinct from the
+  player **Profile**, which is player identity/progression.
 - **New indicator** — A red dot that flags unacknowledged new content (a freshly
   unlocked Cursor skin or completed Achievement) on the HUD avatar and within the
   Profile. "Seen" is a per-device read-receipt held on the client, not
@@ -393,17 +407,19 @@ language in the design docs, this file wins and the docs should be reconciled.
   (not an Entity, no HP, not interactable), used on the Title Screen and during
   the Onboarding cinematic.
 - **Onboarding** — A first-time player's introductory experience. It has two
-  distinct phases:
-  - **Void cinematic** — A scripted, non-interactive-world sequence shown over
-    blackness (props unveil and break on cue, Wisps drift). It is presentation,
-    not authoritative world state.
-  - **Playable tutorial** — The live Level revealed after the cinematic, where
-    the player interacts with real Entities (gated by Tools) and follows Quests.
+  active phases:
+  - **Void opening** — A scripted, non-interactive-world sequence shown over
+    blackness (props unveil and break on cue, Wisps drift): tap rock, tap tree,
+    then name the player. It is presentation, not authoritative world state.
+  - **Shared-world arrival** — After naming, the player enters the networked
+    Shared zone (`bigworld_01`) and sees the welcome notice.
+  - **Parked arc** — The longer tutorial + Council/Banishment sequence remains in
+    the codebase behind a config flag.
 - **Director** — The client-side controller that scripts the Onboarding: fades,
   void props, tap-counting, the reveal, and NPC dialogue. It drives the world only
   through the same commands any player action uses; it is never part of the
-  authoritative simulation. It grants only the first Quest — the rest of the Quest
-  chain self-propagates in the sim (see Quest chain).
+  authoritative simulation. In the active minimal flow it runs only the opening
+  beats and naming handoff; the fuller quest/council scripting path remains parked.
 - **Camera** — The presentational viewpoint onto the world: a zoom/pan applied
   to the world layers (background, ambient, Entities and their Speech bubbles,
   world effects) as a unit, so the view can focus and reframe. It is pure

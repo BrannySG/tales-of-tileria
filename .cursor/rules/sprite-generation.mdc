@@ -43,7 +43,8 @@ pnpm --filter @tot/spritegen gen generate \
 
 If `ok: true`, the chosen candidate beat QA (`chosen.verdict.score`). If `ok: false`,
 inspect `error`/`rejects` and retry with a refined `--subject`. Outputs land in
-`AvailableAssets/` with a 1024 master in `tools/spritegen/out/masters/`.
+`AvailableAssets/<Category>/` with a 1024 master in `tools/spritegen/out/masters/`.
+Categories: `Areas/`, `Cursors/`, `Entities/`, `FX/`, `Items/`, `UI/`, `Fonts/`, `Music/`.
 
 ## Wiring it into the game
 

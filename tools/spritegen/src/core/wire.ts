@@ -1,4 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { assetRelPath } from '../assetPaths.ts';
 import { ENTITIES_PATH, MANIFEST_PATH } from '../config.ts';
 import type { EntityMeta, Preset, WiringSnippet } from '../types.ts';
 import { toCamelCase, toPascalCase, toSnakeCase, toTitleCase } from './naming.ts';
@@ -53,7 +54,7 @@ export function buildWiring(preset: Preset, id: string, meta: EntityMeta = {}): 
 
   return {
     textureId,
-    import: `import ${camel} from '@assets/${fileName}';`,
+    import: `import ${camel} from '@assets/${assetRelPath(fileName)}';`,
     manifestKey: `  ${textureId}: ${camel},`,
     contentSnippet,
     contentTarget,

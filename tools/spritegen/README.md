@@ -60,7 +60,7 @@ stays free, then act on the reported JSON. See `.cursor/rules/sprite-generation.
 
 ## What it produces
 
-- `AvailableAssets/T_<...>.png` — the primary game-ready sprite (largest size),
+- `AvailableAssets/<Category>/T_<...>.png` — the primary game-ready sprite (largest size),
   plus `_<size>` suffixed PNGs for any other requested sizes.
 - `tools/spritegen/out/masters/*_master.png` — the hi-res (1024) transparent
   master, kept so future sizes need no new generation.
@@ -83,4 +83,5 @@ The result's `wiring` block prints the exact lines. `--wire` applies them:
 `item-icon` and `entity` ship today. Add an `fx` preset in `src/presets/` and
 register it in `src/presets/index.ts`; each pairs composition rules (on top of the
 shared `src/style-bible.md` core) with a small set of reference sprites from
-`AvailableAssets/`.
+`AvailableAssets/` (sorted into `Areas/`, `Cursors/`, `Entities/`, `FX/`, `Items/`,
+`UI/`, `Fonts/`, and `Music/`).

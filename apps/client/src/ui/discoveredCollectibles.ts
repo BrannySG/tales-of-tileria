@@ -61,6 +61,12 @@ export function markDiscovered(itemId: string): boolean {
   return true;
 }
 
+/** True when a collectible item has been discovered at least once on this device. */
+export function isDiscovered(itemId: string): boolean {
+  if (!isCollectibleItem(itemId)) return false;
+  return load().discovered.includes(itemId);
+}
+
 /** True when there are discovered collectibles whose badge is unacknowledged. */
 export function hasUnacknowledgedDiscoveries(): boolean {
   const { discovered, acknowledged } = load();

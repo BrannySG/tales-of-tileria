@@ -19,6 +19,7 @@ import { CraftingMenu } from '../ui/CraftingMenu';
 import { SettingsMenu } from '../ui/SettingsMenu';
 import { CollectionBookModal, type ProgressionTab } from '../ui/CollectionBookModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
+import { InspectPanel } from '../ui/InspectPanel';
 
 export interface WorldSceneProps {
   level: LevelDefinition;
@@ -75,6 +76,7 @@ export function WorldScene({
     music,
     persistPlayer,
     onOpenCrafting: () => setCraftingOpen(true),
+    onInspect: (inspect) => useHud.getState().openInspect(inspect),
     onReady,
   });
   const stage = useStageScale(hostRef);
@@ -201,6 +203,7 @@ export function WorldScene({
                 onClose={() => setProgressionOpen(false)}
               />
             )}
+            <InspectPanel />
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@ import type { EntityDefinition } from '../types/entity';
 export const smallRock: EntityDefinition = {
   id: 'small_rock',
   displayName: 'Small Rock',
+  description: 'A common rock outcrop. Easy to mine for stone and early curios.',
   kind: 'resource',
   art: {
     textureId: 'rock',
@@ -24,6 +25,7 @@ export const smallRock: EntityDefinition = {
 export const basicTree: EntityDefinition = {
   id: 'basic_tree',
   displayName: 'Tree',
+  description: 'A sturdy starter tree that yields reliable wood and forest finds.',
   kind: 'resource',
   art: {
     textureId: 'tree',
@@ -53,6 +55,7 @@ export const basicTree: EntityDefinition = {
 export const oakTree: EntityDefinition = {
   id: 'oak_tree',
   displayName: 'Oak Tree',
+  description: 'An ancient oak with tougher bark, richer drops, and deeper roots.',
   kind: 'resource',
   art: {
     textureId: 'tree_oak',
@@ -79,6 +82,7 @@ export const oakTree: EntityDefinition = {
 export const boulder: EntityDefinition = {
   id: 'boulder',
   displayName: 'Boulder',
+  description: 'A dense stone mass and your first dependable source of iron.',
   kind: 'resource',
   art: {
     textureId: 'rock',
@@ -104,6 +108,7 @@ export const boulder: EntityDefinition = {
 export const veinedRock: EntityDefinition = {
   id: 'veined_rock',
   displayName: 'Veined Rock',
+  description: 'Iron-laced stone that rewards skilled miners with heavy ore yields.',
   kind: 'resource',
   art: {
     textureId: 'veined_rock',
@@ -129,6 +134,7 @@ export const veinedRock: EntityDefinition = {
 export const magicStone: EntityDefinition = {
   id: 'magic_stone',
   displayName: 'Magic Stone',
+  description: 'A humming mineral node that sometimes sheds a rare aether shard.',
   kind: 'resource',
   art: {
     textureId: 'magic_stone',
@@ -150,6 +156,7 @@ export const magicStone: EntityDefinition = {
 export const mrSmith: EntityDefinition = {
   id: 'mr_smith',
   displayName: 'Mr. Smith',
+  description: 'The village blacksmith who guides your early mortal craft.',
   kind: 'npc',
   art: {
     textureId: 'npc_smith',
@@ -164,6 +171,7 @@ export const mrSmith: EntityDefinition = {
 export const woodShack: EntityDefinition = {
   id: 'wood_shack',
   displayName: 'Wood Shack',
+  description: 'A weathered home that marks your first real rebuilding effort.',
   kind: 'questObject',
   art: {
     textureId: 'shack',
@@ -193,6 +201,7 @@ export const woodShack: EntityDefinition = {
 export const furnace: EntityDefinition = {
   id: 'furnace',
   displayName: 'Furnace',
+  description: 'A forge station where raw materials become crafted offerings.',
   kind: 'questObject',
   art: {
     textureId: 'furnace',
@@ -223,6 +232,7 @@ export const furnace: EntityDefinition = {
 export const shrine: EntityDefinition = {
   id: 'shrine',
   displayName: 'Shrine',
+  description: 'A sacred altar where crafted offerings await your claim.',
   kind: 'shrine',
   art: {
     textureId: 'shrine',
@@ -240,6 +250,7 @@ export const shrine: EntityDefinition = {
 export const axePickup: EntityDefinition = {
   id: 'axe_pickup',
   displayName: 'Rusty Axe',
+  description: 'An old but serviceable axe, good enough to start chopping.',
   kind: 'pickup',
   art: {
     textureId: 'item_axe_rusty',
@@ -255,6 +266,7 @@ export const axePickup: EntityDefinition = {
 export const pickaxePickup: EntityDefinition = {
   id: 'pickaxe_pickup',
   displayName: 'Rusty Pickaxe',
+  description: 'A worn pickaxe that opens your first mining path.',
   kind: 'pickup',
   art: {
     textureId: 'item_pickaxe_rusty',
@@ -276,6 +288,7 @@ export const pickaxePickup: EntityDefinition = {
 export const waterSource: EntityDefinition = {
   id: 'water_source',
   displayName: 'Water Source',
+  description: 'Fresh water for filling buckets and supporting simple interactions.',
   kind: 'prop',
   art: {
     textureId: 'entity_water_source',
@@ -296,6 +309,7 @@ export const waterSource: EntityDefinition = {
 export const campfire: EntityDefinition = {
   id: 'campfire',
   displayName: 'Campfire',
+  description: 'A live fire that can be doused, then relit after a short while.',
   kind: 'prop',
   art: {
     textureId: 'entity_campfire',
@@ -319,6 +333,7 @@ export const campfire: EntityDefinition = {
 export const beacon: EntityDefinition = {
   id: 'beacon',
   displayName: 'Beacon',
+  description: 'A landmark structure that marks points of interest in the world.',
   kind: 'prop',
   art: {
     textureId: 'entity_beacon',
@@ -334,6 +349,7 @@ export const beacon: EntityDefinition = {
 export const bucketPickup: EntityDefinition = {
   id: 'bucket_pickup',
   displayName: 'Bucket',
+  description: 'A simple wooden bucket used for water-based interactions.',
   kind: 'pickup',
   art: {
     textureId: 'item_bucket',
@@ -354,6 +370,7 @@ export const bucketPickup: EntityDefinition = {
 export const ancientTree: EntityDefinition = {
   id: 'ancient_tree',
   displayName: 'Ancient Tree',
+  description: 'A towering world-gate tree, immense and far beyond early strength.',
   kind: 'resource',
   art: {
     textureId: 'tree_ancient',
@@ -378,6 +395,7 @@ export const ancientTree: EntityDefinition = {
 export const councilMember: EntityDefinition = {
   id: 'council_member',
   displayName: 'Council of Clickers',
+  description: 'A celestial cursor-being of the High Council, scripted by the arc.',
   kind: 'cursorBeing',
   art: {
     textureId: 'cursor',
@@ -393,6 +411,7 @@ export const councilMember: EntityDefinition = {
 export const crowdCursor: EntityDefinition = {
   id: 'crowd_cursor',
   displayName: 'A Cursor',
+  description: 'An ambient cursor-being used as celestial crowd set-dressing.',
   kind: 'cursorBeing',
   art: {
     textureId: 'cursor',

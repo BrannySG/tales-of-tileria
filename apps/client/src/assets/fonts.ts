@@ -1,4 +1,4 @@
-import derrickUrl from '@assets/DERRICK.woff';
+import derrickUrl from '@assets/Fonts/DERRICK.woff';
 
 /** Canonical font stack for all game text (DOM + Pixi), DERRICK with fallbacks. */
 export const GAME_FONT_FAMILY = "DERRICK, 'Segoe UI', system-ui, sans-serif";

@@ -4,6 +4,7 @@ import {
   DEFAULT_CURSOR_SKIN_ID,
   emptySkills,
   getToolDefinition,
+  type EntityRuntimeState,
   type CollectionEntryProgress,
   type CombatConfig,
   type QuestState,
@@ -27,6 +28,18 @@ export interface TargetInfo {
   name: string;
   hp: number;
   maxHp: number;
+}
+
+/** Live inspect projection for a world entity (presentation-only). */
+export interface InspectInfo {
+  instanceId: string;
+  definitionId: string;
+  anchorX: number;
+  anchorY: number;
+  hp: number;
+  maxHp: number;
+  state: EntityRuntimeState;
+  respawnRemaining: number;
 }
 
 /** A queued discovery toast for a first-acquired collectible (presentation). */
@@ -140,6 +153,7 @@ interface HudState {
   offerings: Record<string, ToolId>;
   displayName: string;
   target: TargetInfo | undefined;
+  inspect: InspectInfo | undefined;
   locked: boolean;
   /**
    * The Bag item the player has "armed" to use on the world (see CONTEXT.md:
@@ -189,6 +203,9 @@ interface HudState {
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
   setDisplayName: (name: string) => void;
   setTarget: (target: TargetInfo | undefined) => void;
+  openInspect: (inspect: InspectInfo) => void;
+  updateInspect: (partial: Partial<InspectInfo>) => void;
+  closeInspect: () => void;
   setLocked: (locked: boolean) => void;
   /** Arms (or with `undefined`, disarms) a Bag item for use-on-world. */
   setArmedItem: (itemId: string | undefined) => void;
@@ -243,6 +260,7 @@ export const useHud = create<HudState>((set) => ({
   offerings: {},
   displayName: '',
   target: undefined,
+  inspect: undefined,
   locked: false,
   armedItemId: undefined,
   combat: { ...DEFAULT_COMBAT_CONFIG },
@@ -303,6 +321,10 @@ export const useHud = create<HudState>((set) => ({
     }),
   setDisplayName: (displayName) => set({ displayName }),
   setTarget: (target) => set({ target }),
+  openInspect: (inspect) => set({ inspect }),
+  updateInspect: (partial) =>
+    set((state) => (state.inspect ? { inspect: { ...state.inspect, ...partial } } : state)),
+  closeInspect: () => set({ inspect: undefined }),
   setLocked: (locked) => set({ locked }),
   setArmedItem: (armedItemId) => set({ armedItemId }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
@@ -370,6 +392,7 @@ export const useHud = create<HudState>((set) => ({
       offerings: {},
       displayName: '',
       target: undefined,
+      inspect: undefined,
       locked: false,
       armedItemId: undefined,
       discoveryToasts: [],
@@ -497,7 +520,10 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'player.nameChanged': {
         useHud.getState().setDisplayName(event.name);
-        useHud.getState().setCraftingUnlocked(true);
+        break;
+      }
+      case 'player.craftingUnlockedChanged': {
+        useHud.getState().setCraftingUnlocked(event.unlocked);
         break;
       }
       case 'passiveDamageChanged': {

@@ -50,6 +50,7 @@ export type SimCommand =
   | { type: 'craft.start'; recipeId: string }
   | { type: 'craft.claim'; instanceId: string }
   | { type: 'player.setName'; name: string }
+  | { type: 'player.setCraftingUnlocked'; unlocked: boolean }
   | { type: 'player.setDivinePower'; power: DivinePowerId; unlocked: boolean }
   | { type: 'player.setPassiveDamage'; amount: number }
   | {
@@ -208,6 +209,7 @@ export type SimEvent =
       y: number;
     }
   | { type: 'player.nameChanged'; name: string }
+  | { type: 'player.craftingUnlockedChanged'; unlocked: boolean }
   | {
       /** A Smite landed: a multiplied Active hit on a target (presentation hook). */
       type: 'smiteTriggered';
@@ -333,6 +335,7 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   craftedItemPlacedAtShrine: 'player',
   craftedItemClaimed: 'player',
   'player.nameChanged': 'player',
+  'player.craftingUnlockedChanged': 'player',
   smiteTriggered: 'player',
   divinePowerChanged: 'player',
   passiveDamageChanged: 'player',

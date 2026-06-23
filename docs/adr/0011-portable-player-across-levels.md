@@ -47,3 +47,10 @@ return.
   already-onboarded player loads Zone 1 directly with their persisted name and a
   sensible default kit (owns `axe_basic` + `pickaxe_stone`, crafting unlocked,
   skills at L1) so the world stays playable. Real save/load is a future pass.
+
+## Update (2026-06-23)
+
+ADR-0021 changes the active onboarding shape and decouples naming from crafting
+unlock. `player.setName` remains authoritative for display name, but crafting
+unlock is now explicit (`player.setCraftingUnlocked`) so the parked shrine
+Dedication beat can opt in without baking unlock side-effects into naming.

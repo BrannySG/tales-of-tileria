@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { assetAbsPath } from '../assetPaths.ts';
 import {
   ASSETS_DIR,
   DEFAULT_MODEL,
@@ -157,7 +158,8 @@ export async function generateSprite(
 
     for (const [size, buf] of chosen.processed.sizes) {
       const fileName = size === primarySize ? `${baseName}.png` : `${baseName}_${size}.png`;
-      const outPath = path.join(ASSETS_DIR, fileName);
+      const outPath = assetAbsPath(fileName);
+      await mkdir(path.dirname(outPath), { recursive: true });
       await writeFile(outPath, buf);
       outputs[String(size)] = outPath;
     }

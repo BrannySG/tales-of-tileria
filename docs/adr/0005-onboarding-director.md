@@ -47,3 +47,10 @@ never tutorial-specific branches.
 - Because the Director uses only public commands/events, the same scripting
   approach works for later authored story beats over a live (even multiplayer)
   Level.
+
+## Update (2026-06-23)
+
+ADR-0021 keeps this decision intact (onboarding scripting belongs in a client
+Director), but changes the **active** flow: minimal opening beats are now the
+default and the fuller tutorial/council arc is parked behind a typed variant
+flag. The Director still owns both paths.

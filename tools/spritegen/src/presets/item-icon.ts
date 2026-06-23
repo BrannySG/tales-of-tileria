@@ -1,5 +1,4 @@
-import path from 'node:path';
-import { ASSETS_DIR } from '../config.ts';
+import { assetAbsPath } from '../assetPaths.ts';
 import type { Preset } from '../types.ts';
 import { STYLE_CORE } from './styleCore.ts';
 
@@ -19,7 +18,7 @@ export const itemIconPreset: Preset = {
   assetPrefix: 'T_Item_',
   textureIdPrefix: 'item_',
   wiringKind: 'item',
-  referencePaths: REFERENCE_FILES.map((f) => path.join(ASSETS_DIR, f)),
+  referencePaths: REFERENCE_FILES.map((f) => assetAbsPath(f)),
   buildPrompt(subject: string): string {
     return [
       STYLE_CORE,

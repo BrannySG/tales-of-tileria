@@ -20,3 +20,10 @@ export const CINEMATIC_CAMERA = true;
  * and the wheel/pinch wiring in SceneRenderer to remove the experiment entirely.
  */
 export const PLAYER_ZOOM = true;
+
+/** Touch hold duration before a press is treated as Inspect. */
+export const INSPECT_LONG_PRESS_MS = 420;
+/** Touch travel tolerance before cancelling long-press Inspect (screen pixels). */
+export const INSPECT_LONG_PRESS_MOVE_PX = 14;
+/** Vertical lift (in host pixels) from the entity anchor to the Inspect panel anchor. */
+export const INSPECT_ANCHOR_OFFSET_Y = 18;

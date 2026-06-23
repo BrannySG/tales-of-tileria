@@ -66,19 +66,8 @@ export class OnboardingDirector {
   ) {}
 
   async run(): Promise<void> {
-    const { renderer, sound } = this.session;
-    renderer.setWorldEntitiesVisible(false);
-    renderer.setBlackout(1);
-    // Audio is unlocked here, but the void stays SILENT — the meadow only swells
-    // in once the world is revealed (see houseAndReveal).
-    sound.unlock();
-    // The player begins the intro as a divine cursor: grant the Smite power so
-    // every third same-target tap lands as a Smite (revoked later by the Council).
-    this.session.transport.send({ type: 'player.setDivinePower', power: 'smite', unlocked: true });
-    this.wisps = renderer.addWisps({ count: 32 });
-    this.wisps.fadeTo(1);
-
-    await this.sleep(900);
+    const { renderer } = this.session;
+    await this.beginVoid();
     if (this.cancelled) return;
 
     // Beat 1 — rock.
@@ -191,6 +180,34 @@ export class OnboardingDirector {
     await this.ancientTreeBeat(npcId);
     if (this.cancelled) return;
     this.cb.onAscend?.();
+  }
+
+  /**
+   * Minimal first-run flow: only the opening divine taps and naming prompt.
+   * The host then transitions directly into bigworld and shows the welcome.
+   */
+  async runMinimal(): Promise<void> {
+    await this.beginVoid();
+    if (this.cancelled) return;
+
+    await this.propBeat('small_rock', 'Tap to Mine', 3, 'hitRock');
+    if (this.cancelled) return;
+    await this.sleep(550);
+
+    await this.propBeat('basic_tree', 'Tap to Chop', 3, 'hitTree');
+    if (this.cancelled) return;
+
+    this.cb.onRequestName?.();
+    await this.waitForEvent((e) => e.type === 'player.nameChanged');
+    if (this.cancelled) return;
+
+    // The minimal flow still grants Smite for the opening fantasy, but revokes it
+    // before entering the shared world.
+    this.session.transport.send({ type: 'player.setDivinePower', power: 'smite', unlocked: false });
+    this.wisps?.fadeTo(0);
+    this.session.renderer.removeWisps();
+    this.wisps = undefined;
+    this.cb.onComplete?.();
   }
 
   /**
@@ -310,6 +327,7 @@ export class OnboardingDirector {
     this.cb.onRequestName?.();
     await this.waitForEvent((e) => e.type === 'player.nameChanged');
     if (this.cancelled) return;
+    this.session.transport.send({ type: 'player.setCraftingUnlocked', unlocked: true });
 
     if (npcId) {
       await this.dialogue(npcId, [{ text: 'Then it is so. This shrine shall carry your name.' }]);
@@ -390,6 +408,21 @@ export class OnboardingDirector {
     this.session.sound.playMusic('ambient_meadow', { loop: true, fadeInMs: 2400 });
     this.cb.onReveal?.();
     await this.sleep(450);
+  }
+
+  private async beginVoid(): Promise<void> {
+    const { renderer, sound } = this.session;
+    renderer.setWorldEntitiesVisible(false);
+    renderer.setBlackout(1);
+    // Audio is unlocked here, but the void stays SILENT — the meadow only swells
+    // in once the world is revealed (see houseAndReveal).
+    sound.unlock();
+    // The player begins the intro as a divine cursor: grant the Smite power so
+    // every third same-target tap lands as a Smite (revoked later by the Council).
+    this.session.transport.send({ type: 'player.setDivinePower', power: 'smite', unlocked: true });
+    this.wisps = renderer.addWisps({ count: 32 });
+    this.wisps.fadeTo(1);
+    await this.sleep(900);
   }
 
   // ---- Props ----
@@ -579,5 +612,9 @@ export class OnboardingDirector {
     this.timers.length = 0;
     for (const unsub of this.subscribers) unsub();
     this.subscribers.length = 0;
+    if (this.wisps) {
+      this.session.renderer.removeWisps();
+      this.wisps = undefined;
+    }
   }
 }

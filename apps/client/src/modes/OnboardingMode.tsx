@@ -5,7 +5,9 @@ import { OnboardingDirector } from '../game/OnboardingDirector';
 import { CouncilDirector } from '../game/CouncilDirector';
 import type { WorldSession } from '../game/useWorldScene';
 import { markOnboarded, setPlayerName } from '../onboarding';
+import { ONBOARDING_VARIANT, type OnboardingVariant } from '../onboardingConfig';
 import { savePlayerSave } from '../persistence/playerSave';
+import { buildStarterPlayer } from '../persistence/starterPlayer';
 import { UsernameModal } from '../ui/UsernameModal';
 import { WelcomeNotice } from '../ui/WelcomeNotice';
 
@@ -15,26 +17,24 @@ const COUNCIL_LEVEL_ID = 'council_01';
 const SHARED_ZONE_ID = 'bigworld_01';
 
 /**
- * First-time player onboarding — the Banishment Arc (see ADR-0005/0011/0013/0016):
- * the scripted void cinematic and divine-power tutorial on `tutorial_01`, then
- * the Ancient Tree gate that ascends the player to the authored Council of
- * Clickers (`council_01`) where Smite is stripped, and finally the banishment
- * into the shared, networked open world (`bigworld_01`). The tutorial + council
- * stay single-player; only the final zone is multiplayer. The Player snapshot is
- * carried across all three Levels, so gear/skills/name survive (and seed the
- * server on join) while the Council revokes Smite as a real sim command.
+ * First-time onboarding entry. The default path is the minimal flow
+ * (void taps + naming -> bigworld). The full Banishment Arc remains parked behind
+ * a typed flag and can be forced in dev via `#/onboarding`.
  */
-export function OnboardingMode() {
-  // All three arc Levels are bundled (see ADR-0016), so the onboarding flow works
-  // in the shipped build with no dev middleware. Resolve them synchronously.
+export function OnboardingMode({
+  forceVariant,
+}: {
+  forceVariant?: OnboardingVariant;
+} = {}) {
+  const variant = forceVariant ?? ONBOARDING_VARIANT;
   const tutorial = getBundledLevel(TUTORIAL_LEVEL_ID);
-  const council = getBundledLevel(COUNCIL_LEVEL_ID);
   const shared = getBundledLevel(SHARED_ZONE_ID);
+  const council = variant === 'arc' ? getBundledLevel(COUNCIL_LEVEL_ID) : undefined;
 
-  if (!tutorial || !council || !shared) {
+  if (!tutorial || !shared || (variant === 'arc' && !council)) {
     const missing = [
       !tutorial && TUTORIAL_LEVEL_ID,
-      !council && COUNCIL_LEVEL_ID,
+      variant === 'arc' && !council && COUNCIL_LEVEL_ID,
       !shared && SHARED_ZONE_ID,
     ]
       .filter(Boolean)
@@ -46,10 +46,100 @@ export function OnboardingMode() {
     );
   }
 
-  return <OnboardingArc levels={{ tutorial, council, shared }} />;
+  if (variant === 'arc' && council) return <OnboardingArc levels={{ tutorial, council, shared }} />;
+  return <MinimalOnboarding levels={{ tutorial, shared }} />;
 }
 
 type Phase = 'tutorial' | 'council' | 'zone';
+type MinimalPhase = 'void' | 'zone';
+
+function MinimalOnboarding({ levels }: { levels: { tutorial: LevelDefinition; shared: LevelDefinition } }) {
+  const [phase, setPhase] = useState<MinimalPhase>('void');
+  const [namingOpen, setNamingOpen] = useState(false);
+  const [fadeBlack, setFadeBlack] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [carried, setCarried] = useState<Player | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const completedRef = useRef(false);
+  const sessionRef = useRef<WorldSession | null>(null);
+
+  const onVoidReady = (session: WorldSession) => {
+    sessionRef.current = session;
+    const director = new OnboardingDirector(session, {
+      onRequestName: () => {
+        const named = session.transport.getSnapshot().player.displayName.trim();
+        if (!named) setNamingOpen(true);
+      },
+      onComplete: () => {
+        if (completedRef.current) return;
+        completedRef.current = true;
+        const named = session.transport.getSnapshot().player.displayName.trim();
+        const player = buildStarterPlayer('local', named || 'Wanderer');
+        setFadeBlack(true);
+        setCarried(player);
+        setPhase('zone');
+        setShowWelcome(true);
+        markOnboarded();
+        savePlayerSave(player);
+      },
+    });
+    void director.runMinimal();
+
+    return () => {
+      director.destroy();
+      sessionRef.current = null;
+    };
+  };
+
+  const onZoneReady = (session: WorldSession) => {
+    sessionRef.current = session;
+    setRevealed(true);
+    window.setTimeout(() => setFadeBlack(false), 600);
+    return () => {
+      sessionRef.current = null;
+    };
+  };
+
+  const confirmName = (name: string) => {
+    sessionRef.current?.transport.send({ type: 'player.setName', name });
+    setPlayerName(name);
+    setNamingOpen(false);
+  };
+
+  return (
+    <>
+      {phase === 'void' && (
+        <WorldScene
+          key={levels.tutorial.id}
+          level={levels.tutorial}
+          playerName=""
+          locationName={levels.tutorial.displayName}
+          variant="game"
+          startingTools={[]}
+          music={null}
+          hudVisible={false}
+          onReady={onVoidReady}
+        />
+      )}
+      {phase === 'zone' && (
+        <WorldScene
+          key={levels.shared.id}
+          level={levels.shared}
+          playerName={carried?.displayName ?? 'Wanderer'}
+          locationName={levels.shared.displayName}
+          variant="game"
+          player={carried ?? undefined}
+          hudVisible={revealed}
+          persistPlayer
+          onReady={onZoneReady}
+        />
+      )}
+      {namingOpen && <UsernameModal onConfirm={confirmName} />}
+      <div className={`arc-fade ${fadeBlack ? 'on' : ''}`} aria-hidden={!fadeBlack} />
+      {showWelcome && <WelcomeNotice variant="intro" onClose={() => setShowWelcome(false)} />}
+    </>
+  );
+}
 
 function OnboardingArc({
   levels,
@@ -74,7 +164,8 @@ function OnboardingArc({
     const director = new OnboardingDirector(session, {
       onReveal: () => setRevealed(true),
       onRequestName: () => {
-        if (!session.transport.getSnapshot().player.craftingUnlocked) setNamingOpen(true);
+        const named = session.transport.getSnapshot().player.displayName.trim();
+        if (!named) setNamingOpen(true);
       },
       onComplete: () => {},
       onAscend: () => {

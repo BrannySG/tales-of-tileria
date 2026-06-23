@@ -51,3 +51,10 @@ drives council→mortal realm, where the out-of-world developer welcome shows an
 - This **supersedes** ADR-0011's detail that the tutorial→shared-zone swap fires on
   the `first_offering` claim and carries a `better_wood` oak quest: the transition is
   now the Council/Banishment, and that oak quest is dropped from the intro chain.
+
+## Update (2026-06-23)
+
+ADR-0021 parks the Council/Banishment route behind a typed onboarding variant and
+makes a minimal flow the active default. `council_01` and `CouncilDirector` stay
+authored and testable (dev forced arc), but no longer run on the default
+first-time path.

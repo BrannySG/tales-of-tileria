@@ -27,7 +27,14 @@ import {
   type ToolId,
   type ToolType,
 } from '@tot/shared';
-import { PLAYER_ZOOM, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
+import {
+  INSPECT_ANCHOR_OFFSET_Y,
+  INSPECT_LONG_PRESS_MOVE_PX,
+  INSPECT_LONG_PRESS_MS,
+  PLAYER_ZOOM,
+  VIRTUAL_HEIGHT,
+  VIRTUAL_WIDTH,
+} from './constants';
 import { EntityView } from './EntityView';
 import { CursorView } from './CursorView';
 import { RemoteCursorManager } from './RemoteCursorManager';
@@ -47,7 +54,7 @@ import { GAME_FONT_FAMILY } from '../assets/fonts';
 import { TOOL_ICON } from '../assets/manifest';
 import type { TextureMap } from './assets';
 import type { SoundSystem } from '../audio/SoundSystem';
-import { useHud } from '../state/store';
+import { useHud, type InspectInfo } from '../state/store';
 
 interface FloatingText {
   text: Text;
@@ -102,6 +109,8 @@ export interface SceneRendererOptions {
   localPlayerId?: string;
   /** Players already present on join, to spawn their remote cursors immediately. */
   initialPresence?: PresenceInfo[];
+  /** Invoked when an entity should open the Inspect panel. */
+  onInspect?: (inspect: InspectInfo) => void;
 }
 
 export type { Updatable };
@@ -188,6 +197,14 @@ export class SceneRenderer {
   private lastPointerId = 1;
   private lastPointerType = 'mouse';
   private pointerInsideCanvas = false;
+  /** Pointer ids whose tap should be swallowed after an Inspect gesture. */
+  private readonly suppressTapPointerIds = new Set<number>();
+  /** Cover scale used to map world points into host CSS pixels. */
+  private coverScale = 1;
+  /** Canvas top-left in host pixels (negative on cropped axes). */
+  private canvasOffsetX = 0;
+  private canvasOffsetY = 0;
+  private readonly onContextMenu = (e: MouseEvent) => e.preventDefault();
 
   private constructor(private readonly opts: SceneRendererOptions) {}
 
@@ -242,6 +259,7 @@ export class SceneRenderer {
     this.worldWidth = this.opts.level.width || VIRTUAL_WIDTH;
     this.worldHeight = this.opts.level.height || VIRTUAL_HEIGHT;
     this.opts.host.appendChild(app.canvas);
+    app.canvas.addEventListener('contextmenu', this.onContextMenu);
     app.canvas.style.cursor = this.opts.showCursor === false ? 'default' : 'none';
     if (this.opts.showCursor !== false) {
       app.renderer.events.cursorStyles.default = 'none';
@@ -262,6 +280,9 @@ export class SceneRenderer {
       bg.width = this.worldWidth;
       bg.height = this.worldHeight;
       bg.eventMode = 'static';
+      bg.on('pointerdown', (e: FederatedPointerEvent) => {
+        if (this.inspectGesture(e, undefined)) e.stopPropagation();
+      });
       bg.on('pointertap', () => {
         if (this.opts.interactive === false) return;
         // Clicking empty ground disarms a held Item first (see CONTEXT.md: Armed
@@ -628,8 +649,120 @@ export class SceneRenderer {
     if (tool) this.cursorView?.setTool(tool.iconTextureId);
   }
 
+  /**
+   * Handles mouse/pen inspect gestures and opens/closes inspect as needed.
+   * Returns true when the caller should swallow the normal tap path.
+   */
+  private inspectGesture(e: FederatedPointerEvent, instanceId: string | undefined): boolean {
+    const rightClick = e.button === 2;
+    const ctrlPrimary = e.button === 0 && (e.ctrlKey || e.metaKey);
+    if (!rightClick && !ctrlPrimary) return false;
+    this.suppressTapPointerIds.add(e.pointerId);
+    if (instanceId) this.openInspect(instanceId);
+    else useHud.getState().closeInspect();
+    return true;
+  }
+
+  /** Opens Inspect for one entity with host-pixel anchor + live runtime values. */
+  private openInspect(instanceId: string): void {
+    const view = this.views.get(instanceId);
+    const def = this.defs.get(instanceId);
+    if (!view || !def) return;
+    const anchor = this.worldToHostPixel(view.container.x, view.container.y + view.hitOffsetY);
+    const runtime = this.opts.transport.getSnapshot().entities.find((entity) => entity.instanceId === instanceId);
+    const inspect: InspectInfo = {
+      instanceId,
+      definitionId: def.id,
+      anchorX: anchor.x,
+      anchorY: anchor.y - INSPECT_ANCHOR_OFFSET_Y,
+      hp: view.hp,
+      maxHp: view.maxHp,
+      state: view.state,
+      respawnRemaining: runtime?.respawnRemaining ?? 0,
+    };
+    if (this.opts.onInspect) this.opts.onInspect(inspect);
+    else useHud.getState().openInspect(inspect);
+  }
+
+  /**
+   * Adds a touch long-press Inspect gesture while preserving normal tap behavior.
+   * Mouse inspect is handled immediately via `inspectGesture`.
+   */
+  private wireInspectGesture(target: Sprite, instanceId: string): void {
+    let timer: number | undefined;
+    let startX = 0;
+    let startY = 0;
+    let activeTouchId: number | undefined;
+
+    const clearTimer = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = undefined;
+      activeTouchId = undefined;
+    };
+
+    target.on('pointerdown', (e: FederatedPointerEvent) => {
+      if (this.inspectGesture(e, instanceId)) {
+        e.stopPropagation();
+        return;
+      }
+      if (e.pointerType !== 'touch') return;
+      clearTimer();
+      startX = e.global.x;
+      startY = e.global.y;
+      activeTouchId = e.pointerId;
+      timer = window.setTimeout(() => {
+        this.suppressTapPointerIds.add(e.pointerId);
+        this.openInspect(instanceId);
+        clearTimer();
+      }, INSPECT_LONG_PRESS_MS);
+    });
+
+    target.on('pointermove', (e: FederatedPointerEvent) => {
+      if (e.pointerType !== 'touch' || activeTouchId !== e.pointerId || timer === undefined) return;
+      const moved = Math.hypot(e.global.x - startX, e.global.y - startY);
+      if (moved > INSPECT_LONG_PRESS_MOVE_PX) clearTimer();
+    });
+    target.on('pointerup', clearTimer);
+    target.on('pointerupoutside', clearTimer);
+    target.on('pointerout', clearTimer);
+  }
+
+  /** Tracks and refreshes the currently opened Inspect panel's live projection. */
+  private syncInspectProjection(): void {
+    const inspect = useHud.getState().inspect;
+    if (!inspect) return;
+    const view = this.views.get(inspect.instanceId);
+    if (!view) {
+      useHud.getState().closeInspect();
+      return;
+    }
+    const runtime = this.opts.transport
+      .getSnapshot()
+      .entities.find((entity) => entity.instanceId === inspect.instanceId);
+    const anchor = this.worldToHostPixel(view.container.x, view.container.y + view.hitOffsetY);
+    useHud.getState().updateInspect({
+      anchorX: anchor.x,
+      anchorY: anchor.y - INSPECT_ANCHOR_OFFSET_Y,
+      hp: view.hp,
+      maxHp: view.maxHp,
+      state: view.state,
+      respawnRemaining: runtime?.respawnRemaining ?? 0,
+    });
+  }
+
+  /** Converts a world-space point to host CSS pixels using cover sizing. */
+  private worldToHostPixel(worldX: number, worldY: number): { x: number; y: number } {
+    const gx = this.worldCamera.position.x + worldX * this.worldCamera.scale.x;
+    const gy = this.worldCamera.position.y + worldY * this.worldCamera.scale.y;
+    return {
+      x: this.canvasOffsetX + gx * this.coverScale,
+      y: this.canvasOffsetY + gy * this.coverScale,
+    };
+  }
+
   private wireEntity(view: EntityView, instanceId: string, def: EntityDefinition): void {
     const target = view.hitTarget;
+    this.wireInspectGesture(target, instanceId);
     const isPickup = def.kind === 'pickup';
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
@@ -641,6 +774,7 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
       // An armed Item intercepts the tap: use it on this entity instead of the
       // normal collect/attack (see CONTEXT.md: Armed item).
       if (this.tryUseArmedItemOn(instanceId)) return;
@@ -673,6 +807,7 @@ export class SceneRenderer {
    */
   private wireProp(view: EntityView, instanceId: string): void {
     const target = view.hitTarget;
+    this.wireInspectGesture(target, instanceId);
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
       view.setTargeted(true);
@@ -683,6 +818,7 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
+      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
       this.tryUseArmedItemOn(instanceId);
     });
   }
@@ -897,6 +1033,10 @@ export class SceneRenderer {
       case 'player.nameChanged': {
         // craftingUnlocked is projected by the HUD store (bindHud runs first).
         this.prompts.ensureCraftPrompt();
+        break;
+      }
+      case 'player.craftingUnlockedChanged': {
+        if (event.unlocked) this.prompts.ensureCraftPrompt();
         break;
       }
       case 'loot.rolled': {
@@ -1217,6 +1357,7 @@ export class SceneRenderer {
     this.damageNumbers.update(dt);
     this.cursorView?.update(dt);
     this.refreshHoverAfterCameraPan();
+    this.syncInspectProjection();
   }
 
   /**
@@ -1276,8 +1417,11 @@ export class SceneRenderer {
     const { clientWidth: w, clientHeight: h } = this.opts.host;
     if (!w || !h) return;
     const scale = Math.max(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
+    this.coverScale = scale;
     this.app.canvas.style.width = `${Math.round(VIRTUAL_WIDTH * scale)}px`;
     this.app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
+    this.canvasOffsetX = (w - VIRTUAL_WIDTH * scale) / 2;
+    this.canvasOffsetY = (h - VIRTUAL_HEIGHT * scale) / 2;
     const visW = Math.min(VIRTUAL_WIDTH, w / scale);
     const visH = Math.min(VIRTUAL_HEIGHT, h / scale);
     const insetX = (VIRTUAL_WIDTH - visW) / 2;
@@ -1421,6 +1565,7 @@ export class SceneRenderer {
     this.unsubscribe?.();
     this.hudUnsubscribe?.();
     this.resizeObserver?.disconnect();
+    this.app?.canvas?.removeEventListener('contextmenu', this.onContextMenu);
     if (this.camera) {
       this.updatables.delete(this.camera);
       this.camera.destroy();

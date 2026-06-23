@@ -32,6 +32,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0018](0018-stateful-items-as-separate-definitions.md) | Stateful items as separate definitions; data-driven Item interaction table; armed cursor | Accepted |
 | [0019](0019-leaderboards-and-first-persistent-state.md) | Leaderboards: the first persistent server state (global SQLite Durable Object) | Accepted |
 | [0020](0020-skill-points-drive-per-skill-active-damage.md) | Skill Points from Collections drive per-skill Active damage; Tools gate access | Accepted — corrects CORE_GAME_DESIGN, clarifies 0008 |
+| [0021](0021-minimal-onboarding-arc-parked.md) | Minimal onboarding is active; full arc is parked behind a typed flag | Accepted — updates active flow from 0011/0013-era onboarding |
 
 ## Supersession map
 
@@ -44,6 +45,9 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   multi-tenant `World`, `interactionRule` claims).
 - **0020** corrected `CORE_GAME_DESIGN.md`'s unbuilt "tool tier = click damage" idea
   and clarified **0008** (tools gate *access*; Skill Points grow *damage*).
+- **0021** made minimal onboarding the active flow and parked the full tutorial +
+  Council arc behind a typed flag, updating live onboarding assumptions from
+  **0011**/**0013** without deleting the authored arc.
 
 ## Adding an ADR
 

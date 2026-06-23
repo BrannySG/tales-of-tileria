@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { createPlayer, emptySkills, getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
+import { getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
 import { loadPlayerSave } from '../persistence/playerSave';
+import { buildStarterPlayer } from '../persistence/starterPlayer';
 import { WelcomeNotice } from '../ui/WelcomeNotice';
 
 /** The canonical shared open world: every returning player lands here together. */
@@ -23,12 +24,7 @@ function buildReturningPlayer(): Player {
     if (name) saved.displayName = name;
     return saved;
   }
-  const player = createPlayer('local', getPlayerName() ?? 'Wanderer');
-  player.ownedTools = ['axe_rusty', 'pickaxe_rusty'];
-  player.equippedToolType = 'axe';
-  player.craftingUnlocked = true;
-  player.skills = emptySkills();
-  return player;
+  return buildStarterPlayer('local', getPlayerName() ?? 'Wanderer');
 }
 
 export function GameMode() {

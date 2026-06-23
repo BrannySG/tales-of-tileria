@@ -163,7 +163,7 @@ function skillHasAction(
 /** The one-line reward summary for an entry (skill points only in V1). */
 function rewardLine(entry: CollectionEntryDefinition): string {
   const n = entry.rewards.skillPoints;
-  return `+${n} ${SKILL_LABEL[entry.skill] ?? entry.skill} Skill Point${n === 1 ? '' : 's'}`;
+  return `+${n} Skill Point${n === 1 ? '' : 's'}`;
 }
 
 /**
@@ -244,13 +244,11 @@ function RequirementSlot({
 /** A single entry row in the center list (selectable; chips are tappable). */
 function EntryRow({
   entry,
-  index,
   selected,
   onSelect,
   onRegister,
 }: {
   entry: CollectionEntryDefinition;
-  index: number;
   selected: boolean;
   onSelect: () => void;
   onRegister: RegisterFn;
@@ -259,7 +257,6 @@ function EntryRow({
   const inventory = useHud((s) => s.inventory);
   const registered = progress?.registered ?? {};
   const completed = progress?.completed ?? false;
-  const status = entryStatus(entry, registered, inventory, completed);
 
   return (
     <li role="option" aria-selected={selected}>
@@ -269,14 +266,10 @@ function EntryRow({
         role="button"
         tabIndex={-1}
       >
-        <span className="prog-entry-order">{completed ? '\u2713' : index + 1}</span>
         <span className="prog-entry-main">
-          <span className="prog-entry-top">
-            <span className="prog-entry-heading">
-              <span className="prog-entry-name">{entry.name}</span>
-              <span className="prog-entry-reward">{rewardLine(entry)}</span>
-            </span>
-            <span className={`prog-status prog-status-${status}`}>{STATUS_LABEL[status]}</span>
+          <span className="prog-entry-heading">
+            <span className="prog-entry-name">{entry.name}</span>
+            <span className="prog-entry-reward">{rewardLine(entry)}</span>
           </span>
           <span className="prog-entry-slots">
             {entry.requirements.map((req) => (
@@ -713,7 +706,6 @@ export function CollectionBookModal({
                             <EntryRow
                               key={entry.id}
                               entry={entry}
-                              index={skillEntries.indexOf(entry)}
                               selected={entry.id === selectedEntry?.id}
                               onSelect={() => selectEntry(entry.id)}
                               onRegister={onRegister}

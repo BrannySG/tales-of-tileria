@@ -229,7 +229,7 @@ describe('crafting + shrine', () => {
     expect(world.getPlayer().ownedTools).toEqual(['axe_stone']);
   });
 
-  it('rejects crafting before crafting is unlocked, then allows it after setName', () => {
+  it('rejects crafting before crafting is unlocked, then allows it after explicit unlock', () => {
     const player = createPlayer('local', 'Hero');
     player.inventory = { wood: 12, stone: 6 };
     const world = new World(richLevel(), { seed: 1, player });
@@ -238,6 +238,10 @@ describe('crafting + shrine', () => {
     const named = world.applyCommand({ type: 'player.setName', name: '  Zephyr  ' });
     expect(typesOf(named)).toContain('player.nameChanged');
     expect(world.getPlayer().displayName).toBe('Zephyr');
+    expect(world.getPlayer().craftingUnlocked).toBe(false);
+
+    const unlocked = world.applyCommand({ type: 'player.setCraftingUnlocked', unlocked: true });
+    expect(typesOf(unlocked)).toContain('player.craftingUnlockedChanged');
     expect(world.getPlayer().craftingUnlocked).toBe(true);
 
     expect(typesOf(world.applyCommand({ type: 'craft.start', recipeId: 'stone_axe' }))).toContain('craftingJobStarted');
