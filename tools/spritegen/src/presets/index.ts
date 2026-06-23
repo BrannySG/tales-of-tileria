@@ -1,4 +1,5 @@
 import type { Preset } from '../types.ts';
+import { cursorPreset } from './cursor.ts';
 import { entityPreset } from './entity.ts';
 import { itemIconPreset } from './item-icon.ts';
 
@@ -6,6 +7,7 @@ import { itemIconPreset } from './item-icon.ts';
 const PRESETS: Record<string, Preset> = {
   [itemIconPreset.id]: itemIconPreset,
   [entityPreset.id]: entityPreset,
+  [cursorPreset.id]: cursorPreset,
 };
 
 export function getPreset(id: string): Preset {

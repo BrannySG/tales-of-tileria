@@ -94,6 +94,9 @@ language in the design docs, this file wins and the docs should be reconciled.
   multiplayer (see ADR-0016), not faked presence. The retired `mortal_realm_01`
   was its single-player predecessor; its lived-in content is being folded into
   `bigworld_01`.
+- **Black Market** — A shadowed trade Level where Vendors deal in Mortal Trade.
+  It is a place, not a shop system; individual stores and transactions remain
+  separate concepts.
 - **Multiplayer Level** — A Level that declares a `multiplayer` config block
   (`maxPlayers`, optional `pvp`, optional `interactionDefault`). Present = a
   networked, shared space; absent = single-player (the tutorial, Council,
@@ -121,11 +124,13 @@ language in the design docs, this file wins and the docs should be reconciled.
   Authored once, referenced many times.
 - **Entity instance** — A single placed entity in a Level/Level instance with
   its own live runtime state (current HP, claim owner, respawn timer).
-- **Cursor-being** — An Entity kind for a celestial or scripted cursor (Council
-  members, ambient crowd cursors): non-damageable and non-reactive, a scriptable
-  speaker a Director addresses by instance id. Distinct from a mortal System NPC,
-  and distinct from a **Networked cursor** (a real other player): ambient
-  Cursor-beings are authored set-dressing, not live players.
+- **Cursor-being** — An Entity kind for authored cursor-shaped presences (Council
+  members, ambient crowd cursors, Vendors): non-damageable and non-reactive,
+  scriptable or decorative set-dressing. Distinct from a mortal System NPC, and
+  distinct from a **Networked cursor** (a real other player).
+- **Vendor** — A non-celestial Cursor-being who fronts a Black Market stall and
+  deals in Mortal Trade. A Vendor is a merchant presence, not a real player and
+  not a System NPC.
 - **Ancient Tree** — An imposing, effectively unbreakable Resource that gates the
   path beyond the tutorial. Striking it (especially with Smite) triggers the
   Council of Clickers cutscene. It is never actually depleted and remains a

@@ -58,6 +58,11 @@ export type SynthSoundName =
   | 'respawn'
   | 'lock'
   | 'loot'
+  | 'lootDropCommon'
+  | 'lootDropUncommon'
+  | 'lootDropRare'
+  | 'lootDropEpic'
+  | 'lootDropLegendary'
   | 'denied';
 
 /** All one-shot names: the synthesised set plus file-backed SFX (see SoundSystem). */
@@ -99,6 +104,64 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     }),
   );
 
+  // Drop common: small, clean pickup tick.
+  const lootDropCommon = encodeWav(
+    make(0.16, (t) => {
+      const attack = Math.min(1, t / 0.006);
+      return (sine(t, 720) * 0.35 + sine(t, 1080) * 0.16) * attack * decay(t, 22);
+    }),
+  );
+
+  // Drop uncommon: brighter two-note lift.
+  const lootDropUncommon = encodeWav(
+    make(0.24, (t) => {
+      const local = t < 0.1 ? t : t - 0.1;
+      const f = t < 0.1 ? 760 : 1140;
+      const attack = Math.min(1, local / 0.006);
+      return (sine(t, f) * 0.34 + sine(t, f * 2) * 0.08) * attack * decay(local, 16);
+    }),
+  );
+
+  // Drop rare: fuller ascending arpeggio.
+  const lootDropRare = encodeWav(
+    make(0.36, (t) => {
+      const step = Math.min(2, Math.floor(t / 0.11));
+      const local = t - step * 0.11;
+      const freqs = [660, 990, 1320];
+      const f = freqs[step]!;
+      const attack = Math.min(1, local / 0.008);
+      return (sine(t, f) * 0.28 + sine(t, f * 1.5) * 0.1) * attack * decay(local, 13);
+    }),
+  );
+
+  // Drop epic: long shimmer with airy sparkle texture.
+  const lootDropEpic = encodeWav(
+    make(0.52, (t) => {
+      const step = Math.min(3, Math.floor(t / 0.1));
+      const local = t - step * 0.1;
+      const freqs = [740, 1110, 1480, 1760];
+      const f = freqs[step]!;
+      const shimmer = sine(t, 3200 + sine(t, 7) * 120) * 0.06;
+      const sparkle = (Math.random() * 2 - 1) * 0.035 * decay(local, 18);
+      const attack = Math.min(1, local / 0.01);
+      return ((sine(t, f) * 0.22 + sine(t, f * 2) * 0.08 + shimmer) * attack + sparkle) * decay(t, 1.8);
+    }),
+  );
+
+  // Drop legendary: short triumphant fanfare before the lightning layer.
+  const lootDropLegendary = encodeWav(
+    make(0.72, (t) => {
+      const step = Math.min(4, Math.floor(t / 0.12));
+      const local = t - step * 0.12;
+      const freqs = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+      const f = freqs[step]!;
+      const attack = Math.min(1, local / 0.012);
+      const body = sine(t, f) * 0.24 + sine(t, f * 1.5) * 0.12 + sine(t, f * 2) * 0.08;
+      const sparkle = sine(t, 4200 + sine(t, 9) * 240) * 0.05;
+      return (body + sparkle) * attack * decay(local, 9) * decay(t, 0.7);
+    }),
+  );
+
   // Denied: low, dull two-tone "thunk" — an interaction was blocked.
   const denied = encodeWav(
     make(0.22, (t) => {
@@ -107,5 +170,18 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     }),
   );
 
-  return { hitRock, hitTree, deplete, respawn, lock, loot, denied };
+  return {
+    hitRock,
+    hitTree,
+    deplete,
+    respawn,
+    lock,
+    loot,
+    lootDropCommon,
+    lootDropUncommon,
+    lootDropRare,
+    lootDropEpic,
+    lootDropLegendary,
+    denied,
+  };
 }

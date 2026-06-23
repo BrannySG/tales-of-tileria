@@ -54,10 +54,12 @@ import { GAME_FONT_FAMILY } from '../assets/fonts';
 import { TOOL_ICON } from '../assets/manifest';
 import type { TextureMap } from './assets';
 import type { SoundSystem } from '../audio/SoundSystem';
+import type { SoundName } from '../audio/synth';
 import { useHud, type InspectInfo } from '../state/store';
+import { skillIconTextureId, skillLabel } from '../ui/skillPresentation';
 
 interface FloatingText {
-  text: Text;
+  text: Container;
   life: number;
   maxLife: number;
   vy: number;
@@ -72,11 +74,14 @@ const TOOL_LABEL: Record<ToolType, string> = {
   sword: 'Sword',
 };
 
-const SKILL_LABEL: Record<SkillId, string> = {
-  mining: 'Mining',
-  woodcutting: 'Woodcutting',
-  combat: 'Combat',
-  crafting: 'Crafting',
+const RARITY_ORDER: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+const LOOT_DROP_SOUND: Record<Rarity, SoundName> = {
+  common: 'lootDropCommon',
+  uncommon: 'lootDropUncommon',
+  rare: 'lootDropRare',
+  epic: 'lootDropEpic',
+  legendary: 'lootDropLegendary',
 };
 
 /** "a"/"an" based on the following word's initial sound (good enough for tools). */
@@ -852,7 +857,16 @@ export class SceneRenderer {
   /** Dev/Content-Zoo: fire a loot burst of a chosen rarity at screen center. */
   testLootBurst(rarity: Rarity): void {
     this.lootDrops.testBurst(rarity, VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.62);
-    this.opts.sound?.play('loot');
+    this.playLootDropSound(rarity);
+  }
+
+  private playLootDropSound(rarity: Rarity | undefined): void {
+    if (!rarity) {
+      this.opts.sound?.play('loot');
+      return;
+    }
+    this.opts.sound?.play(LOOT_DROP_SOUND[rarity]);
+    if (rarity === 'legendary') this.opts.sound?.play('lightning');
   }
 
   private handleEvent(event: SimEvent): void {
@@ -990,7 +1004,7 @@ export class SceneRenderer {
         // Centered on the current view: convert the screen anchor to world coords
         // since `floatText` lives in the pannable world-space `fxLayer`.
         const lvlPos = this.toWorldPoint(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.3);
-        this.floatText(lvlPos.x, lvlPos.y, `${SKILL_LABEL[event.skillId]} Level ${event.level}!`, {
+        this.floatText(lvlPos.x, lvlPos.y, `${skillLabel(event.skillId)} Level ${event.level}!`, {
           color: 0xffe08a,
           size: 40,
           life: 2.2,
@@ -1040,13 +1054,16 @@ export class SceneRenderer {
         break;
       }
       case 'loot.rolled': {
-        this.opts.sound?.play('loot');
-        const order = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-        let topRarity = -1;
+        let topRarity: Rarity | undefined;
+        let topRarityIndex = -1;
         for (const item of event.items) {
           const def = getItemDefinition(item.itemId);
           if (!def) continue;
-          topRarity = Math.max(topRarity, order.indexOf(def.rarity));
+          const rarityIndex = RARITY_ORDER.indexOf(def.rarity);
+          if (rarityIndex > topRarityIndex) {
+            topRarity = def.rarity;
+            topRarityIndex = rarityIndex;
+          }
           if (def.worldTextureId) {
             this.lootDrops.spawn(def, item.quantity, event.x, event.y);
           } else {
@@ -1066,8 +1083,7 @@ export class SceneRenderer {
             });
           }
         }
-        // Standout cue for the rarest drop in the roll (legendary gets the bolt).
-        if (order[topRarity] === 'legendary') this.opts.sound?.play('lightning');
+        this.playLootDropSound(topRarity);
         break;
       }
       case 'collection.registered': {
@@ -1274,11 +1290,11 @@ export class SceneRenderer {
         return `Need a stronger ${toolLabel}`;
       case 'toolWieldLevel':
         return event.requiredSkillId && event.requiredSkillLevel
-          ? `Need ${SKILL_LABEL[event.requiredSkillId]} ${event.requiredSkillLevel} to wield the ${toolLabel}`
+          ? `Need ${skillLabel(event.requiredSkillId)} ${event.requiredSkillLevel} to wield the ${toolLabel}`
           : `Can't wield this ${toolLabel} yet`;
       case 'skillLevel':
         return event.requiredSkillId && event.requiredSkillLevel
-          ? `Need ${SKILL_LABEL[event.requiredSkillId]} ${event.requiredSkillLevel}`
+          ? `Need ${skillLabel(event.requiredSkillId)} ${event.requiredSkillLevel}`
           : 'Skill too low';
     }
   }
@@ -1291,7 +1307,47 @@ export class SceneRenderer {
     // `fxLayer`; convert so the popup tracks the cursor on large pannable levels
     // instead of being pinned to the world's top-left viewport region (see ADR-0015).
     const wp = this.toWorldPoint(screenX, screenY);
-    this.floatText(wp.x, wp.y, `+${amount} ${SKILL_LABEL[skillId]}`, { color: 0x9be7ff, size: 20, life: 1.1, vy: -60 });
+    const textureId = skillIconTextureId(skillId);
+    const texture = textureId ? this.opts.textures.get(textureId) : undefined;
+    if (!texture) {
+      this.floatText(wp.x, wp.y, `+${amount} ${skillLabel(skillId)}`, {
+        color: 0x9be7ff,
+        size: 20,
+        life: 1.1,
+        vy: -60,
+      });
+      return;
+    }
+
+    const root = new Container();
+    const amountText = new Text({
+      text: `+${amount}`,
+      style: {
+        fontFamily: GAME_FONT_FAMILY,
+        fontSize: 22,
+        fontWeight: '800',
+        fill: 0x9be7ff,
+        stroke: { color: 0x1a1206, width: 5 },
+        align: 'center',
+      },
+    });
+    amountText.anchor.set(0, 0.5);
+
+    const icon = new Sprite(texture);
+    const iconSize = 24;
+    icon.anchor.set(0, 0.5);
+    icon.width = iconSize;
+    icon.height = iconSize;
+
+    const gap = 5;
+    const totalWidth = amountText.width + gap + iconSize;
+    amountText.x = -totalWidth / 2;
+    icon.x = amountText.x + amountText.width + gap;
+    root.addChild(amountText, icon);
+    root.x = wp.x;
+    root.y = wp.y;
+    this.fxLayer.addChild(root);
+    this.floatingTexts.push({ text: root, life: 1.1, maxLife: 1.1, vy: -60 });
   }
 
   /** A world-space particle burst (above the world, below the cinematic layer). */

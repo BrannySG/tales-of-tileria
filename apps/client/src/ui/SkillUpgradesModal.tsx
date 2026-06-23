@@ -1,5 +1,6 @@
 import { type SkillId, type SkillUpgradeId } from '@tot/shared';
 import { useHud } from '../state/store';
+import { SkillIcon } from './SkillIcon';
 
 interface UpgradeCopy {
   skill: SkillId;
@@ -73,11 +74,15 @@ export function SkillUpgradePanel({
         <div className="prog-upgrade-points" aria-live="polite">
           <span className="prog-upgrade-points-num">{points}</span>
           <span className="prog-upgrade-points-label">
+            <SkillIcon skillId={copy.skill} size={24} />
             {copy.skillLabel} Skill Point{points === 1 ? '' : 's'}
           </span>
         </div>
 
-        <div className="prog-upgrade-name">{copy.name}</div>
+        <div className="prog-upgrade-name">
+          <SkillIcon skillId={copy.skill} size={36} />
+          {copy.name}
+        </div>
         <div className="prog-upgrade-effect">{copy.effect}</div>
         <p className="prog-upgrade-blurb">{copy.blurb}</p>
 

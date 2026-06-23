@@ -1,11 +1,15 @@
 import bgArea00 from '@assets/Areas/T_Area_00_Background.png';
 import bgArea01 from '@assets/Areas/T_Area_01_Background.png';
 import bgHighCouncil from '@assets/Areas/T_Area_HighCouncil.png';
+import bgBlackMarket from '@assets/Areas/T_Area_BlackMarket.png';
 import cursorCracked from '@assets/Cursors/T_Cursor_Cracked.png';
 import cursorWooden from '@assets/Cursors/T_Cursor_Wooden01.png';
 import cursorStone from '@assets/Cursors/T_Cursor_Stone01.png';
 import cursorHanddrawn from '@assets/Cursors/T_Cursor_Handdrawn.png';
 import cursorCouncil from '@assets/Cursors/T_Cursor_Council.png';
+import blackmarketGeneral from '@assets/Cursors/T_Cursor_BlackmarketGeneral.png';
+import blackmarketEquipment from '@assets/Cursors/T_Cursor_BlackmarketEquipment.png';
+import blackmarketGeneric from '@assets/Cursors/T_Cursor_BlackmarketGeneric.png';
 import rock from '@assets/Entities/T_Entity_Rock.png';
 import magicStone from '@assets/Entities/T_Entity_MagicStone.png';
 import veinedRock from '@assets/Entities/T_Entity_VeinedRock.png';
@@ -21,6 +25,9 @@ import waterSource from '@assets/Entities/T_Entity_WaterSource.png';
 import beacon from '@assets/Entities/T_Entity_Beacon.png';
 import campfire from '@assets/Entities/T_Entity_Campfire.png';
 import campfireOut from '@assets/Entities/T_Entity_CampfireOut.png';
+import blackmarketStallGeneral from '@assets/Entities/T_Entity_BlackmarketStallGeneral.png';
+import blackmarketStallEquipment from '@assets/Entities/T_Entity_BlackmarketStallEquipment.png';
+import blackmarketStallGeneric from '@assets/Entities/T_Entity_BlackmarketStallGeneric.png';
 import fxRockShard from '@assets/FX/T_FX_RockShard.png';
 import fxWoodChip from '@assets/FX/T_FX_WoodChip.png';
 import fxLeaf from '@assets/FX/T_FX_Leaf.png';
@@ -65,11 +72,15 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   bg_area00: bgArea00,
   bg_area01: bgArea01,
   bg_high_council: bgHighCouncil,
+  bg_blackmarket: bgBlackMarket,
   cursor: cursorCracked,
   cursor_wooden: cursorWooden,
   cursor_stone: cursorStone,
   cursor_handdrawn: cursorHanddrawn,
   cursor_council: cursorCouncil,
+  cursor_blackmarket_general: blackmarketGeneral,
+  cursor_blackmarket_equipment: blackmarketEquipment,
+  cursor_blackmarket_generic: blackmarketGeneric,
   rock,
   magic_stone: magicStone,
   veined_rock: veinedRock,
@@ -85,6 +96,9 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   entity_beacon: beacon,
   entity_campfire: campfire,
   entity_campfire_out: campfireOut,
+  entity_blackmarket_stall_general: blackmarketStallGeneral,
+  entity_blackmarket_stall_equipment: blackmarketStallEquipment,
+  entity_blackmarket_stall_generic: blackmarketStallGeneric,
   fx_rock_shard: fxRockShard,
   fx_wood_chip: fxWoodChip,
   fx_leaf: fxLeaf,
@@ -136,6 +150,7 @@ export const BACKGROUNDS: { id: string; label: string }[] = [
   { id: 'bg_area00', label: 'Meadow Clearing' },
   { id: 'bg_area01', label: 'Grass Plains' },
   { id: 'bg_high_council', label: 'High Council' },
+  { id: 'bg_blackmarket', label: 'Black Market' },
 ];
 
 /** Direct URL lookups for React (DOM) UI, which can't use Pixi textures. */

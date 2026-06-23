@@ -345,6 +345,51 @@ export const beacon: EntityDefinition = {
   tags: ['prop', 'beacon'],
 };
 
+export const blackmarketStallGeneral: EntityDefinition = {
+  id: 'blackmarket_stall_general',
+  displayName: 'General Stall',
+  description: 'A Black Market stall piled with tools, sacks, and assorted mortal goods.',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_blackmarket_stall_general',
+    scale: 1,
+    anchorX: 0.5,
+    anchorY: 0.9,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'stall', 'blackmarket', 'vendor', 'general'],
+};
+
+export const blackmarketStallEquipment: EntityDefinition = {
+  id: 'blackmarket_stall_equipment',
+  displayName: 'Equipment Stall',
+  description: 'A Black Market stall displaying weapons, armor, and strange artifacts.',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_blackmarket_stall_equipment',
+    scale: 1,
+    anchorX: 0.5,
+    anchorY: 0.9,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'stall', 'blackmarket', 'vendor', 'equipment'],
+};
+
+export const blackmarketStallGeneric: EntityDefinition = {
+  id: 'blackmarket_stall_generic',
+  displayName: 'Empty Stall',
+  description: 'An unassigned Black Market stall held for future trade.',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_blackmarket_stall_generic',
+    scale: 1,
+    anchorX: 0.5,
+    anchorY: 0.9,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'stall', 'blackmarket', 'vendor', 'future'],
+};
+
 /** A world pickup that grants an empty Bucket (see PickupComponent item grant). */
 export const bucketPickup: EntityDefinition = {
   id: 'bucket_pickup',
@@ -407,6 +452,21 @@ export const councilMember: EntityDefinition = {
   tags: ['cursorBeing', 'council'],
 };
 
+export const vendor: EntityDefinition = {
+  id: 'vendor',
+  displayName: 'Vendor',
+  description: 'A Black Market cursor-being who deals in Mortal Trade.',
+  kind: 'cursorBeing',
+  art: {
+    textureId: 'cursor',
+    scale: 2.4,
+    anchorX: 0.2,
+    anchorY: 0.2,
+  },
+  interactionRule: 'personal',
+  tags: ['cursorBeing', 'vendor', 'blackmarket'],
+};
+
 /** An ambient crowd cursor (faked social presence): a small, dim cursor-being. */
 export const crowdCursor: EntityDefinition = {
   id: 'crowd_cursor',
@@ -440,7 +500,11 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   waterSource,
   campfire,
   beacon,
+  blackmarketStallGeneral,
+  blackmarketStallEquipment,
+  blackmarketStallGeneric,
   bucketPickup,
   councilMember,
+  vendor,
   crowdCursor,
 ];

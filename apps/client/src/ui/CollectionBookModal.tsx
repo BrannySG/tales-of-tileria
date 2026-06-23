@@ -14,7 +14,9 @@ import {
 import { useHud } from '../state/store';
 import { ItemIcon } from './ItemIcon';
 import { RARITY_COLOR } from './rarityColor';
+import { SkillIcon } from './SkillIcon';
 import { SkillUpgradePanel } from './SkillUpgradesModal';
+import { skillLabel } from './skillPresentation';
 
 export type ProgressionTab = 'collections' | 'upgrades';
 
@@ -28,14 +30,6 @@ export interface ProgressionSurfaceProps {
   onPurchaseUpgrade: (skillId: SkillId, upgradeId: SkillUpgradeId) => void;
   onClose: () => void;
 }
-
-const SKILL_LABEL: Record<string, string> = {
-  woodcutting: 'Woodcutting',
-  mining: 'Mining',
-  combat: 'Combat',
-  crafting: 'Crafting',
-  fishing: 'Fishing',
-};
 
 /** Skills shown in the rail as aspirational, not-yet-implemented (see mockup). */
 const COMING_SOON: { id: string; label: string }[] = [
@@ -161,9 +155,15 @@ function skillHasAction(
 }
 
 /** The one-line reward summary for an entry (skill points only in V1). */
-function rewardLine(entry: CollectionEntryDefinition): string {
+function rewardLine(entry: CollectionEntryDefinition) {
   const n = entry.rewards.skillPoints;
-  return `+${n} Skill Point${n === 1 ? '' : 's'}`;
+  return (
+    <span className="skill-reward-inline">
+      +{n}
+      <SkillIcon skillId={entry.skill} size={16} />
+      Skill Point{n === 1 ? '' : 's'}
+    </span>
+  );
 }
 
 /**
@@ -400,12 +400,15 @@ function EntryDetail({
       <div className="prog-detail-reward">
         <span className="prog-detail-reward-label">Reward</span>
         <span className="prog-detail-reward-value">
-          +{entry.rewards.skillPoints} {SKILL_LABEL[entry.skill]} Skill Point
-          {entry.rewards.skillPoints === 1 ? '' : 's'}
+          <span className="skill-reward-inline">
+            +{entry.rewards.skillPoints}
+            <SkillIcon skillId={entry.skill} size={22} />
+            Skill Point{entry.rewards.skillPoints === 1 ? '' : 's'}
+          </span>
         </span>
       </div>
       <div className="prog-detail-points">
-        {SKILL_LABEL[entry.skill]} Skill Points: <strong>{skillPoints}</strong>
+        {skillLabel(entry.skill)} Skill Points: <strong>{skillPoints}</strong>
       </div>
 
       {completed ? (
@@ -449,7 +452,7 @@ export function CollectionBookModal({
   }, [collections]);
 
   const [selectedSkill, setSelectedSkill] = useState<SkillId>(activeSkills[0] ?? 'mining');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('inProgress');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const progressMap = useHud((s) => s.collections);
   const inventory = useHud((s) => s.inventory);
 
@@ -486,7 +489,6 @@ export function CollectionBookModal({
   useEffect(() => {
     const firstIncomplete = skillEntries.find((e) => !progressMap[e.id]?.completed);
     setSelectedEntryId((firstIncomplete ?? skillEntries[0])?.id);
-    setStatusFilter('inProgress');
     // Skill switch should not pop the mobile sheet open.
     setMobileDetailOpen(false);
     // Intentionally only re-runs on skill switch (not on every progress change).
@@ -627,7 +629,8 @@ export function CollectionBookModal({
                   onClick={() => setSelectedSkill(skill)}
                 >
                   <span className="prog-rail-name">
-                    {SKILL_LABEL[skill] ?? skill}
+                    <SkillIcon skillId={skill} size={28} />
+                    <span>{skillLabel(skill)}</span>
                     {ready && <span className="prog-rail-dot" aria-label="Action available" />}
                   </span>
                   <span className="prog-rail-count">
@@ -639,7 +642,10 @@ export function CollectionBookModal({
             <div className="prog-rail-divider">Coming Soon</div>
             {COMING_SOON.map((s) => (
               <button key={s.id} className="prog-rail-item locked" disabled aria-disabled>
-                <span className="prog-rail-name">{s.label}</span>
+                <span className="prog-rail-name">
+                  <SkillIcon skillId={s.id} size={28} />
+                  <span>{s.label}</span>
+                </span>
                 <span className="prog-rail-lock" aria-hidden>
                   {'\uD83D\uDD12'}
                 </span>
@@ -654,12 +660,19 @@ export function CollectionBookModal({
                   <div className="prog-list-head">
                     <div>
                       <h2>
-                        {showGroupHeaders
-                          ? SKILL_LABEL[selectedSkill] ?? selectedSkill
-                          : activeCollection?.name ?? SKILL_LABEL[selectedSkill]}
+                        {showGroupHeaders ? (
+                          <span className="prog-title-skill">
+                            <SkillIcon skillId={selectedSkill} size={32} />
+                            {skillLabel(selectedSkill)}
+                          </span>
+                        ) : (
+                          activeCollection?.name ?? skillLabel(selectedSkill)
+                        )}
                       </h2>
                       {showGroupHeaders ? (
-                        <p>{`Collections that earn ${SKILL_LABEL[selectedSkill] ?? selectedSkill} Skill Points.`}</p>
+                        <p className="prog-skill-points-copy">
+                          Collections that earn <SkillIcon skillId={selectedSkill} size={18} /> Skill Points.
+                        </p>
                       ) : (
                         activeCollection?.description && <p>{activeCollection.description}</p>
                       )}
@@ -691,7 +704,7 @@ export function CollectionBookModal({
                     <ul
                       className="prog-list"
                       role="listbox"
-                      aria-label={`${SKILL_LABEL[selectedSkill]} entries`}
+                      aria-label={`${skillLabel(selectedSkill)} entries`}
                       tabIndex={0}
                       onKeyDown={onListKeyDown}
                     >

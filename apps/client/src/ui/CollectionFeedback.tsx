@@ -2,18 +2,13 @@ import { useEffect } from 'react';
 import { getCollectionEntry } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ItemIcon } from './ItemIcon';
+import { SkillIcon } from './SkillIcon';
 import { RARITY_COLOR } from './rarityColor';
 import { itemLabel } from './discoveredCollectibles';
-
-const SKILL_LABEL: Record<string, string> = {
-  woodcutting: 'Woodcutting',
-  mining: 'Mining',
-  combat: 'Combat',
-  crafting: 'Crafting',
-};
+import { skillLabel } from './skillPresentation';
 
 const DISCOVERY_MS = 3600;
-const COMPLETION_MS = 4200;
+const COMPLETION_MS = 2600;
 
 function DiscoveryToast({ id, itemId }: { id: number; itemId: string }) {
   const { name, rarity } = itemLabel(itemId);
@@ -53,10 +48,7 @@ export function DiscoveryToasts() {
   );
 }
 
-/**
- * The Collection Entry completion celebration: a brief centered card with the
- * Skill Point reward and a CTA into the Skill Upgrades panel. Auto-dismisses.
- */
+/** A subtle completion toast for finished Collection Entries. Auto-dismisses. */
 export function CompletionCelebration({ onOpenUpgrades }: { onOpenUpgrades: () => void }) {
   const completion = useHud((s) => s.completion);
   const skillTotal = useHud((s) => (completion ? s.skillPoints[completion.skillId] ?? 0 : 0));
@@ -69,19 +61,24 @@ export function CompletionCelebration({ onOpenUpgrades }: { onOpenUpgrades: () =
 
   if (!completion) return null;
   const entry = getCollectionEntry(completion.entryId);
-  const skillLabel = SKILL_LABEL[completion.skillId] ?? completion.skillId;
+  const label = skillLabel(completion.skillId);
 
   return (
-    <div className="completion-celebration">
+    <div className="completion-celebration" aria-live="polite" aria-atomic="true">
       <div className="completion-card" key={completion.key}>
-        <div className="completion-kicker">Collection Complete!</div>
-        <div className="completion-title">{entry?.name ?? 'Entry'}</div>
-        <div className="completion-reward">
-          +{completion.pointsAwarded} {skillLabel} Skill Point
-          {completion.pointsAwarded === 1 ? '' : 's'}
-        </div>
-        <div className="completion-total">
-          {skillLabel} Skill Points: <strong>{skillTotal}</strong>
+        <div className="completion-body">
+          <div className="completion-kicker">Collection complete</div>
+          <div className="completion-title">{entry?.name ?? 'Entry'}</div>
+          <div className="completion-reward">
+            <span className="skill-reward-inline">
+              +{completion.pointsAwarded}
+              <SkillIcon skillId={completion.skillId} size={22} />
+              Skill Point{completion.pointsAwarded === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="completion-total">
+            {label} points: <strong>{skillTotal}</strong>
+          </div>
         </div>
         <button
           className="completion-cta"
@@ -90,7 +87,7 @@ export function CompletionCelebration({ onOpenUpgrades }: { onOpenUpgrades: () =
             onOpenUpgrades();
           }}
         >
-          View {skillLabel} Upgrades
+          Upgrades
         </button>
       </div>
     </div>

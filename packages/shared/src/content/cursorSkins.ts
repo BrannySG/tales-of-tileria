@@ -65,4 +65,25 @@ export const CURSOR_SKINS: CursorSkin[] = [
     unlock: { kind: 'entityOnly' },
     playerEquippable: false,
   },
+  {
+    id: 'blackmarket_general',
+    label: 'General Vendor',
+    textureId: 'cursor_blackmarket_general',
+    unlock: { kind: 'entityOnly' },
+    playerEquippable: false,
+  },
+  {
+    id: 'blackmarket_equipment',
+    label: 'Equipment Vendor',
+    textureId: 'cursor_blackmarket_equipment',
+    unlock: { kind: 'entityOnly' },
+    playerEquippable: false,
+  },
+  {
+    id: 'blackmarket_generic',
+    label: 'Future Vendor',
+    textureId: 'cursor_blackmarket_generic',
+    unlock: { kind: 'entityOnly' },
+    playerEquippable: false,
+  },
 ];

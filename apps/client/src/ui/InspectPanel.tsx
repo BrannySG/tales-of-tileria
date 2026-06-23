@@ -74,10 +74,22 @@ export function InspectPanel() {
   if (!inspect || !model) return null;
 
   const margin = 16;
-  const half = panelSize.width / 2;
-  const left = Math.max(margin + half, Math.min(inspect.anchorX, viewport.width - margin - half));
-  const top = Math.max(margin + panelSize.height, Math.min(inspect.anchorY, viewport.height - margin));
+  const preferredTop = inspect.anchorY - panelSize.height - 14;
+  const fallbackTop = inspect.anchorY + 18;
+  const fitsAbove = preferredTop >= margin;
+  const left = Math.max(margin, Math.min(inspect.anchorX - panelSize.width / 2, viewport.width - panelSize.width - margin));
+  const top = Math.max(
+    margin,
+    Math.min(fitsAbove ? preferredTop : fallbackTop, viewport.height - panelSize.height - margin),
+  );
   const hpRatio = inspect.maxHp > 0 ? Math.max(0, Math.min(1, inspect.hp / inspect.maxHp)) : 0;
+  const requirementSummary =
+    model.requirements.length > 0
+      ? model.requirements.every((row) => row.met)
+        ? 'Reqs met'
+        : 'Reqs unmet'
+      : undefined;
+  const xpSummary = model.xpRows.length > 0 ? model.xpRows.join(' / ') : undefined;
 
   return (
     <div className="inspect-overlay" aria-hidden={false}>
@@ -100,73 +112,56 @@ export function InspectPanel() {
 
         {model.description && <p className="inspect-desc">{model.description}</p>}
 
-        {model.requirements.length > 0 && (
-          <section>
-            <h4>Requirements</h4>
-            <ul className="inspect-list">
-              {model.requirements.map((row) => (
-                <li key={row.label} className={row.met ? 'inspect-ok' : 'inspect-miss'}>
-                  {row.label}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <div className="inspect-chip-row">
+          {requirementSummary && (
+            <span
+              className={model.requirements.every((row) => row.met) ? 'inspect-chip ok' : 'inspect-chip miss'}
+              title={model.requirements.map((row) => row.label).join('\n')}
+            >
+              {requirementSummary}
+            </span>
+          )}
+          {xpSummary && (
+            <span className="inspect-chip" title={xpSummary}>
+              {xpSummary}
+            </span>
+          )}
+          {model.respawnSeconds !== undefined && (
+            <span className="inspect-chip">
+              {inspect.state === 'respawning'
+                ? `${Math.max(0, Math.ceil(inspect.respawnRemaining))}s`
+                : `${model.respawnSeconds}s respawn`}
+            </span>
+          )}
+        </div>
 
-        {model.xpRows.length > 0 && (
-          <section>
-            <h4>Rewards</h4>
-            <ul className="inspect-list">
-              {model.xpRows.map((row) => (
-                <li key={row}>{row}</li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {(model.hasHp || model.respawnSeconds !== undefined) && (
-          <section>
-            <h4>Status</h4>
-            {model.hasHp && (
-              <>
-                <div className="inspect-hp-row">
-                  <span>
-                    HP {inspect.hp}/{inspect.maxHp}
-                  </span>
-                  <span>{Math.round(hpRatio * 100)}%</span>
-                </div>
-                <div className="inspect-hp-bar">
-                  <span style={{ width: `${Math.round(hpRatio * 100)}%` }} />
-                </div>
-              </>
-            )}
-            {model.respawnSeconds !== undefined && (
-              <div className="inspect-meta">
-                {inspect.state === 'respawning'
-                  ? `Respawning in ${Math.max(0, Math.ceil(inspect.respawnRemaining))}s`
-                  : `Respawn: ${model.respawnSeconds}s`}
-              </div>
-            )}
-          </section>
+        {model.hasHp && (
+          <div className="inspect-status">
+            <div className="inspect-hp-row">
+              <span>
+                HP {inspect.hp}/{inspect.maxHp}
+              </span>
+              <span>{Math.round(hpRatio * 100)}%</span>
+            </div>
+            <div className="inspect-hp-bar">
+              <span style={{ width: `${Math.round(hpRatio * 100)}%` }} />
+            </div>
+          </div>
         )}
 
         {model.drops.length > 0 && (
-          <section>
-            <h4>Drops</h4>
-            <ul className="inspect-drops">
-              {model.drops.map((drop) => (
-                <li key={drop.itemId}>
-                  <ItemIcon itemId={drop.itemId} size={30} />
-                  <div className="inspect-drop-main">
-                    <span style={{ color: RARITY_COLOR[drop.rarity] }}>{drop.label}</span>
-                    <small>
-                      {drop.hidden ? 'Undiscovered' : drop.chanceText} · Qty {drop.quantityText}
-                    </small>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <div className="inspect-loot-strip" aria-label="Possible drops">
+            {model.drops.map((drop) => (
+              <span
+                key={drop.itemId}
+                className={`inspect-loot-icon ${drop.hidden ? 'hidden' : ''}`}
+                style={{ borderColor: RARITY_COLOR[drop.rarity], color: RARITY_COLOR[drop.rarity] }}
+                title={drop.hidden ? 'Undiscovered drop' : drop.label}
+              >
+                {drop.hidden ? <span aria-hidden>?</span> : <ItemIcon itemId={drop.itemId} size={32} />}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "blackmarket_01",
+    "displayName": "The Black Market",
+    "backgroundTextureId": "bg_blackmarket",
+    "width": 1920,
+    "height": 1080,
+    "entities": [
+      {
+        "instanceId": "blackmarket_stall_general_1",
+        "definitionId": "blackmarket_stall_general",
+        "x": 470,
+        "y": 610,
+        "overrides": {}
+      },
+      {
+        "instanceId": "vendor_general_1",
+        "definitionId": "vendor",
+        "x": 470,
+        "y": 700,
+        "overrides": {
+          "skinId": "blackmarket_general"
+        }
+      },
+      {
+        "instanceId": "blackmarket_stall_equipment_1",
+        "definitionId": "blackmarket_stall_equipment",
+        "x": 1450,
+        "y": 560,
+        "overrides": {}
+      },
+      {
+        "instanceId": "vendor_equipment_1",
+        "definitionId": "vendor",
+        "x": 1450,
+        "y": 650,
+        "overrides": {
+          "skinId": "blackmarket_equipment"
+        }
+      },
+      {
+        "instanceId": "blackmarket_stall_generic_1",
+        "definitionId": "blackmarket_stall_generic",
+        "x": 960,
+        "y": 360,
+        "overrides": {}
+      },
+      {
+        "instanceId": "vendor_generic_1",
+        "definitionId": "vendor",
+        "x": 960,
+        "y": 450,
+        "overrides": {
+          "skinId": "blackmarket_generic"
+        }
+      }
+    ]
+  }
+}

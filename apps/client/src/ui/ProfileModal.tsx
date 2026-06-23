@@ -11,16 +11,13 @@ import {
 import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
 import { achievementComplete, newAchievementIds, newCursorSkinIds } from './cosmetics';
+import { SkillIcon } from './SkillIcon';
+import { skillLabel } from './skillPresentation';
 
 type Tab = 'stats' | 'cursors' | 'achievements';
 
 /** Skills shown on the stats page, in display order (all four are tracked). */
-const STAT_SKILLS: { id: SkillId; label: string }[] = [
-  { id: 'woodcutting', label: 'Woodcutting' },
-  { id: 'mining', label: 'Mining' },
-  { id: 'combat', label: 'Combat' },
-  { id: 'crafting', label: 'Crafting' },
-];
+const STAT_SKILLS: SkillId[] = ['woodcutting', 'mining', 'combat', 'crafting'];
 
 /** Human-readable unlock hint for a skin's gallery card. */
 function unlockHint(skin: CursorSkin): string {
@@ -134,14 +131,17 @@ export function ProfileModal({
         <div className="profile-body">
           {tab === 'stats' && (
             <div className="profile-stats">
-              {STAT_SKILLS.map(({ id, label }) => {
+              {STAT_SKILLS.map((id) => {
                 const skill = skills[id] ?? { xp: 0, level: 1 };
                 const bounds = levelXpBounds(skill.xp);
                 const span = Math.max(1, bounds.next - bounds.current);
                 const pct = Math.min(100, Math.round(((skill.xp - bounds.current) / span) * 100));
                 return (
                   <div key={id} className="profile-stat-row">
-                    <span className="profile-stat-name">{label}</span>
+                    <span className="profile-stat-name">
+                      <SkillIcon skillId={id} size={30} />
+                      {skillLabel(id)}
+                    </span>
                     <span className="profile-stat-level">Lv {skill.level}</span>
                     <div className="profile-stat-bar">
                       <div className="profile-stat-bar-fill" style={{ width: `${pct}%` }} />

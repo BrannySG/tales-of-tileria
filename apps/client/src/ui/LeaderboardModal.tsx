@@ -6,6 +6,7 @@ import {
   type LeaderboardResult,
   type LeaderboardSkill,
 } from '../net/leaderboard';
+import { SkillIcon } from './SkillIcon';
 
 const TABS: { id: LeaderboardSkill; label: string }[] = [
   { id: 'total', label: 'Total' },
@@ -73,6 +74,7 @@ export function LeaderboardModal({ onClose }: { onClose: () => void }) {
               className={`leaderboard-tab ${skill === tab.id ? 'active' : ''}`}
               onClick={() => setSkill(tab.id)}
             >
+              {tab.id !== 'total' && <SkillIcon skillId={tab.id} size={22} />}
               {tab.label}
             </button>
           ))}

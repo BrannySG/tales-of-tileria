@@ -9,6 +9,7 @@ import {
   type ToolId,
 } from '@tot/shared';
 import { isCollectibleItem } from './discoveredCollectibles';
+import { skillLabel } from './skillPresentation';
 
 export interface InspectRequirementRow {
   label: string;
@@ -24,13 +25,19 @@ export interface InspectDropRow {
   quantityText: string;
 }
 
+export interface InspectXpRow {
+  skillId: SkillId;
+  amount: number;
+  label: string;
+}
+
 export interface InspectModel {
   definitionId: string;
   name: string;
   kindLabel: string;
   description?: string;
   requirements: InspectRequirementRow[];
-  xpRows: string[];
+  xpRows: InspectXpRow[];
   drops: InspectDropRow[];
   hasHp: boolean;
   respawnSeconds?: number;
@@ -42,13 +49,6 @@ export interface BuildInspectModelInput {
   skills: Record<SkillId, SkillState>;
   isDiscovered: (itemId: string) => boolean;
 }
-
-const SKILL_LABEL: Record<SkillId, string> = {
-  mining: 'Mining',
-  woodcutting: 'Woodcutting',
-  combat: 'Combat',
-  crafting: 'Crafting',
-};
 
 function kindLabel(kind: ReturnType<typeof requireEntityDefinition>['kind']): string {
   switch (kind) {
@@ -121,7 +121,7 @@ function buildRequirements(input: BuildInspectModelInput): InspectRequirementRow
   }
   if (req.skill) {
     const current = skillLevel(input.skills, req.skill.skillId);
-    const label = SKILL_LABEL[req.skill.skillId] ?? req.skill.skillId;
+    const label = skillLabel(req.skill.skillId);
     rows.push({
       label: `Requires ${label} ${req.skill.level} (you: ${current})`,
       met: current >= req.skill.level,
@@ -130,13 +130,13 @@ function buildRequirements(input: BuildInspectModelInput): InspectRequirementRow
   return rows;
 }
 
-function buildXpRows(definitionId: string): string[] {
+function buildXpRows(definitionId: string): InspectXpRow[] {
   const def = requireEntityDefinition(definitionId);
   const rewards = def.xp?.rewards ?? {};
-  const rows: string[] = [];
+  const rows: InspectXpRow[] = [];
   for (const [skillId, amount] of Object.entries(rewards) as [SkillId, number][]) {
     if (amount <= 0) continue;
-    rows.push(`${SKILL_LABEL[skillId] ?? skillId} +${amount} XP`);
+    rows.push({ skillId, amount, label: `${skillLabel(skillId)} +${amount} XP` });
   }
   return rows;
 }
