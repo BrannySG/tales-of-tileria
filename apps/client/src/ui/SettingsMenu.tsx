@@ -34,11 +34,14 @@ export function SettingsMenu({
   onMusicVolumeChange,
   onSfxVolumeChange,
   onToggleSound,
+  onForceWipe,
   onClose,
 }: {
   onMusicVolumeChange: (volume: number) => void;
   onSfxVolumeChange: (volume: number) => void;
   onToggleSound: (enabled: boolean) => void;
+  /** Wipe the saved progression (keeps name + cosmetics) and reload the game. */
+  onForceWipe: () => void;
   onClose: () => void;
 }) {
   const soundEnabled = useHud((s) => s.soundEnabled);
@@ -82,6 +85,25 @@ export function SettingsMenu({
           disabled={!soundEnabled}
           onChange={onSfxVolumeChange}
         />
+
+        <h4 className="settings-section">Save</h4>
+
+        <div className="settings-row settings-row--wide">
+          <button
+            className="settings-danger-btn"
+            onClick={() => {
+              const ok = window.confirm(
+                'Force wipe your saved progress?\n\n' +
+                  'This resets skills, inventory, tools, quests, collections, and skill trees ' +
+                  'back to the starter kit. Your name and unlocked cursors are kept. The game ' +
+                  'will reload.',
+              );
+              if (ok) onForceWipe();
+            }}
+          >
+            Force wipe save
+          </button>
+        </div>
       </div>
     </div>
   );

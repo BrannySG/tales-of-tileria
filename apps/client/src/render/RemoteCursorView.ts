@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import type { CursorMode } from '@tot/shared';
-import { CURSOR_SHADOW_OFFSET, createCursorShadow } from './entityFx';
+import { CURSOR_SHADOW_OFFSET, createCursorShadow, drawMoon } from './entityFx';
 import { GAME_FONT_FAMILY } from '../assets/fonts';
 import type { TextureMap } from './assets';
 
@@ -22,12 +22,15 @@ export class RemoteCursorView {
   private readonly ring = new Graphics();
   private readonly toolIcon?: Sprite;
   private readonly nameplate: Text;
+  private readonly moon = new Graphics();
 
   private targetX: number;
   private targetY: number;
   private ringAlpha = 0;
   private active = false;
+  private idle = false;
   private pulse = 0;
+  private moonBob = 0;
 
   constructor(
     private readonly textures: TextureMap,
@@ -84,9 +87,14 @@ export class RemoteCursorView {
     this.nameplate.x = 8;
     this.nameplate.y = 40;
 
+    drawMoon(this.moon);
+    this.moon.x = 4;
+    this.moon.y = -34;
+    this.moon.visible = false;
+
     this.container.addChild(this.ring);
     if (this.toolIcon) this.container.addChild(this.toolIcon);
-    this.container.addChild(this.arrowShadow, this.arrow, this.nameplate);
+    this.container.addChild(this.arrowShadow, this.arrow, this.nameplate, this.moon);
   }
 
   setName(name: string): void {
@@ -109,6 +117,8 @@ export class RemoteCursorView {
 
   setMode(mode: CursorMode): void {
     this.active = mode === 'hovering' || mode === 'locked';
+    this.idle = mode === 'idle';
+    this.moon.visible = this.idle;
     this.drawRing(mode === 'locked' ? 0xffd24a : 0xffffff);
   }
 
@@ -134,6 +144,11 @@ export class RemoteCursorView {
       this.ring.scale.set(s);
     } else {
       this.ring.scale.set(1);
+    }
+
+    if (this.idle) {
+      this.moonBob = (this.moonBob + dt) % (Math.PI * 2);
+      this.moon.y = -34 + Math.sin(this.moonBob * 2) * 2;
     }
   }
 

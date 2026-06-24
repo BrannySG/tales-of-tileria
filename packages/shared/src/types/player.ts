@@ -1,4 +1,4 @@
-import type { SkillId, ToolId, ToolType } from './ids';
+import type { SkillId, ToolId, ToolType, TreeId } from './ids';
 import type { QuestState } from './quest';
 import type { CollectionEntryProgress } from './collection';
 import type { CraftingJob } from './recipe';
@@ -11,13 +11,13 @@ export interface SkillState {
 }
 
 /**
- * A player's allocation in one Skill's tree (see CONTEXT.md: Skill Tree). Only
- * the allocated non-root node ids are stored; the root is always implicitly
- * allocated. Skill Points are derived (1 per Skill level), not stored: the
- * available pool is `level - sum(allocated node costs)` (see ADR-0022).
+ * A player's allocation in one Skill's tree (see CONTEXT.md: Skill Tree, Rank).
+ * Maps each allocated non-root node id to its current Rank (`>= 1`); the root is
+ * always implicitly allocated. Skill Points are derived (1 per Skill level), not
+ * stored: the available pool is `level - sum(cost * rank)` (see ADR-0022).
  */
 export interface SkillTreeState {
-  allocated: string[];
+  allocated: Record<string, number>;
 }
 
 /**
@@ -86,11 +86,12 @@ export interface Player {
    */
   collections: Record<string, CollectionEntryProgress>;
   /**
-   * Per-Skill Skill Tree allocations (see CONTEXT.md: Skill Tree, ADR-0022).
-   * Sparse: only skills the player has allocated into appear. Skill Points are
-   * derived from Skill level, so they are not stored here.
+   * Skill Tree allocations keyed by tree id (see CONTEXT.md: Skill Tree,
+   * ADR-0022). Includes the per-Skill trees and the `'clicker'` meta-track (see
+   * CONTEXT.md: Clicker). Sparse: only trees the player has allocated into
+   * appear. Skill/Clicker Points are derived from level, so they are not stored.
    */
-  skillTrees: Partial<Record<SkillId, SkillTreeState>>;
+  skillTrees: Partial<Record<TreeId, SkillTreeState>>;
   /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
   divinePowers: DivinePowers;
   /**

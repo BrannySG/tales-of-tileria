@@ -1,12 +1,14 @@
-import { useEffect, useState, type CSSProperties } from 'react';
-import type {
-  CombatConfig,
-  LevelDefinition,
-  Player,
-  Rarity,
-  SkillId,
-  ToolId,
-  ToolType,
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  getEntityDefinition,
+  type CombatConfig,
+  type LevelDefinition,
+  type Player,
+  type Rarity,
+  type SkillId,
+  type ToolId,
+  type ToolType,
+  type TreeId,
 } from '@tot/shared';
 import { LocalTransport } from '@tot/sim';
 import { useWorldScene, type WorldSession } from './useWorldScene';
@@ -16,6 +18,7 @@ import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
 import { CraftingMenu } from '../ui/CraftingMenu';
 import { SettingsMenu } from '../ui/SettingsMenu';
+import { wipeProgressionSave } from '../persistence/playerSave';
 import { CollectionBookModal } from '../ui/CollectionBookModal';
 import { SkillTreeModal } from '../ui/SkillTreeModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
@@ -45,6 +48,20 @@ export interface WorldSceneProps {
 }
 
 /**
+ * The distinct gatherable Skills present in a Level (see CONTEXT.md: Idle Mode):
+ * the Skill of every placed Entity that carries a Skill requirement. Drives the
+ * Idle Mode bar so it only offers Skills you could actually idle here.
+ */
+function gatherableSkillsInLevel(level: LevelDefinition): SkillId[] {
+  const skills: SkillId[] = [];
+  for (const placed of level.entities) {
+    const skillId = getEntityDefinition(placed.definitionId)?.requirements?.skill?.skillId;
+    if (skillId && !skills.includes(skillId)) skills.push(skillId);
+  }
+  return skills;
+}
+
+/**
  * Mounts a playable world (Pixi scene + HUD) for a given level. Shared by the
  * Content Zoo and the Game mode so the exact same renderer + sim run a hand-made
  * sandbox or an editor-authored level. The HUD lives inside a frame that is
@@ -70,6 +87,7 @@ export function WorldScene({
   // Two distinct fullscreen surfaces now: the Collection Book and the Skill Tree.
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [skillTreeOpen, setSkillTreeOpen] = useState(false);
+  const [skillTreeInitial, setSkillTreeInitial] = useState<TreeId | undefined>(undefined);
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
@@ -104,18 +122,34 @@ export function WorldScene({
   const onRegisterCollection = (entryId: string, itemId?: string) => {
     sessionRef.current?.transport.send({ type: 'collection.register', entryId, itemId });
   };
-  const onAllocateNode = (skillId: SkillId, nodeId: string) => {
+  const onAllocateNode = (skillId: TreeId, nodeId: string) => {
     sessionRef.current?.transport.send({ type: 'skill.allocateNode', skillId, nodeId });
   };
-  const onRespecTree = (skillId: SkillId) => {
+  const onRespecTree = (skillId: TreeId) => {
     sessionRef.current?.transport.send({ type: 'skill.respecTree', skillId });
   };
+  // Idle Mode is sim-authoritative: send the command and let the echoed
+  // `idle.started`/`idle.stopped` + `cursor.moved` events drive the HUD + scene.
+  const onStartIdle = (skillIds: SkillId[]) => {
+    // Begin the roam from the centre of the screen, not wherever the Idle button
+    // sat at the bottom: snap the (still-free) cursor there before idling.
+    sessionRef.current?.renderer.centerCursorForIdle();
+    sessionRef.current?.transport.send({ type: 'idle.start', skillIds });
+  };
+  const onStopIdle = () => {
+    sessionRef.current?.transport.send({ type: 'idle.stop' });
+  };
+  // The gatherable Skills present in this Level drive the Idle Mode bar.
+  const idleableSkills = useMemo(() => gatherableSkillsInLevel(level), [level]);
   const openCollections = () => {
     acknowledgeDiscoveries();
     useHud.getState().setNewCollectibles(false);
     setCollectionsOpen(true);
   };
-  const openSkillTree = () => setSkillTreeOpen(true);
+  const openSkillTree = (skillId?: TreeId) => {
+    setSkillTreeInitial(skillId);
+    setSkillTreeOpen(true);
+  };
   // Equipping a Cursor skin is authoritative; the echoed `cosmetic.equipped`
   // updates the HUD store + re-skins the cursor (see store.ts / SceneRenderer).
   const onEquipCursor = (cursorSkinId: string) => {
@@ -148,6 +182,14 @@ export function WorldScene({
   const onTestLootBurst = (rarity: Rarity) => {
     sessionRef.current?.renderer.testLootBurst(rarity);
   };
+  // Force wipe (Settings): reset the persisted progression save to the starter
+  // kit, then hard-reload so the world rebuilds from the wiped seed. The reload
+  // tears the page down without running the debounced-save subscription, so the
+  // wiped save isn't overwritten by the live session on the way out.
+  const onForceWipe = () => {
+    wipeProgressionSave();
+    window.location.reload();
+  };
 
   // Spacebar toggles lock on the current target (keyboard players).
   useEffect(() => {
@@ -174,6 +216,7 @@ export function WorldScene({
             <Hud
               variant={variant}
               locationName={locationName}
+              idleableSkills={idleableSkills}
               onLock={onLock}
               onUnlock={onUnlock}
               onSelectTool={onSelectTool}
@@ -185,6 +228,8 @@ export function WorldScene({
               onOpenCollections={openCollections}
               onOpenSkillTree={openSkillTree}
               onEquipCursor={onEquipCursor}
+              onStartIdle={onStartIdle}
+              onStopIdle={onStopIdle}
               onTestLootBurst={onTestLootBurst}
             />
             {craftingOpen && <CraftingMenu onCraft={onCraft} onClose={() => setCraftingOpen(false)} />}
@@ -193,6 +238,7 @@ export function WorldScene({
                 onMusicVolumeChange={onMusicVolumeChange}
                 onSfxVolumeChange={onSfxVolumeChange}
                 onToggleSound={onToggleSound}
+                onForceWipe={onForceWipe}
                 onClose={() => setSettingsOpen(false)}
               />
             )}
@@ -204,6 +250,7 @@ export function WorldScene({
             )}
             {skillTreeOpen && (
               <SkillTreeModal
+                initialSkillId={skillTreeInitial}
                 onAllocate={onAllocateNode}
                 onRespec={onRespecTree}
                 onClose={() => setSkillTreeOpen(false)}

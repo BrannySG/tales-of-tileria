@@ -75,8 +75,8 @@ describe('lastHit credit (co-op zone)', () => {
     expect(finishing.map((e) => e.type)).toContain('entity.depleted');
 
     expect(world.getEntity('rock1')?.state).toBe('depleted');
-    // small_rock awards 8 mining XP on deplete — to the last hitter (p2) only.
-    expect(world.getPlayer('p2').skills.mining.xp).toBe(8);
+    // small_rock awards 2 mining XP on deplete — to the last hitter (p2) only.
+    expect(world.getPlayer('p2').skills.mining.xp).toBe(2);
     expect(world.getPlayer('p1').skills.mining.xp).toBe(0);
   });
 

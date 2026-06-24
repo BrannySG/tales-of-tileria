@@ -1,5 +1,18 @@
 export type SkillId = 'mining' | 'woodcutting' | 'combat' | 'crafting';
 
+/**
+ * Identifier for a Skill Tree (see CONTEXT.md: Skill Tree, Clicker). Every
+ * trainable Skill has a tree keyed by its `SkillId`; the **Clicker** meta-track
+ * (see CONTEXT.md: Clicker) adds one more tree keyed `'clicker'`. Clicker is NOT
+ * a Skill — it has no XP and its level is derived from total Skill levels — so
+ * it is kept out of `SkillId` and only widens the tree-keyed surfaces (tree
+ * lookups, allocations, the `skill.allocateNode`/`skill.respecTree` commands).
+ */
+export type TreeId = SkillId | 'clicker';
+
+/** The Clicker meta-track's tree id (see CONTEXT.md: Clicker). */
+export const CLICKER_TREE_ID = 'clicker' as const;
+
 export type ToolType = 'axe' | 'pickaxe' | 'sword';
 
 /**

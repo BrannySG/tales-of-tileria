@@ -1,10 +1,15 @@
 import type { CollectionDefinition, CollectionEntryDefinition } from '../types/collection';
 
 /**
- * V1 Collections (see CONTEXT.md: Collection). One per starter Source Family:
- * The Stone Ledger (Mining, from Basic Stone) and The Timber Archive
- * (Woodcutting, from Basic Tree). Entries are authored below and reference these
- * by id. All quantities/rewards are content and easy to retune.
+ * Collections are the primary leveling vector (see CONTEXT.md: Collection,
+ * Skill XP; ADR-0022). Gathering grants only a small trickle of XP; the bulk of
+ * a Skill's early levels comes from Registering Items into these Entries.
+ *
+ * Calibration (Melvor curve, cumulative): L10 = 1154 XP. Each T1 Skill's *easy*,
+ * common-item entries are tuned to sum to ~1230 XP, so completing them carries a
+ * fresh player to ~level 10. The rarer / bulk entries (and the higher-tier Oak
+ * and Deepvein collections) then push L10 -> L20+. All quantities/rewards are
+ * content and trivially retunable.
  */
 export const COLLECTION_DEFINITIONS: readonly CollectionDefinition[] = [
   {
@@ -28,21 +33,39 @@ export const COLLECTION_DEFINITIONS: readonly CollectionDefinition[] = [
     skill: 'woodcutting',
     sortOrder: 2,
   },
+  {
+    id: 'the_deepvein_reliquary',
+    name: 'The Deepvein Reliquary',
+    description: 'Iron and deeper treasures from the heavier stone.',
+    skill: 'mining',
+    sortOrder: 3,
+  },
 ];
 
 // The common-primary requirement reuses the generic `stone` / `wood` Resources;
 // the rarer requirements use the authored collectibles (see items.ts).
 export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] = [
-  // --- The Stone Ledger (Mining) ---
+  // --- The Stone Ledger (Mining, T1) -------------------------------------
+  // Easy ladder (sums to ~1230 XP -> ~level 10 on its own).
   {
     id: 'stone_first_fragments',
     collectionId: 'the_stone_ledger',
     name: 'First Fragments',
     description: 'Every great delve starts with a handful of plain rock.',
     skill: 'mining',
-    requirements: [{ itemId: 'stone', quantity: 10 }],
-    rewards: { xp: 40 },
+    requirements: [{ itemId: 'stone', quantity: 5 }],
+    rewards: { xp: 60 },
     sortOrder: 0,
+  },
+  {
+    id: 'stone_handful_more',
+    collectionId: 'the_stone_ledger',
+    name: 'A Handful More',
+    description: 'Keep at it. The ledger keeper likes to see a steady hand.',
+    skill: 'mining',
+    requirements: [{ itemId: 'stone', quantity: 12 }],
+    rewards: { xp: 90 },
+    sortOrder: 1,
   },
   {
     id: 'stone_proper_pile',
@@ -50,10 +73,54 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     name: 'A Proper Pile',
     description: 'Enough stone to make the ledger keeper nod approvingly.',
     skill: 'mining',
-    requirements: [{ itemId: 'stone', quantity: 50 }],
-    rewards: { xp: 150 },
-    sortOrder: 1,
+    requirements: [{ itemId: 'stone', quantity: 20 }],
+    rewards: { xp: 130 },
+    sortOrder: 2,
   },
+  {
+    id: 'stone_flintknappers_start',
+    collectionId: 'the_stone_ledger',
+    name: "A Flintknapper's Start",
+    description: 'Sharp little shards, sorted and set aside.',
+    skill: 'mining',
+    requirements: [{ itemId: 'stone_flint_shard', quantity: 10 }],
+    rewards: { xp: 160 },
+    sortOrder: 3,
+  },
+  {
+    id: 'stone_stockpile',
+    collectionId: 'the_stone_ledger',
+    name: 'Stockpile',
+    description: 'A working store of stone for the days ahead.',
+    skill: 'mining',
+    requirements: [{ itemId: 'stone', quantity: 35 }],
+    rewards: { xp: 200 },
+    sortOrder: 4,
+  },
+  {
+    id: 'stone_mixed_haul',
+    collectionId: 'the_stone_ledger',
+    name: 'A Mixed Haul',
+    description: 'Rough stone and flint together, the honest miner\u2019s mix.',
+    skill: 'mining',
+    requirements: [
+      { itemId: 'stone', quantity: 25 },
+      { itemId: 'stone_flint_shard', quantity: 12 },
+    ],
+    rewards: { xp: 260 },
+    sortOrder: 5,
+  },
+  {
+    id: 'stone_the_big_dig',
+    collectionId: 'the_stone_ledger',
+    name: 'The Big Dig',
+    description: 'A serious haul that fills a cart and aches the back.',
+    skill: 'mining',
+    requirements: [{ itemId: 'stone', quantity: 50 }],
+    rewards: { xp: 330 },
+    sortOrder: 6,
+  },
+  // Rarer / bulk chase (L10 -> L20+).
   {
     id: 'stone_polished_potential',
     collectionId: 'the_stone_ledger',
@@ -64,8 +131,8 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'stone', quantity: 25 },
       { itemId: 'stone_shiny_pebble', quantity: 1 },
     ],
-    rewards: { xp: 100 },
-    sortOrder: 2,
+    rewards: { xp: 400 },
+    sortOrder: 7,
   },
   {
     id: 'stone_spark_beneath',
@@ -77,8 +144,18 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'stone_flint_shard', quantity: 10 },
       { itemId: 'stone_tiny_geode', quantity: 1 },
     ],
-    rewards: { xp: 200 },
-    sortOrder: 3,
+    rewards: { xp: 550 },
+    sortOrder: 8,
+  },
+  {
+    id: 'stone_a_hundredfold',
+    collectionId: 'the_stone_ledger',
+    name: 'A Hundredfold',
+    description: 'One hundred stones, counted twice. A monument to grind.',
+    skill: 'mining',
+    requirements: [{ itemId: 'stone', quantity: 100 }],
+    rewards: { xp: 600 },
+    sortOrder: 9,
   },
   {
     id: 'stone_something_fell',
@@ -87,20 +164,31 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'A fragment fallen from the sky. A chase for the dedicated.',
     skill: 'mining',
     requirements: [{ itemId: 'stone_star_fragment', quantity: 1 }],
-    rewards: { xp: 300 },
-    sortOrder: 4,
+    rewards: { xp: 900 },
+    sortOrder: 10,
   },
 
-  // --- The Timber Archive (Woodcutting) ---
+  // --- The Timber Archive (Woodcutting, T1) ------------------------------
+  // Easy ladder (sums to ~1230 XP -> ~level 10 on its own).
   {
     id: 'tree_first_timber',
     collectionId: 'the_timber_archive',
     name: 'First Timber',
     description: 'A first armful of honest wood.',
     skill: 'woodcutting',
-    requirements: [{ itemId: 'wood', quantity: 10 }],
-    rewards: { xp: 40 },
+    requirements: [{ itemId: 'wood', quantity: 5 }],
+    rewards: { xp: 60 },
     sortOrder: 0,
+  },
+  {
+    id: 'tree_an_armful',
+    collectionId: 'the_timber_archive',
+    name: 'An Armful',
+    description: 'A little more wood, gathered with a steady rhythm.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'wood', quantity: 12 }],
+    rewards: { xp: 90 },
+    sortOrder: 1,
   },
   {
     id: 'tree_woodland_hoard',
@@ -108,10 +196,54 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     name: 'A Woodland Hoard',
     description: 'A hoard of timber worthy of the archive.',
     skill: 'woodcutting',
-    requirements: [{ itemId: 'wood', quantity: 50 }],
-    rewards: { xp: 150 },
-    sortOrder: 1,
+    requirements: [{ itemId: 'wood', quantity: 20 }],
+    rewards: { xp: 130 },
+    sortOrder: 2,
   },
+  {
+    id: 'tree_root_collector',
+    collectionId: 'the_timber_archive',
+    name: 'Root Collector',
+    description: 'Twisted roots, prized by collectors and curiosities alike.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'tree_knotted_root', quantity: 10 }],
+    rewards: { xp: 160 },
+    sortOrder: 3,
+  },
+  {
+    id: 'tree_lumber_stock',
+    collectionId: 'the_timber_archive',
+    name: 'Lumber Stock',
+    description: 'A working store of timber for the seasons ahead.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'wood', quantity: 35 }],
+    rewards: { xp: 200 },
+    sortOrder: 4,
+  },
+  {
+    id: 'tree_mixed_bundle',
+    collectionId: 'the_timber_archive',
+    name: 'A Mixed Bundle',
+    description: 'Wood and roots bundled together, the forager\u2019s mix.',
+    skill: 'woodcutting',
+    requirements: [
+      { itemId: 'wood', quantity: 25 },
+      { itemId: 'tree_knotted_root', quantity: 12 },
+    ],
+    rewards: { xp: 260 },
+    sortOrder: 5,
+  },
+  {
+    id: 'tree_the_great_fell',
+    collectionId: 'the_timber_archive',
+    name: 'The Great Fell',
+    description: 'A serious haul of timber, enough to raise a roof.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'wood', quantity: 50 }],
+    rewards: { xp: 330 },
+    sortOrder: 6,
+  },
+  // Rarer / bulk chase (L10 -> L20+).
   {
     id: 'tree_rooted_curiosity',
     collectionId: 'the_timber_archive',
@@ -122,8 +254,8 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'wood', quantity: 25 },
       { itemId: 'tree_bird_nest', quantity: 1 },
     ],
-    rewards: { xp: 100 },
-    sortOrder: 2,
+    rewards: { xp: 400 },
+    sortOrder: 7,
   },
   {
     id: 'tree_things_that_listen',
@@ -135,8 +267,18 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'tree_knotted_root', quantity: 10 },
       { itemId: 'tree_whispering_acorn', quantity: 1 },
     ],
-    rewards: { xp: 200 },
-    sortOrder: 3,
+    rewards: { xp: 550 },
+    sortOrder: 8,
+  },
+  {
+    id: 'tree_a_hundred_logs',
+    collectionId: 'the_timber_archive',
+    name: 'A Hundred Logs',
+    description: 'One hundred logs, stacked and seasoned. A grind well met.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'wood', quantity: 100 }],
+    rewards: { xp: 600 },
+    sortOrder: 9,
   },
   {
     id: 'tree_oldest_part',
@@ -145,11 +287,12 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'The ancient heart of living timber. A long chase.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'tree_ancient_heartwood', quantity: 1 }],
-    rewards: { xp: 300 },
-    sortOrder: 4,
+    rewards: { xp: 900 },
+    sortOrder: 10,
   },
 
-  // --- The Oak Codex (Woodcutting, from Oak Trees) ---
+  // --- The Oak Codex (Woodcutting, T2 oak) -------------------------------
+  // Post-L10 chase: requires the Oak (Tier 2) source, so rewards run high.
   {
     id: 'oak_first_harvest',
     collectionId: 'the_oak_codex',
@@ -157,7 +300,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Oak gives its timber grudgingly, but generously.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'wood', quantity: 40 }],
-    rewards: { xp: 120 },
+    rewards: { xp: 300 },
     sortOrder: 0,
   },
   {
@@ -167,7 +310,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'Strips of rugged oak bark, gathered by the armful.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'oak_bark_strip', quantity: 10 }],
-    rewards: { xp: 120 },
+    rewards: { xp: 350 },
     sortOrder: 1,
   },
   {
@@ -180,7 +323,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'wood', quantity: 25 },
       { itemId: 'oak_gall', quantity: 1 },
     ],
-    rewards: { xp: 150 },
+    rewards: { xp: 450 },
     sortOrder: 2,
   },
   {
@@ -193,7 +336,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
       { itemId: 'oak_bark_strip', quantity: 10 },
       { itemId: 'oak_mistletoe_sprig', quantity: 1 },
     ],
-    rewards: { xp: 220 },
+    rewards: { xp: 600 },
     sortOrder: 3,
   },
   {
@@ -203,7 +346,61 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'An acorn of solid golden light. The rarest oak prize.',
     skill: 'woodcutting',
     requirements: [{ itemId: 'oak_golden_acorn', quantity: 1 }],
+    rewards: { xp: 900 },
+    sortOrder: 4,
+  },
+
+  // --- The Deepvein Reliquary (Mining, T2/T3) ----------------------------
+  // Post-L10 chase fed by Boulder / Veined Rock / Magic Stone (iron + the
+  // Deepvein collectible ladder).
+  {
+    id: 'deepvein_iron_start',
+    collectionId: 'the_deepvein_reliquary',
+    name: 'A Vein of Iron',
+    description: 'Your first real haul of iron, straight from the heavy stone.',
+    skill: 'mining',
+    requirements: [{ itemId: 'iron_chunk', quantity: 15 }],
     rewards: { xp: 350 },
+    sortOrder: 0,
+  },
+  {
+    id: 'deepvein_heart_of_stone',
+    collectionId: 'the_deepvein_reliquary',
+    name: 'Heart of Stone',
+    description: 'The glittering cores of cracked-open geodes.',
+    skill: 'mining',
+    requirements: [{ itemId: 'mining_geode_heart', quantity: 5 }],
+    rewards: { xp: 450 },
+    sortOrder: 1,
+  },
+  {
+    id: 'deepvein_lodestone',
+    collectionId: 'the_deepvein_reliquary',
+    name: 'Lodestone',
+    description: 'Shards of magnetite that cling stubbornly to one another.',
+    skill: 'mining',
+    requirements: [{ itemId: 'mining_magnetite_shard', quantity: 8 }],
+    rewards: { xp: 550 },
+    sortOrder: 2,
+  },
+  {
+    id: 'deepvein_arcane_residue',
+    collectionId: 'the_deepvein_reliquary',
+    name: 'Arcane Residue',
+    description: 'Runed slivers that hum when set side by side.',
+    skill: 'mining',
+    requirements: [{ itemId: 'mining_runed_sliver', quantity: 3 }],
+    rewards: { xp: 700 },
+    sortOrder: 3,
+  },
+  {
+    id: 'deepvein_fallen_star',
+    collectionId: 'the_deepvein_reliquary',
+    name: 'The Fallen Star',
+    description: 'The molten heart of a meteor. The deepest miner\u2019s prize.',
+    skill: 'mining',
+    requirements: [{ itemId: 'mining_meteoric_core', quantity: 1 }],
+    rewards: { xp: 1000 },
     sortOrder: 4,
   },
 ];

@@ -78,6 +78,14 @@ export class CameraController implements Updatable {
   private restingY = 0;
   private restingScale = 1;
 
+  // Idle follow (see CONTEXT.md: Idle Mode): while 'on', the camera eases to keep
+  // a world point centered at `followScale`; 'returning' eases back to the
+  // resting frame after Idle Mode ends, then becomes 'off' (player control).
+  private followState: 'off' | 'on' | 'returning' = 'off';
+  private followX = 0;
+  private followY = 0;
+  private followScale = 1;
+
   private onKeyDown = (e: KeyboardEvent) => this.handleKey(e, true);
   private onKeyUp = (e: KeyboardEvent) => this.handleKey(e, false);
 
@@ -165,6 +173,24 @@ export class CameraController implements Updatable {
     this.viewMaxY = maxY;
   }
 
+  /**
+   * Begins (or updates) Idle Mode camera follow (see CONTEXT.md: Idle Mode): the
+   * camera eases each frame to keep the world point (x, y) centered, zoomed to
+   * `scale`. Player pan input is suspended while following.
+   */
+  followWorldPoint(x: number, y: number, scale: number): void {
+    this.followX = x;
+    this.followY = y;
+    this.followScale = Math.min(MAX_ZOOM, Math.max(this.minScale(), scale));
+    this.followState = 'on';
+  }
+
+  /** Ends Idle follow and eases the camera back to a centered, 1:1 resting frame. */
+  endFollow(): void {
+    if (this.followState === 'off') return;
+    this.followState = 'returning';
+  }
+
   /** Feeds the latest desktop pointer position (screen space) for edge-push. */
   setPointer(x: number, y: number, isMouse: boolean): void {
     this.pointerX = x;
@@ -214,6 +240,13 @@ export class CameraController implements Updatable {
   }
 
   update(dt: number): void {
+    // Idle follow runs regardless of player-input `enabled` (the sim owns the
+    // cursor while idle); it eases scale + position toward the followed point.
+    if (this.followState !== 'off') {
+      this.updateFollow(dt);
+      return;
+    }
+
     if (!this.enabled) return;
 
     let vx = 0;
@@ -246,6 +279,36 @@ export class CameraController implements Updatable {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.keys.clear();
+  }
+
+  /** Eases the camera toward the Idle follow frame (or back to rest on 'returning'). */
+  private updateFollow(dt: number): void {
+    const returning = this.followState === 'returning';
+    const targetScale = returning ? 1 : this.followScale;
+    const curScale = this.camera.scale.x || 1;
+    const sk = Math.min(1, dt * 6);
+    const nextScale = Math.min(MAX_ZOOM, Math.max(this.minScale(), curScale + (targetScale - curScale) * sk));
+    this.camera.scale.set(nextScale);
+
+    let desiredX: number;
+    let desiredY: number;
+    if (returning) {
+      // Re-center the whole world (the resting frame for a 1:1 camera).
+      desiredX = (this.viewportWidth - this.worldWidth * nextScale) / 2;
+      desiredY = (this.viewportHeight - this.worldHeight * nextScale) / 2;
+    } else {
+      // Place the followed world point at the viewport centre.
+      desiredX = this.viewportWidth / 2 - this.followX * nextScale;
+      desiredY = this.viewportHeight / 2 - this.followY * nextScale;
+    }
+    const pk = Math.min(1, dt * 8);
+    const nextX = this.camera.position.x + (desiredX - this.camera.position.x) * pk;
+    const nextY = this.camera.position.y + (desiredY - this.camera.position.y) * pk;
+    this.setPosition(nextX, nextY);
+
+    if (returning && Math.abs(nextScale - 1) < 0.01) {
+      this.followState = 'off';
+    }
   }
 
   /**

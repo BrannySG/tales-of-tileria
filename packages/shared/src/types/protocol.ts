@@ -1,10 +1,10 @@
 import type { AwardedItem } from './loot';
 import type { EntityInstance, EntityOverrides } from './entity';
 import type { CursorMode, CursorState } from './cursor';
-import type { SkillId, ToolId, ToolType } from './ids';
+import type { SkillId, ToolId, ToolType, TreeId } from './ids';
 import type { Player } from './player';
 import type { QuestState } from './quest';
-import type { SkillStats } from './skillTree';
+import type { CursorStats, SkillStats } from './skillTree';
 
 /**
  * Commands sent INTO the sim (client -> sim today; client -> server later).
@@ -70,22 +70,38 @@ export type SimCommand =
     }
   | {
       /**
-       * Allocate a node in a Skill's tree (see CONTEXT.md: Skill Tree, ADR-0022).
-       * A no-op unless the node exists, is connected to an already-allocated node
-       * (or the root), the player meets its level requirement, and has enough
-       * unspent Skill Points (1 per Skill level).
+       * Allocate a node in a tree (see CONTEXT.md: Skill Tree, Clicker; ADR-0022).
+       * `skillId` is a tree id (a Skill or the `'clicker'` meta-track). A no-op
+       * unless the node exists, is connected to an already-allocated node (or the
+       * root), the player meets its level requirement, and has enough unspent
+       * Points (1 per level; Clicker level is derived from total Skill levels).
        */
       type: 'skill.allocateNode';
-      skillId: SkillId;
+      skillId: TreeId;
       nodeId: string;
     }
   | {
       /**
-       * Refund every allocated node in a Skill's tree (see CONTEXT.md: Respec).
-       * A no-op if nothing is allocated.
+       * Refund every allocated node in a tree (see CONTEXT.md: Respec). `skillId`
+       * is a tree id (a Skill or the `'clicker'` meta-track). A no-op if nothing
+       * is allocated.
        */
       type: 'skill.respecTree';
-      skillId: SkillId;
+      skillId: TreeId;
+    }
+  | {
+      /**
+       * Enter Idle Mode (see CONTEXT.md: Idle Mode): detach the cursor and have
+       * the sim auto-roam + gather the given Skills. A no-op unless the player has
+       * unlocked the Clicker Idle capability and each Skill's per-Skill idle node;
+       * the set is clamped to `maxIdleSkills`.
+       */
+      type: 'idle.start';
+      skillIds: SkillId[];
+    }
+  | {
+      /** Leave Idle Mode and hand the cursor back to the player. */
+      type: 'idle.stop';
     }
   | { type: 'cosmetic.equip'; cursorSkinId: string };
 
@@ -259,23 +275,50 @@ export type SimEvent =
       xpAwarded: number;
     }
   | {
-      /** A Skill Tree node was allocated; carries the new full allocation set. */
+      /**
+       * A tree node gained a Rank; carries the node's new Rank and the full
+       * allocation map (nodeId -> Rank). `skillId` is a tree id (a Skill or the
+       * `'clicker'` meta-track). See CONTEXT.md: Rank, Clicker.
+       */
       type: 'skill.nodeAllocated';
-      skillId: SkillId;
+      skillId: TreeId;
       nodeId: string;
-      allocated: string[];
+      rank: number;
+      allocated: Record<string, number>;
     }
   | {
-      /** A Skill Tree was fully refunded (respec); `allocated` is now empty. */
+      /**
+       * A tree was fully refunded (respec); `allocated` is now empty. `skillId`
+       * is a tree id (a Skill or the `'clicker'` meta-track).
+       */
       type: 'skill.treeRespecced';
-      skillId: SkillId;
-      allocated: string[];
+      skillId: TreeId;
+      allocated: Record<string, number>;
     }
   | {
       /** A Skill's derived Stat block changed (allocation/respec). Sim-authoritative. */
       type: 'player.statsChanged';
       skillId: SkillId;
       stats: SkillStats;
+    }
+  | {
+      /**
+       * The player's derived Cursor/Idle stat block changed (Clicker or per-Skill
+       * idle node allocation/respec). Sim-authoritative (see CONTEXT.md: Cursor
+       * stat). The client renders these and drives Idle Mode presentation.
+       */
+      type: 'player.cursorStatsChanged';
+      stats: CursorStats;
+    }
+  // --- Idle Mode (see CONTEXT.md: Idle Mode) ---
+  | {
+      /** The player entered Idle Mode for `skillIds` (private confirmation). */
+      type: 'idle.started';
+      skillIds: SkillId[];
+    }
+  | {
+      /** The player left Idle Mode (private confirmation). */
+      type: 'idle.stopped';
     }
   // --- Cosmetics (see CONTEXT.md: Cursor skin / Achievement) ---
   | {
@@ -367,6 +410,11 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   'skill.nodeAllocated': 'player',
   'skill.treeRespecced': 'player',
   'player.statsChanged': 'player',
+  'player.cursorStatsChanged': 'player',
+  // Idle Mode: the start/stop confirmations are private; the cursor's idle mode
+  // itself rides the world-scoped `cursor.moved` so remotes can render it.
+  'idle.started': 'player',
+  'idle.stopped': 'player',
   // Cosmetics: unlocks are private; an equip must be seen by everyone.
   'cosmetic.unlocked': 'player',
   'cosmetic.equipped': 'world',
@@ -417,6 +465,12 @@ export interface ZoneSnapshot {
    * Stats for gameplay. Keyed by the skills that have a Skill Tree.
    */
   stats: Partial<Record<SkillId, SkillStats>>;
+  /**
+   * The player's sim-derived Cursor/Idle stat block (see CONTEXT.md: Cursor
+   * stat, Idle Mode). Authoritative; the client renders it and drives Idle Mode
+   * presentation from it.
+   */
+  cursorStats: CursorStats;
 }
 
 /**

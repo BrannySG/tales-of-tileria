@@ -4,7 +4,7 @@ import { WorldScene } from '../game/WorldScene';
 import { snapshotPlayerForSave, type WorldSession } from '../game/useWorldScene';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
-import { loadPlayerSave } from '../persistence/playerSave';
+import { loadPlayerSave, wipeProgressionSave, WIPE_PROGRESSION_ON_JOIN } from '../persistence/playerSave';
 import { buildStarterPlayer } from '../persistence/starterPlayer';
 import type { MusicTrack } from '../audio/SoundSystem';
 import { WelcomeNotice } from '../ui/WelcomeNotice';
@@ -25,16 +25,30 @@ const LEVEL_MUSIC: Record<string, MusicTrack | null> = {
  * `playerSave.ts`) we restore it so progress survives a refresh; otherwise we
  * fall back to the default starter kit (basics owned, crafting unlocked, the
  * persisted divine name).
+ *
+ * While the {@link WIPE_PROGRESSION_ON_JOIN} testing toggle is on, we instead
+ * reset progression to the starter kit on every join, preserving only identity
+ * (persisted username) and cosmetics (unlocked + equipped cursor skins). The
+ * `wiped` flag reports whether an existing save was actually overwritten so the
+ * `WelcomeNotice` can explain it.
  */
-function buildReturningPlayer(): Player {
+function buildReturningPlayer(): { player: Player; wiped: boolean } {
   const saved = loadPlayerSave();
+
+  if (WIPE_PROGRESSION_ON_JOIN) {
+    // Reset progression to the starter kit (keeping name + cosmetics) and write
+    // it back, so the wipe sticks and in-session saves continue fresh. `wiped`
+    // reports whether there was actually prior progress to clear.
+    return { player: wipeProgressionSave(), wiped: saved != null };
+  }
+
   if (saved) {
     saved.id = 'local';
     const name = getPlayerName();
     if (name) saved.displayName = name;
-    return saved;
+    return { player: saved, wiped: false };
   }
-  return buildStarterPlayer('local', getPlayerName() ?? 'Wanderer');
+  return { player: buildStarterPlayer('local', getPlayerName() ?? 'Wanderer'), wiped: false };
 }
 
 export function GameMode() {
@@ -43,6 +57,9 @@ export function GameMode() {
   const [error, setError] = useState('');
   // Returning players see the welcome + update notes on every load (tap to close).
   const [showWelcome, setShowWelcome] = useState(true);
+  // Resolve the join seed once: the lazy initializer also performs the testing
+  // progression wipe (if enabled), so we must not re-run it on every render.
+  const [{ player: seedPlayer, wiped: progressionWiped }] = useState(buildReturningPlayer);
 
   // --- Beacon Travel (see ADR-0023) ---
   // The carried snapshot survives the Level swap in memory; the fade covers the
@@ -160,7 +177,7 @@ export function GameMode() {
             playerName={getPlayerName() ?? 'Wanderer'}
             locationName={level.displayName}
             variant="game"
-            player={carried ?? buildReturningPlayer()}
+            player={carried ?? seedPlayer}
             music={level.id in LEVEL_MUSIC ? LEVEL_MUSIC[level.id] : undefined}
             persistPlayer
             onBeaconActivate={onBeaconActivate}
@@ -199,7 +216,13 @@ export function GameMode() {
           onCancel={() => setPendingTravel(null)}
         />
       )}
-      {showWelcome && <WelcomeNotice variant="return" onClose={() => setShowWelcome(false)} />}
+      {showWelcome && (
+        <WelcomeNotice
+          variant="return"
+          progressionWiped={progressionWiped}
+          onClose={() => setShowWelcome(false)}
+        />
+      )}
     </>
   );
 }

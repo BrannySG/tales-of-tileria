@@ -67,6 +67,10 @@ import oakBarkStrip from '@assets/Items/T_Item_OakBarkStrip.png';
 import oakGall from '@assets/Items/T_Item_OakGall.png';
 import oakMistletoeSprig from '@assets/Items/T_Item_OakMistletoeSprig.png';
 import oakGoldenAcorn from '@assets/Items/T_Item_OakGoldenAcorn.png';
+import miningGeodeHeart from '@assets/Items/T_Item_MiningGeodeHeart.png';
+import miningMagnetiteShard from '@assets/Items/T_Item_MiningMagnetiteShard.png';
+import miningRunedSliver from '@assets/Items/T_Item_MiningRunedSliver.png';
+import miningMeteoricCore from '@assets/Items/T_Item_MiningMeteoricCore.png';
 import coinGold from '@assets/UI/Coin 2 Gold Outline 256.png';
 import coinGoldHud from '@assets/UI/Coin 2 Gold Outline 64.png';
 import type { ToolType } from '@tot/shared';
@@ -142,6 +146,10 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   item_oak_gall: oakGall,
   item_oak_mistletoe_sprig: oakMistletoeSprig,
   item_oak_golden_acorn: oakGoldenAcorn,
+  item_mining_geode_heart: miningGeodeHeart,
+  item_mining_magnetite_shard: miningMagnetiteShard,
+  item_mining_runed_sliver: miningRunedSliver,
+  item_mining_meteoric_core: miningMeteoricCore,
   coin_gold: coinGold,
   coin_gold_hud: coinGoldHud,
 };

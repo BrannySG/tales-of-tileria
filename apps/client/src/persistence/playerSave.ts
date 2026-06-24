@@ -9,10 +9,30 @@
  * quota failures degrade to "no save" rather than throwing.
  */
 import { createPlayer, xpToLevel, type Player } from '@tot/shared';
+import { buildStarterPlayer } from './starterPlayer';
+import { getPlayerName } from '../onboarding';
 
 const SAVE_KEY = 'tot.playerSave';
-/** Bump when the persisted shape changes incompatibly; older saves are dropped. */
-const SCHEMA_VERSION = 1;
+/**
+ * Bump when the persisted shape changes incompatibly; older saves are dropped.
+ * v2: Skill Tree allocations are now persisted again (the ADR-0022 reshape from
+ * `string[]` to a per-tree Rank map is long settled), so pre-v2 saves — which
+ * may still carry the old `string[]` shape — are discarded rather than loaded.
+ */
+const SCHEMA_VERSION = 2;
+
+/**
+ * TESTING TOGGLE — flip to `false` to restore normal cross-session persistence.
+ *
+ * While `true`, every time a returning player joins (see `GameMode`) we reset
+ * their *progression* save back to the starter kit: skills, inventory, tools,
+ * crafting, quests, collections, skill trees, divine powers, passive damage.
+ * Identity / "key data" is deliberately kept — the persisted username (a
+ * separate localStorage key) plus unlocked + equipped cursor skins. This keeps
+ * testing fast (a fresh run every join) without making players re-do onboarding
+ * or re-enter their name. Returning players get a heads-up via `WelcomeNotice`.
+ */
+export const WIPE_PROGRESSION_ON_JOIN = true;
 
 interface SaveEnvelope {
   schemaVersion: number;
@@ -48,9 +68,9 @@ export function loadPlayerSave(): Player | null {
       quests: [...(saved.quests ?? [])],
       // Collections added later: default for pre-collection saves.
       collections: { ...(saved.collections ?? base.collections) },
-      // Skill Trees (ADR-0022) replace the old Skill-Point/upgrade system. Older
-      // saves keep their XP/levels (above) but start with empty trees; the legacy
-      // `skillPoints`/`skillUpgrades` fields are intentionally dropped here.
+      // Skill Tree allocations persist across sessions (schema v2). Older saves
+      // with the pre-ADR-0022 `string[]` shape never reach here — they fail the
+      // SCHEMA_VERSION check above and load as a fresh player instead.
       skillTrees: { ...(saved.skillTrees ?? base.skillTrees) },
       divinePowers: { ...base.divinePowers, ...saved.divinePowers },
       unlockedCursorSkins,
@@ -78,4 +98,22 @@ export function clearPlayerSave(): void {
   } catch {
     // Ignore storage failures.
   }
+}
+
+/**
+ * Resets the persisted progression save back to the starter kit while keeping
+ * identity / "key data": the persisted username (a separate localStorage key)
+ * plus unlocked + equipped cursor skins carried over from any existing save.
+ * Writes the fresh snapshot and returns it. Backs both the join-time testing
+ * wipe ({@link WIPE_PROGRESSION_ON_JOIN}) and the Settings "Force wipe save".
+ */
+export function wipeProgressionSave(): Player {
+  const saved = loadPlayerSave();
+  const fresh = buildStarterPlayer('local', getPlayerName() ?? saved?.displayName ?? 'Wanderer');
+  if (saved) {
+    fresh.unlockedCursorSkins = [...saved.unlockedCursorSkins];
+    fresh.cursorSkinId = saved.cursorSkinId;
+  }
+  savePlayerSave(fresh);
+  return fresh;
 }

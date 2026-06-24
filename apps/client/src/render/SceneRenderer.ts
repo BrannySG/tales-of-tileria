@@ -2,6 +2,7 @@ import {
   Application,
   Container,
   Graphics,
+  Point,
   Rectangle,
   Sprite,
   Text,
@@ -13,6 +14,7 @@ import {
   cursorSkinTextureId,
   getItemDefinition,
   getRecipeDefinition,
+  getSkillTreeNode,
   getToolDefinition,
   requireEntityDefinition,
   type DamageSource,
@@ -75,6 +77,8 @@ const TOOL_LABEL: Record<ToolType, string> = {
 };
 
 const RARITY_ORDER: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+/** Camera zoom (multiple of 1:1) while following the idle cursor (see CONTEXT.md: Idle Mode). */
+const IDLE_FOLLOW_ZOOM = 1.7;
 
 const LOOT_DROP_SOUND: Record<Rarity, SoundName> = {
   common: 'lootDropCommon',
@@ -159,10 +163,22 @@ export class SceneRenderer {
   private lootDrops!: LootDropSystem;
   private damageNumbers!: DamageNumbers;
   private cursorView?: CursorView;
+  /**
+   * The auto-roaming Idle Mode cursor (see CONTEXT.md: Idle Mode), rendered
+   * separately from the player's pointer cursor so the pointer stays visible and
+   * usable for UI while the sim drives this one around the world.
+   */
+  private idleCursorView?: CursorView;
   /** Other players' cursors in this Level instance (networked sessions only). */
   private remoteCursors?: RemoteCursorManager;
   private currentTargetId: string | undefined;
   private locked = false;
+  /** This client's player id (networked or single-player), set at init from the snapshot. */
+  private localId = '';
+  /** True while the LOCAL player is idle-gathering (the sim drives the cursor). */
+  private idleActive = false;
+  /** Last authoritative idle cursor position (world units) for camera follow + glue. */
+  private readonly idleWorld = new Point(0, 0);
   private unsubscribe?: () => void;
   /** Unsubscribe for the armed-item -> cursor carried-icon binding. */
   private hudUnsubscribe?: () => void;
@@ -401,6 +417,8 @@ export class SceneRenderer {
     this.npcReactions = new NpcReactionController();
 
     const snapshot = this.opts.transport.getSnapshot();
+    // The local player's id: explicit when networked, else the sole player's id.
+    this.localId = this.opts.localPlayerId ?? snapshot.player.id;
     // Player-state mirrors (inventory/tools/skills/crafting) come from the HUD
     // store, which `bindHud` has already hydrated from this same snapshot.
     for (const inst of snapshot.entities) this.addEntityView(inst);
@@ -420,10 +438,27 @@ export class SceneRenderer {
         cursorSkinTextureId(snapshot.player.cursorSkinId),
       );
       this.cursorLayer.addChild(this.cursorView.container);
+
+      // The separate auto-roaming Idle Mode cursor (see CONTEXT.md: Idle Mode):
+      // same skin, with the moon indicator, hidden until idling. The sim drives
+      // its world position; the player's pointer cursor above stays independent.
+      this.idleCursorView = new CursorView(
+        this.opts.textures,
+        this.toolIconForType(snapshot.player.equippedToolType),
+        cursorSkinTextureId(snapshot.player.cursorSkinId),
+      );
+      this.idleCursorView.setIdle(true);
+      this.idleCursorView.container.visible = false;
+      this.cursorLayer.addChild(this.idleCursorView.container);
+
       app.stage.on('globalpointermove', (e: FederatedPointerEvent) => {
+        // The player's pointer cursor always tracks the mouse so it stays visible
+        // and usable (UI, menus, upgrades) — even while idling.
         this.cursorView?.setPosition(e.global.x, e.global.y);
-        // Cursors travel as WORLD coords so remote clients place them at the right
-        // spot in the shared world regardless of each viewer's camera pan.
+        // While idle the sim owns the *networked* cursor (the roamer above), so
+        // don't send pointer moves that it would only ignore (see CONTEXT.md: Idle
+        // Mode). Otherwise broadcast as WORLD coords so remotes place us correctly.
+        if (this.idleActive) return;
         const wp = this.toWorldPoint(e.global.x, e.global.y);
         this.opts.transport.send({ type: 'cursor.move', x: wp.x, y: wp.y });
       });
@@ -925,6 +960,7 @@ export class SceneRenderer {
         // World-scoped: re-skin the equipping player's cursor for everyone.
         if (!this.networked || event.playerId === this.opts.localPlayerId) {
           this.cursorView?.setSkin(cursorSkinTextureId(event.cursorSkinId));
+          this.idleCursorView?.setSkin(cursorSkinTextureId(event.cursorSkinId));
         } else {
           this.remoteCursors?.setSkin(event.playerId, event.cursorSkinId);
         }
@@ -935,6 +971,25 @@ export class SceneRenderer {
         break;
       }
       case 'cursor.moved': {
+        if (event.playerId === this.localId) {
+          // Our own cursor: the sim only broadcasts this while it drives the
+          // cursor (Idle Mode). Drive the separate roaming idle cursor + camera-
+          // follow from it; the player's pointer cursor is left alone.
+          if (event.mode === 'idle') {
+            this.idleWorld.set(event.x, event.y);
+            if (!this.idleActive) {
+              this.idleActive = true;
+              if (this.idleCursorView) this.idleCursorView.container.visible = true;
+            }
+            this.camera.followWorldPoint(event.x, event.y, IDLE_FOLLOW_ZOOM);
+            this.syncIdleCursorScreen();
+          } else if (this.idleActive) {
+            this.idleActive = false;
+            if (this.idleCursorView) this.idleCursorView.container.visible = false;
+            this.camera.endFollow();
+          }
+          break;
+        }
         this.remoteCursors?.move(event.playerId, event.x, event.y, event.mode);
         break;
       }
@@ -1113,7 +1168,20 @@ export class SceneRenderer {
         break;
       }
       case 'skill.nodeAllocated': {
-        this.opts.sound?.play('respawn');
+        // Context-aware feedback: a Tier unlock is the most celebratory, a node
+        // reaching its max Rank gets a "ding", and a plain Rank gets a soft tick.
+        const node = getSkillTreeNode(event.skillId, event.nodeId);
+        if (node?.effect.kind === 'tierUnlock') {
+          this.opts.sound?.play('skillTier');
+        } else if (event.rank >= Math.max(1, node?.maxRank ?? 1)) {
+          this.opts.sound?.play('skillComplete');
+        } else {
+          this.opts.sound?.play('skillAllocate');
+        }
+        break;
+      }
+      case 'skill.treeRespecced': {
+        this.opts.sound?.play('skillRespec');
         break;
       }
       case 'inventory.changed': {
@@ -1434,8 +1502,33 @@ export class SceneRenderer {
     this.lootDrops.update(dt);
     this.damageNumbers.update(dt);
     this.cursorView?.update(dt);
+    // Glue the roaming idle cursor to its authoritative world position each frame:
+    // the camera eases between throttled `cursor.moved` updates, so recompute the
+    // screen point from the world point so the roamer stays on its target.
+    if (this.idleActive) {
+      this.syncIdleCursorScreen();
+      this.idleCursorView?.update(dt);
+    }
     this.refreshHoverAfterCameraPan();
     this.syncInspectProjection();
+  }
+
+  /** Places the roaming idle cursor at the screen point for its authoritative world pos. */
+  private syncIdleCursorScreen(): void {
+    if (!this.idleCursorView) return;
+    const screen = this.worldCamera.toGlobal(this.idleWorld);
+    this.idleCursorView.setPosition(screen.x, screen.y);
+  }
+
+  /**
+   * Snaps the (still-free) sim cursor to the current view centre so Idle Mode
+   * begins from the middle of the screen, not wherever the Idle button sat at the
+   * bottom (see CONTEXT.md: Idle Mode). Sent just before `idle.start`, while the
+   * cursor is still player-controlled, so the sim accepts the move.
+   */
+  centerCursorForIdle(): void {
+    const wp = this.toWorldPoint(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2);
+    this.opts.transport.send({ type: 'cursor.move', x: wp.x, y: wp.y });
   }
 
   /**

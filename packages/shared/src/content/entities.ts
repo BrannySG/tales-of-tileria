@@ -17,7 +17,7 @@ export const smallRock: EntityDefinition = {
   respawns: { respawnSeconds: 8 },
   loot: { lootTableId: 'rock_basic' },
   requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 1 },
-  xp: { rewards: { mining: 8 } },
+  xp: { rewards: { mining: 2 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable'],
 };
@@ -42,7 +42,7 @@ export const basicTree: EntityDefinition = {
   respawns: { respawnSeconds: 10 },
   loot: { lootTableId: 'tree_basic' },
   requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 1 },
-  xp: { rewards: { woodcutting: 12 } },
+  xp: { rewards: { woodcutting: 2 } },
   interactionRule: 'claimed',
   tags: ['tree', 'choppable'],
 };
@@ -70,7 +70,7 @@ export const oakTree: EntityDefinition = {
   respawns: { respawnSeconds: 45 },
   loot: { lootTableId: 'oak_basic' },
   requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 2 },
-  xp: { rewards: { woodcutting: 15 } },
+  xp: { rewards: { woodcutting: 5 } },
   interactionRule: 'claimed',
   tags: ['tree', 'choppable', 'oak'],
 };
@@ -97,7 +97,7 @@ export const boulder: EntityDefinition = {
   respawns: { respawnSeconds: 30 },
   loot: { lootTableId: 'boulder' },
   requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 2 },
-  xp: { rewards: { mining: 20 } },
+  xp: { rewards: { mining: 5 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'hard'],
 };
@@ -124,7 +124,7 @@ export const veinedRock: EntityDefinition = {
   respawns: { respawnSeconds: 40 },
   loot: { lootTableId: 'veined_rock' },
   requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 3 },
-  xp: { rewards: { mining: 28 } },
+  xp: { rewards: { mining: 9 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'iron'],
 };
@@ -151,7 +151,7 @@ export const magicStone: EntityDefinition = {
   respawns: { respawnSeconds: 45 },
   loot: { lootTableId: 'magic_stone' },
   requirements: { skill: { skillId: 'mining', level: 1 }, toolType: 'pickaxe', tier: 3 },
-  xp: { rewards: { mining: 30 } },
+  xp: { rewards: { mining: 9 } },
   interactionRule: 'claimed',
   tags: ['rock', 'mineable', 'magic'],
 };

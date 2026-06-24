@@ -14,6 +14,24 @@ const SHADOW_RX_RATIO = 0.34;
 const SHADOW_FLATNESS = 0.34;
 
 /**
+ * Draws the Idle Mode "moon" indicator (see CONTEXT.md: Idle Mode) into `g`: a
+ * soft glow plus a pale crescent, used to mark a cursor that is idle-gathering.
+ * Drawn around the local origin so callers just position the Graphics.
+ */
+export function drawMoon(g: Graphics): Graphics {
+  g.clear();
+  // Soft halo, then a pale full-moon disc with a couple of faint craters. Drawn
+  // opaque-over-transparent (never punches the world background to fake a
+  // crescent), so it reads correctly over any scenery.
+  g.circle(0, 0, 15).fill({ color: 0xbfd0ff, alpha: 0.16 });
+  g.circle(0, 0, 9).fill({ color: 0xf3f6ff, alpha: 0.96 });
+  g.circle(-2.5, -2, 2.4).fill({ color: 0xcdd6ef, alpha: 0.9 });
+  g.circle(3, 2.5, 1.8).fill({ color: 0xcdd6ef, alpha: 0.9 });
+  g.eventMode = 'none';
+  return g;
+}
+
+/**
  * Builds an outline filter for an entity sprite. Each sprite gets its own
  * instance so per-object filter padding stays correct.
  */

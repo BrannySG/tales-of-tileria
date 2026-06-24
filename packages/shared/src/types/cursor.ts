@@ -1,11 +1,12 @@
-import type { ToolType } from './ids';
+import type { SkillId, ToolType } from './ids';
 
 /**
- * Cursor modes. Note (see CONTEXT.md): Lock is a hands-free STATE, not a
- * damage type. Passive damage ticks on the current Target regardless of
- * whether it was acquired by hovering or pinned by Lock.
+ * Cursor modes. Note (see CONTEXT.md): Lock is a hands-free STATE on a single
+ * target, not a damage type. `idle` is the broader **Idle Mode** (see
+ * CONTEXT.md): a sim-driven cursor that roams and auto-gathers across many
+ * targets. Both are broadcast (`cursor.moved`) so remotes can render them.
  */
-export type CursorMode = 'free' | 'hovering' | 'locked';
+export type CursorMode = 'free' | 'hovering' | 'locked' | 'idle';
 
 export interface CursorState {
   x: number;
@@ -14,6 +15,11 @@ export interface CursorState {
   /** The entity currently receiving passive damage, if any. */
   targetInstanceId?: string;
   equippedToolType?: ToolType;
+  /**
+   * While `mode === 'idle'`, the active idle Skill set the sim-driven cursor is
+   * harvesting among (see CONTEXT.md: Idle Mode). Empty/undefined otherwise.
+   */
+  idleSkillIds?: SkillId[];
 }
 
 /**

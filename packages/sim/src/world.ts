@@ -1,8 +1,10 @@
 import {
+  CLICKER_TREE_ID,
   DEFAULT_COMBAT_CONFIG,
   DEFAULT_CURSOR_SKIN_ID,
   addressEvent,
   createPlayer,
+  deriveCursorStats,
   deriveStats,
   emptyDivinePowers,
   emptySkills,
@@ -22,6 +24,7 @@ import {
   requireToolDefinition,
   sandboxSkillTrees,
   skillTreePoints,
+  treeEarnedLevel,
   xpToLevel,
   xpToReach,
   type AddressedEvent,
@@ -30,6 +33,7 @@ import {
   type CollectionEntryProgress,
   type CombatConfig,
   type CursorState,
+  type CursorStats,
   type DamageSource,
   type DivinePowerId,
   type EntityInstance,
@@ -45,6 +49,7 @@ import {
   type SkillStats,
   type ToolId,
   type ToolType,
+  type TreeId,
   type ZoneSnapshot,
 } from '@tot/shared';
 import { rollLoot } from './loot';
@@ -82,6 +87,13 @@ interface PlayerSession {
   lastSmiteTargetId?: string;
   /** Consecutive active taps on `lastSmiteTargetId` (resets on target change). */
   smiteCount: number;
+  /**
+   * Idle Mode (see CONTEXT.md): true once the sim-driven cursor has reached its
+   * current idle target, so passive gather may tick (no gather while travelling).
+   */
+  idleArrived: boolean;
+  /** Time accumulated toward the next throttled idle `cursor.moved` broadcast. */
+  idleMoveBroadcastAccumulator: number;
 }
 
 /** Per-entity contention bookkeeping for the claim/credit model (see ADR-0014/0016). */
@@ -278,6 +290,8 @@ export class World {
       cursor: { x: 0, y: 0, mode: 'free', equippedToolType: player.equippedToolType },
       passiveAccumulator: 0,
       smiteCount: 0,
+      idleArrived: false,
+      idleMoveBroadcastAccumulator: 0,
     };
   }
 
@@ -329,7 +343,19 @@ export class World {
       cursor: this.getCursor(playerId),
       player: this.getPlayer(playerId),
       stats: this.getStats(playerId),
+      cursorStats: this.getCursorStats(playerId),
     };
+  }
+
+  /**
+   * The player's sim-derived Cursor/Idle stat block (see CONTEXT.md: Cursor
+   * stat, Idle Mode). Authoritative: the client renders it and drives Idle Mode
+   * presentation from it; it never recomputes these for gameplay.
+   */
+  getCursorStats(playerId: PlayerId = this.defaultPlayerId): CursorStats {
+    const session = this.sessions.get(playerId);
+    const player = session ? session.player : createPlayer(playerId, 'You');
+    return deriveCursorStats(player);
   }
 
   /**
@@ -342,6 +368,9 @@ export class World {
     const player = session ? session.player : createPlayer(playerId, 'You');
     const out: Partial<Record<SkillId, SkillStats>> = {};
     for (const tree of listSkillTrees()) {
+      // `listSkillTrees` excludes the Clicker meta-track, so every id here is a
+      // real Skill; the guard narrows `TreeId` -> `SkillId` for the resolver.
+      if (tree.skillId === CLICKER_TREE_ID) continue;
       out[tree.skillId] = deriveStats(player, tree.skillId, this.combat);
     }
     return out;
@@ -368,6 +397,9 @@ export class World {
     if (!session) return [];
     switch (cmd.type) {
       case 'cursor.move': {
+        // While idle the sim drives the cursor (see CONTEXT.md: Idle Mode);
+        // ignore client moves so the two don't fight.
+        if (session.cursor.mode === 'idle') return [];
         session.cursor.x = cmd.x;
         session.cursor.y = cmd.y;
         // Broadcast so other players' clients can render this cursor's movement.
@@ -466,6 +498,12 @@ export class World {
       case 'skill.respecTree':
         return this.respecSkillTree(cmd.skillId, session);
 
+      case 'idle.start':
+        return this.startIdle(cmd.skillIds, session);
+
+      case 'idle.stop':
+        return this.stopIdle(session);
+
       case 'cosmetic.equip':
         return this.equipCursorSkin(cmd.cursorSkinId, playerId, session);
 
@@ -495,9 +533,12 @@ export class World {
   tickAddressed(dtSeconds: number): AddressedEvent[] {
     const out: AddressedEvent[] = [];
     // Passive damage is per-player: each session ticks on its own target, and
-    // any deplete it causes credits that session's player (lastHit).
+    // any deplete it causes credits that session's player (lastHit). Idle Mode
+    // (see CONTEXT.md) first roams the sim-driven cursor toward a target, then
+    // the same passive tick gathers it.
     for (const [pid, session] of this.sessions) {
       const events: SimEvent[] = [];
+      this.tickIdle(dtSeconds, session, events);
       this.tickPassiveDamage(dtSeconds, session, events);
       for (const e of events) out.push(addressEvent(e, pid));
     }
@@ -1062,29 +1103,35 @@ export class World {
    * Skill Points, and the node neighbors an already-allocated node (or the root).
    * Emits the new allocation set + the recomputed Stat block. No-op otherwise.
    */
-  private allocateSkillNode(skillId: SkillId, nodeId: string, session: PlayerSession): SimEvent[] {
-    const tree = getSkillTree(skillId);
+  private allocateSkillNode(treeId: TreeId, nodeId: string, session: PlayerSession): SimEvent[] {
+    const tree = getSkillTree(treeId);
     if (!tree) return [];
     const node = tree.nodes.find((n) => n.id === nodeId);
     if (!node || node.id === tree.rootNodeId) return [];
 
     const player = session.player;
-    const state = player.skillTrees[skillId] ?? { allocated: [] };
-    if (state.allocated.includes(nodeId)) return [];
-    if (this.skillLevel(session, skillId) < node.levelReq) return [];
-    if (skillTreePoints(player, skillId).available < node.cost) return [];
+    const state = player.skillTrees[treeId] ?? { allocated: {} };
+    const currentRank = state.allocated[nodeId] ?? 0;
+    const maxRank = Math.max(1, node.maxRank ?? 1);
+    if (currentRank >= maxRank) return [];
+    // Level gate: a Skill's own level, or the derived Clicker level (see Clicker).
+    if (treeEarnedLevel(player, treeId) < node.levelReq) return [];
+    if (skillTreePoints(player, treeId).available < node.cost) return [];
 
-    const allocatedSet = new Set([tree.rootNodeId, ...state.allocated]);
-    const connected = node.edges.some((edgeId) => allocatedSet.has(edgeId));
+    // Connected = a neighbor (or the free root) has at least Rank 1 allocated.
+    const connected = node.edges.some(
+      (edgeId) => edgeId === tree.rootNodeId || (state.allocated[edgeId] ?? 0) >= 1,
+    );
     if (!connected) return [];
 
-    const allocated = [...state.allocated, nodeId];
-    player.skillTrees[skillId] = { allocated };
-    const stats = deriveStats(player, skillId, this.combat);
-    return [
-      { type: 'skill.nodeAllocated', skillId, nodeId, allocated: [...allocated] },
-      { type: 'player.statsChanged', skillId, stats },
+    const rank = currentRank + 1;
+    const allocated = { ...state.allocated, [nodeId]: rank };
+    player.skillTrees[treeId] = { allocated };
+    const events: SimEvent[] = [
+      { type: 'skill.nodeAllocated', skillId: treeId, nodeId, rank, allocated: { ...allocated } },
     ];
+    events.push(...this.treeStatEvents(treeId, node.effect.kind, player));
+    return events;
   }
 
   /**
@@ -1092,16 +1139,185 @@ export class World {
    * Emits the now-empty allocation set + the recomputed Stat block. No-op when
    * nothing is allocated.
    */
-  private respecSkillTree(skillId: SkillId, session: PlayerSession): SimEvent[] {
+  private respecSkillTree(treeId: TreeId, session: PlayerSession): SimEvent[] {
     const player = session.player;
-    const state = player.skillTrees[skillId];
-    if (!state || state.allocated.length === 0) return [];
-    player.skillTrees[skillId] = { allocated: [] };
-    const stats = deriveStats(player, skillId, this.combat);
-    return [
-      { type: 'skill.treeRespecced', skillId, allocated: [] },
-      { type: 'player.statsChanged', skillId, stats },
+    const state = player.skillTrees[treeId];
+    if (!state || Object.keys(state.allocated).length === 0) return [];
+    player.skillTrees[treeId] = { allocated: {} };
+    const events: SimEvent[] = [{ type: 'skill.treeRespecced', skillId: treeId, allocated: {} }];
+    // A respec can change combat Stats and/or idle unlocks, so emit both for a
+    // Skill tree; the Clicker track only affects Cursor stats.
+    events.push(...this.treeStatEvents(treeId, treeId === CLICKER_TREE_ID ? 'cursorStat' : 'idleSkill', player));
+    return events;
+  }
+
+  /**
+   * The stat-change events to emit after a tree mutation: the Clicker track
+   * re-emits the Cursor/Idle stats; a Skill tree re-emits its combat Stats, plus
+   * the Cursor stats when an `idleSkill` node was (de)allocated (which changes
+   * the idleable-Skills set). `effectKind` is the touched node's effect kind (or
+   * a representative one for a respec).
+   */
+  private treeStatEvents(treeId: TreeId, effectKind: string, player: Player): SimEvent[] {
+    if (treeId === CLICKER_TREE_ID) {
+      return [{ type: 'player.cursorStatsChanged', stats: deriveCursorStats(player) }];
+    }
+    const skillId = treeId;
+    const events: SimEvent[] = [
+      { type: 'player.statsChanged', skillId, stats: deriveStats(player, skillId, this.combat) },
     ];
+    if (effectKind === 'idleSkill') {
+      events.push({ type: 'player.cursorStatsChanged', stats: deriveCursorStats(player) });
+    }
+    return events;
+  }
+
+  // --- Idle Mode (see CONTEXT.md: Idle Mode) ---
+
+  /** World-units within which the idle cursor counts as having reached a target. */
+  private static readonly IDLE_ARRIVAL_RADIUS = 24;
+  /** Throttle for idle `cursor.moved` broadcasts (seconds); remotes interpolate. */
+  private static readonly IDLE_MOVE_BROADCAST_SECONDS = 0.1;
+
+  /**
+   * Enters Idle Mode (see CONTEXT.md: Idle Mode): detaches the cursor so the sim
+   * roams and auto-gathers. Requires the Clicker Idle capability and each Skill's
+   * per-Skill idle node; the set is filtered to unlocked Skills and clamped to
+   * `maxIdleSkills`. No-op if nothing is eligible. Emits a private confirmation
+   * plus a world-scoped `cursor.moved` so remotes flip to the idle (moon) state.
+   */
+  private startIdle(skillIds: SkillId[], session: PlayerSession): SimEvent[] {
+    const cursorStats = deriveCursorStats(session.player);
+    if (!cursorStats.idleUnlocked) return [];
+    const eligible: SkillId[] = [];
+    for (const skillId of skillIds) {
+      if (cursorStats.idleSkills.includes(skillId) && !eligible.includes(skillId)) {
+        eligible.push(skillId);
+      }
+    }
+    const active = eligible.slice(0, Math.max(1, cursorStats.maxIdleSkills));
+    if (active.length === 0) return [];
+
+    const cursor = session.cursor;
+    cursor.mode = 'idle';
+    cursor.idleSkillIds = active;
+    cursor.targetInstanceId = undefined;
+    session.idleArrived = false;
+    session.passiveAccumulator = 0;
+    session.idleMoveBroadcastAccumulator = 0;
+    return [
+      { type: 'idle.started', skillIds: [...active] },
+      { type: 'cursor.moved', playerId: session.player.id, x: cursor.x, y: cursor.y, mode: 'idle' },
+      { type: 'target.changed', instanceId: undefined, locked: false },
+    ];
+  }
+
+  /** Leaves Idle Mode and hands the cursor back to the player. No-op if not idling. */
+  private stopIdle(session: PlayerSession): SimEvent[] {
+    const cursor = session.cursor;
+    if (cursor.mode !== 'idle') return [];
+    cursor.mode = 'free';
+    cursor.idleSkillIds = undefined;
+    cursor.targetInstanceId = undefined;
+    session.idleArrived = false;
+    return [
+      { type: 'idle.stopped' },
+      { type: 'cursor.moved', playerId: session.player.id, x: cursor.x, y: cursor.y, mode: 'free' },
+      { type: 'target.changed', instanceId: undefined, locked: false },
+    ];
+  }
+
+  /**
+   * One idle step (see CONTEXT.md: Idle Mode): (re)select the nearest harvestable
+   * target among the active Skills, ease the sim-driven cursor toward it at the
+   * player's auto-move speed, and mark arrival so the passive tick can gather.
+   * Waits in place (no movement) when nothing is harvestable. Broadcasts the
+   * cursor's movement (throttled) so remotes see it roam — even while the owning
+   * tab is backgrounded (the server keeps ticking).
+   */
+  private tickIdle(dt: number, session: PlayerSession, events: SimEvent[]): void {
+    const cursor = session.cursor;
+    if (cursor.mode !== 'idle') {
+      session.idleArrived = false;
+      return;
+    }
+    const active = cursor.idleSkillIds ?? [];
+    if (active.length === 0) {
+      session.idleArrived = false;
+      return;
+    }
+
+    // Validate the current target; (re)select the nearest harvestable otherwise.
+    let target = cursor.targetInstanceId ? this.entities.get(cursor.targetInstanceId) : undefined;
+    if (!target || !this.idleHarvestable(target, session, active)) {
+      const picked = this.pickIdleTarget(session, active);
+      const pickedId = picked?.instanceId;
+      if (pickedId !== cursor.targetInstanceId) {
+        cursor.targetInstanceId = pickedId;
+        session.passiveAccumulator = 0;
+        session.idleArrived = false;
+        events.push({ type: 'target.changed', instanceId: pickedId, locked: false });
+      }
+      target = picked;
+    }
+    if (!target) {
+      session.idleArrived = false;
+      return; // nothing to harvest right now — wait in place
+    }
+
+    // Travel toward the target at auto-move speed.
+    const speed = deriveCursorStats(session.player).autoMoveSpeed;
+    const dx = target.x - cursor.x;
+    const dy = target.y - cursor.y;
+    const dist = Math.hypot(dx, dy);
+    const step = speed * dt;
+    let moved = false;
+    if (dist <= World.IDLE_ARRIVAL_RADIUS || dist <= step || dist === 0) {
+      if (cursor.x !== target.x || cursor.y !== target.y) {
+        cursor.x = target.x;
+        cursor.y = target.y;
+        moved = true;
+      }
+      session.idleArrived = true;
+    } else {
+      cursor.x += (dx / dist) * step;
+      cursor.y += (dy / dist) * step;
+      session.idleArrived = false;
+      moved = true;
+    }
+
+    // Broadcast movement (throttled); remotes interpolate between updates.
+    session.idleMoveBroadcastAccumulator += dt;
+    if (moved && session.idleMoveBroadcastAccumulator >= World.IDLE_MOVE_BROADCAST_SECONDS) {
+      session.idleMoveBroadcastAccumulator = 0;
+      events.push({ type: 'cursor.moved', playerId: session.player.id, x: cursor.x, y: cursor.y, mode: 'idle' });
+    }
+  }
+
+  /** True if `entity` is a valid idle target for one of the `active` Skills now. */
+  private idleHarvestable(entity: EntityInstance, session: PlayerSession, active: SkillId[]): boolean {
+    if (entity.state !== 'available' || entity.maxHp <= 0) return false;
+    const skillId = requireEntityDefinition(entity.definitionId).requirements?.skill?.skillId;
+    if (!skillId || !active.includes(skillId)) return false;
+    if (this.blockedReason(entity, session) !== undefined) return false;
+    if (this.claimBlocked(entity, session.player.id)) return false;
+    return true;
+  }
+
+  /** The nearest harvestable entity (to the cursor) among the active idle Skills. */
+  private pickIdleTarget(session: PlayerSession, active: SkillId[]): EntityInstance | undefined {
+    const cursor = session.cursor;
+    let best: EntityInstance | undefined;
+    let bestDist = Infinity;
+    for (const entity of this.entities.values()) {
+      if (!this.idleHarvestable(entity, session, active)) continue;
+      const d = (entity.x - cursor.x) ** 2 + (entity.y - cursor.y) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        best = entity;
+      }
+    }
+    return best;
   }
 
   private setDivinePower(power: DivinePowerId, unlocked: boolean, session: PlayerSession): SimEvent[] {
@@ -1179,7 +1395,13 @@ export class World {
       : undefined;
     const tickSeconds = stats ? stats.hoverRate : this.combat.passiveTickSeconds;
     const passiveDamage = stats ? stats.hoverDamage : session.player.passiveDamage;
-    const ticking = session.cursor.mode === 'hovering' || session.cursor.mode === 'locked';
+    // Hover/Lock tick whenever targeted; Idle Mode ticks only once the sim-driven
+    // cursor has reached its target (no gather while travelling).
+    const mode = session.cursor.mode;
+    const ticking =
+      mode === 'hovering' || mode === 'locked' || (mode === 'idle' && session.idleArrived);
+    // Idle gather multiplies XP by the player's idle yield (see CONTEXT.md: Cursor stat).
+    const xpMultiplier = mode === 'idle' ? deriveCursorStats(session.player).idleYieldMultiplier : 1;
 
     if (
       !ticking ||
@@ -1199,7 +1421,7 @@ export class World {
     while (session.passiveAccumulator >= tickSeconds) {
       session.passiveAccumulator -= tickSeconds;
       if (target.state !== 'available') break;
-      events.push(...this.applyDamage(target, passiveDamage, 'passive', session));
+      events.push(...this.applyDamage(target, passiveDamage, 'passive', session, false, xpMultiplier));
     }
   }
 
@@ -1259,6 +1481,7 @@ export class World {
     source: DamageSource,
     session: PlayerSession,
     crit = false,
+    xpMultiplier = 1,
   ): SimEvent[] {
     const playerId = session.player.id;
     const rec = this.contentionFor(entity.instanceId);
@@ -1279,11 +1502,15 @@ export class World {
         ...(crit ? { crit: true } : {}),
       },
     ];
-    if (entity.hp <= 0) events.push(...this.deplete(entity, session));
+    if (entity.hp <= 0) events.push(...this.deplete(entity, session, xpMultiplier));
     return events;
   }
 
-  private deplete(entity: EntityInstance, depletingSession: PlayerSession): SimEvent[] {
+  private deplete(
+    entity: EntityInstance,
+    depletingSession: PlayerSession,
+    xpMultiplier = 1,
+  ): SimEvent[] {
     const def = requireEntityDefinition(entity.definitionId);
     entity.state = 'depleted';
     entity.hp = 0;
@@ -1306,7 +1533,13 @@ export class World {
       },
     ];
 
-    if (def.xp) events.push(...this.awardSkillXp(def.xp.rewards, credited));
+    if (def.xp) {
+      // Idle gather multiplies the entity's XP by the player's idle yield (see
+      // CONTEXT.md: Cursor stat); active/hover play passes 1 (no change).
+      const rewards =
+        xpMultiplier === 1 ? def.xp.rewards : scaleXpRewards(def.xp.rewards, xpMultiplier);
+      events.push(...this.awardSkillXp(rewards, credited));
+    }
 
     if (entity.lootTableId) {
       const table = getLootTable(entity.lootTableId);
@@ -1358,6 +1591,18 @@ export class World {
     }
     return events;
   }
+}
+
+/** Scales each XP reward by `multiplier`, rounding to a whole number (>= 0). */
+function scaleXpRewards(
+  rewards: Partial<Record<SkillId, number>>,
+  multiplier: number,
+): Partial<Record<SkillId, number>> {
+  const out: Partial<Record<SkillId, number>> = {};
+  for (const [skillId, amount] of Object.entries(rewards) as [SkillId, number][]) {
+    out[skillId] = Math.max(0, Math.round(amount * multiplier));
+  }
+  return out;
 }
 
 /** First owned tool's type, or undefined if the player owns none. */
@@ -1413,10 +1658,19 @@ function clonePlayer(player: Player): Player {
     collections[entryId] = { registered: { ...progress.registered }, completed: progress.completed };
   }
   // Carried snapshots from before Skill Trees existed (or from the old Skill
-  // Point system, see ADR-0022) may omit this; default to empty.
+  // Point system, see ADR-0022) may omit this; default to empty. Pre-Rank saves
+  // stored `allocated` as a string[]; the tree topology changed with multi-Rank
+  // nodes (ADR-0022 update), so those are reset (dropped) rather than remapped.
   const skillTrees: Player['skillTrees'] = {};
   for (const [skillId, state] of Object.entries(player.skillTrees ?? {})) {
-    if (state) skillTrees[skillId as SkillId] = { allocated: [...state.allocated] };
+    if (!state) continue;
+    const src = state.allocated as unknown;
+    if (Array.isArray(src)) continue;
+    const allocated: Record<string, number> = {};
+    for (const [nodeId, rank] of Object.entries((src as Record<string, number>) ?? {})) {
+      if (typeof rank === 'number' && rank > 0) allocated[nodeId] = rank;
+    }
+    skillTrees[skillId as TreeId] = { allocated };
   }
   // Drop legacy Skill-Point fields from older snapshots (see ADR-0022 migration).
   const {

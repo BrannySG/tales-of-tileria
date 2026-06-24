@@ -73,9 +73,25 @@ language in the design docs, this file wins and the docs should be reconciled.
   A target is acquired by hovering over an entity, or pinned via Lock.
 - **Lock** — A hands-free state, not a damage type. The player selects an entity
   and Locks it; Passive damage then continues ticking on that target with no
-  further input (true idle). While Locked, the player may still tap for Active
-  damage. Lock does not change Passive damage rate; it only removes the need to
-  keep hovering.
+  further input. While Locked, the player may still tap for Active damage. Lock
+  does not change Passive damage rate; it only removes the need to keep hovering.
+  Distinct from **Idle Mode**: Lock pins the Cursor to *one* player-chosen target
+  and is purely active-adjacent; Idle Mode detaches the Cursor and lets the sim
+  *roam and reselect* targets for a chosen Skill on its own.
+- **Idle Mode** — A sim-authoritative auto-gather state (ADR-0024). The Cursor
+  detaches from the pointer and the sim drives it: it selects the nearest
+  harvestable Entity of the player's chosen idle Skill(s), eases `cursor.x/y`
+  toward it at **auto-move speed**, runs the existing Passive (Hover) tick on
+  arrival, then reselects on depletion (waiting in place when nothing is
+  harvestable). Toggled by `idle.start`/`idle.stop`; broadcast via the `'idle'`
+  Cursor mode (the moon indicator). A Skill is idleable only when **both** the
+  Clicker track's Idle Mode capability **and** that Skill's "<Skill> Idle" Tree
+  Node are allocated. Because the loop is server-side, a backgrounded multiplayer
+  tab keeps gathering.
+- **Idle session** — The span between an `idle.start` and the matching stop/leave.
+  Its running tally — total idle XP and the rarity/value-sorted loot grid in the
+  session HUD — is **client-only and ephemeral**: it accumulates from authoritative
+  events while idle and resets when idle ends. It is not sim or persisted state.
 
 ## World
 
@@ -292,6 +308,11 @@ language in the design docs, this file wins and the docs should be reconciled.
   ladder and caps at level 99 (XP can continue accruing beyond cap for future
   progression). Each level grants **one Skill Point** for that Skill's tree, and
   gates which Tree Nodes can be allocated.
+- **Skill Tracker** — The compact bottom-right HUD element listing each trainable
+  Skill that has a Skill Tree, with its Skill level and an XP-to-next-level
+  progress bar; clicking a Skill opens its Skill Tree. Like the Quest Tracker it
+  is presentation only — it projects authoritative Skill state and never mutates
+  it. (Skills appear automatically once they have a tree.)
 
 ## Collections & Skill Trees
 
@@ -326,16 +347,27 @@ language in the design docs, this file wins and the docs should be reconciled.
   ADR-0022), spent allocating Tree Nodes in that Skill's tree. `available =
   level − Σ(cost of allocated nodes)`. (Redefined from the old Collection-reward
   meaning, which is superseded by Skill XP.)
-- **Skill Tree** — A per-Skill, PoE-style connected graph of Tree Nodes the
-  player allocates to grow Stats and unlock Tiers. One per starter Skill (Mining,
-  Woodcutting) in V1. The tree is the single gate on Tier access and the source of
-  per-Skill Stat bonuses. Sim-authoritative (allocation is a command; the resolved
-  Stat block ships in the snapshot and on change).
-- **Tree Node** — One allocatable point in a Skill Tree: an `x/y` position, edges
-  to neighbours, a `cost` (Skill Points), a `levelReq`, and an effect — either a
-  **Stat** bonus or a **Tier unlock**. Allocatable only when a neighbour (or the
-  free root) is allocated, the level requirement is met, and enough Skill Points
-  remain. The root is free, always allocated, and grants Tier 1.
+- **Skill Tree** — A per-Skill, connected graph of Tree Nodes the player
+  allocates to grow Stats and unlock Tiers. Laid out as a legible vertical spine
+  (alternating damage Stats with inline Tier gates) with short side branches. One
+  per starter Skill (Mining, Woodcutting) in V1. The tree is the single gate on
+  Tier access and the source of per-Skill Stat bonuses. Sim-authoritative
+  (allocation is a command; the resolved Stat block ships in the snapshot and on
+  change).
+- **Tree Node** — An allocatable point in a Skill Tree: an `x/y` position, edges
+  to neighbours, a per-Rank `cost` (Skill Points), a `levelReq`, a `maxRank`, and
+  an effect — a **Stat** bonus, a **Tier unlock**, or one of the idle effects
+  (**Idle Mode** capability, an **Idle Skill** marker, a **Cursor stat** bonus, or
+  a benign anchor). A node may be allocated up to `maxRank` times (see **Rank**); a
+  Stat/Cursor-stat node applies its amount once per Rank. Allocatable only when a
+  neighbour (or the free root) has at least Rank 1, the level requirement is met,
+  and enough Skill Points remain. The root is free, always allocated, and grants
+  Tier 1.
+- **Rank** — How many times a Tree Node has been allocated (`1..maxRank`). Each
+  Rank of a Stat node adds its effect again (the bonus scales linearly with Rank);
+  Tier-unlock nodes are single-Rank. Each Rank costs the node's `cost` in Skill
+  Points. Distinct from **Skill level**, which is the Skill's overall rank derived
+  from XP.
 - **Respec** — Refunding every allocated Tree Node in a Skill's tree at once
   (full refund), returning all its Skill Points. A per-Skill action in the Skill
   Tree modal.
@@ -351,6 +383,20 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Crit** — A chance-based bonus on **Tap** damage only (seeded sim RNG for
   determinism): a crit multiplies Tap Damage by Crit Damage. Stacks
   multiplicatively with Smite (see ADR-0022).
+- **Clicker** — A meta-track that gates and grows **Idle Mode** (ADR-0024), keyed
+  `'clicker'` (a `TreeId`, not a `SkillId`). It is **not a Skill**: it has no XP,
+  and its level is derived — **Clicker level** `= floor(Σ trainable-Skill levels /
+  10)` — so it rewards breadth across every Skill. It reuses the Skill Tree
+  machinery (nodes, Ranks, allocation, Respec) and is excluded from the Total-level
+  and leaderboard economy. Its points spend exactly like Skill Points
+  (`available = clickerLevel − Σ(cost × rank)`).
+- **Cursor stat** — A player-global value resolved from the Clicker track that
+  shapes Idle Mode: **auto-move speed**, **idle yield** (an XP % multiplier on idle
+  gathers), and **multi-skill idle** (`maxIdleSkills`, how many Skills the single
+  Cursor harvests among). Resolved through `deriveCursorStats` — parallel to
+  `deriveStats`, which is untouched and skips the Clicker tree — and shipped as a
+  `CursorStats` block in the snapshot, re-emitted on change. The general **Idle
+  Mode** capability (whether idle is unlocked at all) resolves here too.
 
 ## Crafting
 

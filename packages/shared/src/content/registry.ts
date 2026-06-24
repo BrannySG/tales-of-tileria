@@ -17,9 +17,9 @@ import { TOOL_DEFINITIONS } from './tools';
 import { COLLECTION_DEFINITIONS, COLLECTION_ENTRY_DEFINITIONS } from './collections';
 import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
 import { ACHIEVEMENT_DEFINITIONS, type Achievement } from './achievements';
-import { SKILL_TREE_DEFINITIONS } from './skillTrees';
+import { ALL_TREE_DEFINITIONS, SKILL_TREE_DEFINITIONS } from './skillTrees';
 import type { SkillTreeDefinition, SkillTreeNode } from '../types/skillTree';
-import type { SkillId } from '../types/ids';
+import type { TreeId } from '../types/ids';
 
 const entityById = new Map<string, EntityDefinition>(ENTITY_DEFINITIONS.map((d) => [d.id, d]));
 const itemById = new Map<string, ItemDefinition>(ITEM_DEFINITIONS.map((d) => [d.id, d]));
@@ -35,9 +35,7 @@ const collectionById = new Map<string, CollectionDefinition>(
 const collectionEntryById = new Map<string, CollectionEntryDefinition>(
   COLLECTION_ENTRY_DEFINITIONS.map((e) => [e.id, e]),
 );
-const skillTreeBySkill = new Map<SkillId, SkillTreeDefinition>(
-  SKILL_TREE_DEFINITIONS.map((t) => [t.skillId, t]),
-);
+const treeById = new Map<TreeId, SkillTreeDefinition>(ALL_TREE_DEFINITIONS.map((t) => [t.skillId, t]));
 
 export function getEntityDefinition(id: string): EntityDefinition | undefined {
   return entityById.get(id);
@@ -231,18 +229,30 @@ export function collectionEntries(collectionId: string): readonly CollectionEntr
   );
 }
 
-/** The Skill Tree for a skill, if one is authored (see CONTEXT.md: Skill Tree). */
-export function getSkillTree(skillId: SkillId): SkillTreeDefinition | undefined {
-  return skillTreeBySkill.get(skillId);
+/**
+ * The tree for a tree id, if one is authored (see CONTEXT.md: Skill Tree,
+ * Clicker). Resolves the per-Skill trees and the `'clicker'` meta-track.
+ */
+export function getSkillTree(treeId: TreeId): SkillTreeDefinition | undefined {
+  return treeById.get(treeId);
 }
 
+/**
+ * The per-Skill Skill Trees only (combat Stats + Tier). Used for per-Skill Stat
+ * resolution; the Clicker meta-track is excluded (see {@link listAllTrees}).
+ */
 export function listSkillTrees(): readonly SkillTreeDefinition[] {
   return SKILL_TREE_DEFINITIONS;
 }
 
-/** A single node within a Skill's tree, by node id (or undefined). */
-export function getSkillTreeNode(skillId: SkillId, nodeId: string): SkillTreeNode | undefined {
-  return skillTreeBySkill.get(skillId)?.nodes.find((n) => n.id === nodeId);
+/** Every authored tree, including the Clicker meta-track (for tree UI). */
+export function listAllTrees(): readonly SkillTreeDefinition[] {
+  return ALL_TREE_DEFINITIONS;
+}
+
+/** A single node within a tree, by tree id + node id (or undefined). */
+export function getSkillTreeNode(treeId: TreeId, nodeId: string): SkillTreeNode | undefined {
+  return treeById.get(treeId)?.nodes.find((n) => n.id === nodeId);
 }
 
 /**

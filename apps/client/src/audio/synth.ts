@@ -63,7 +63,11 @@ export type SynthSoundName =
   | 'lootDropRare'
   | 'lootDropEpic'
   | 'lootDropLegendary'
-  | 'denied';
+  | 'denied'
+  | 'skillAllocate'
+  | 'skillComplete'
+  | 'skillTier'
+  | 'skillRespec';
 
 /** All one-shot names: the synthesised set plus file-backed SFX (see SoundSystem). */
 export type SoundName = SynthSoundName | 'lightning';
@@ -170,6 +174,46 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     }),
   );
 
+  // Skill allocate: clean, light UI tick when one Rank is spent.
+  const skillAllocate = encodeWav(
+    make(0.12, (t) => {
+      const attack = Math.min(1, t / 0.005);
+      return (sine(t, 880) * 0.3 + sine(t, 1320) * 0.12) * attack * decay(t, 26) * 0.6;
+    }),
+  );
+
+  // Skill complete: brighter ascending two-note ding when a node hits max Rank.
+  const skillComplete = encodeWav(
+    make(0.3, (t) => {
+      const local = t < 0.12 ? t : t - 0.12;
+      const f = t < 0.12 ? 880 : 1320;
+      const attack = Math.min(1, local / 0.006);
+      return (sine(t, f) * 0.32 + sine(t, f * 1.5) * 0.1) * attack * decay(local, 12) * 0.7;
+    }),
+  );
+
+  // Skill tier: triumphant three-note arpeggio when a Tier unlocks.
+  const skillTier = encodeWav(
+    make(0.5, (t) => {
+      const step = Math.min(2, Math.floor(t / 0.12));
+      const local = t - step * 0.12;
+      const freqs = [659.25, 987.77, 1318.51];
+      const f = freqs[step]!;
+      const attack = Math.min(1, local / 0.008);
+      const body = sine(t, f) * 0.26 + sine(t, f * 2) * 0.08;
+      const shimmer = sine(t, 3000 + sine(t, 8) * 120) * 0.04;
+      return (body + shimmer) * attack * decay(local, 10) * decay(t, 1.2);
+    }),
+  );
+
+  // Skill respec: soft descending whoosh when a tree is reset.
+  const skillRespec = encodeWav(
+    make(0.34, (t) => {
+      const f = 520 - 360 * (t / 0.34);
+      return (sine(t, f) * 0.3 + (Math.random() * 2 - 1) * 0.05) * decay(t, 6) * 0.5;
+    }),
+  );
+
   return {
     hitRock,
     hitTree,
@@ -183,5 +227,9 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     lootDropEpic,
     lootDropLegendary,
     denied,
+    skillAllocate,
+    skillComplete,
+    skillTier,
+    skillRespec,
   };
 }

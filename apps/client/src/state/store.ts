@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import {
+  BASE_AUTO_MOVE_SPEED,
   DEFAULT_COMBAT_CONFIG,
   DEFAULT_CURSOR_SKIN_ID,
   emptySkills,
   getToolDefinition,
+  type CursorStats,
   type EntityRuntimeState,
   type CollectionEntryProgress,
   type CombatConfig,
@@ -15,6 +17,7 @@ import {
   type SkillTreeState,
   type ToolId,
   type ToolType,
+  type TreeId,
 } from '@tot/shared';
 import {
   hasUnacknowledgedDiscoveries,
@@ -77,6 +80,21 @@ const AUDIO_SETTINGS_KEY = 'tot.audioSettings';
 const DEFAULT_AUDIO_SETTINGS: AudioSettings = { musicVolume: 0.5, sfxVolume: 1, soundEnabled: true };
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+
+/** Cursor/Idle stats before the first snapshot hydrates (see CONTEXT.md: Cursor stat). */
+const DEFAULT_CURSOR_STATS: CursorStats = {
+  idleUnlocked: false,
+  autoMoveSpeed: BASE_AUTO_MOVE_SPEED,
+  idleYieldMultiplier: 1,
+  maxIdleSkills: 1,
+  idleSkills: [],
+};
+
+/** One accumulated loot stack in an Idle session (item id + total quantity). */
+export interface IdleLootEntry {
+  itemId: string;
+  quantity: number;
+}
 
 /** Reads persisted audio settings, falling back to defaults on any error. */
 function loadAudioSettings(): AudioSettings {
@@ -145,10 +163,22 @@ interface HudState {
   skills: Record<SkillId, SkillState>;
   /** Collection Entry progress keyed by entry id (mirrors `Player.collections`). */
   collections: Record<string, CollectionEntryProgress>;
-  /** Per-skill Skill Tree allocations (mirrors `Player.skillTrees`). */
-  skillTrees: Partial<Record<SkillId, SkillTreeState>>;
+  /** Tree allocations keyed by tree id incl. `'clicker'` (mirrors `Player.skillTrees`). */
+  skillTrees: Partial<Record<TreeId, SkillTreeState>>;
   /** Sim-derived per-skill Stat blocks (mirrors the snapshot `stats`). */
   stats: Partial<Record<SkillId, SkillStats>>;
+  /** Sim-derived Cursor/Idle stat block (mirrors the snapshot `cursorStats`). */
+  cursorStats: CursorStats;
+  /** True while the local player is in Idle Mode (see CONTEXT.md: Idle Mode). */
+  idleActive: boolean;
+  /** The Skills currently being idled (the active idle set). */
+  idleSkillIds: SkillId[];
+  /** Total XP gained during the current Idle session (client-only ephemeral tally). */
+  idleSessionXp: number;
+  /** Loot gained during the current Idle session, keyed by item id (ephemeral). */
+  idleSessionLoot: Record<string, number>;
+  /** performance.now() when the current Idle session started (for elapsed time). */
+  idleSessionStartedAt: number | undefined;
   craftingUnlocked: boolean;
   craftingJob: CraftingJobView | undefined;
   /** Pending shrine offerings keyed by shrine instanceId -> granted tool id. */
@@ -196,10 +226,19 @@ interface HudState {
   setSkills: (skills: Record<SkillId, SkillState>) => void;
   setCollections: (collections: Record<string, CollectionEntryProgress>) => void;
   setCollectionProgress: (entryId: string, progress: CollectionEntryProgress) => void;
-  setSkillTrees: (skillTrees: Partial<Record<SkillId, SkillTreeState>>) => void;
-  setSkillTreeAllocated: (skillId: SkillId, allocated: string[]) => void;
+  setSkillTrees: (skillTrees: Partial<Record<TreeId, SkillTreeState>>) => void;
+  setSkillTreeAllocated: (treeId: TreeId, allocated: Record<string, number>) => void;
   setStats: (stats: Partial<Record<SkillId, SkillStats>>) => void;
   setStatsFor: (skillId: SkillId, stats: SkillStats) => void;
+  setCursorStats: (stats: CursorStats) => void;
+  /** Begins an Idle session: marks active + resets the ephemeral session tally. */
+  startIdleSession: (skillIds: SkillId[]) => void;
+  /** Ends the Idle session (keeps the tally visible until the next start/reset). */
+  stopIdleSession: () => void;
+  /** Adds XP to the current Idle session tally. */
+  addIdleXp: (amount: number) => void;
+  /** Adds positive inventory deltas to the current Idle session loot tally. */
+  addIdleLoot: (deltas: Record<string, number>) => void;
   setCraftingUnlocked: (unlocked: boolean) => void;
   setCraftingJob: (job: CraftingJobView | undefined) => void;
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
@@ -257,6 +296,12 @@ export const useHud = create<HudState>((set) => ({
   collections: {},
   skillTrees: {},
   stats: {},
+  cursorStats: { ...DEFAULT_CURSOR_STATS },
+  idleActive: false,
+  idleSkillIds: [],
+  idleSessionXp: 0,
+  idleSessionLoot: {},
+  idleSessionStartedAt: undefined,
   craftingUnlocked: false,
   craftingJob: undefined,
   offerings: {},
@@ -308,10 +353,33 @@ export const useHud = create<HudState>((set) => ({
     set((state) => ({ collections: { ...state.collections, [entryId]: progress } })),
   setSkillTrees: (skillTrees) => set({ skillTrees: { ...skillTrees } }),
   setSkillTreeAllocated: (skillId, allocated) =>
-    set((state) => ({ skillTrees: { ...state.skillTrees, [skillId]: { allocated: [...allocated] } } })),
+    set((state) => ({ skillTrees: { ...state.skillTrees, [skillId]: { allocated: { ...allocated } } } })),
   setStats: (stats) => set({ stats: { ...stats } }),
   setStatsFor: (skillId, stats) =>
     set((state) => ({ stats: { ...state.stats, [skillId]: stats } })),
+  setCursorStats: (cursorStats) => set({ cursorStats: { ...cursorStats } }),
+  startIdleSession: (skillIds) =>
+    set({
+      idleActive: true,
+      idleSkillIds: [...skillIds],
+      idleSessionXp: 0,
+      idleSessionLoot: {},
+      idleSessionStartedAt: performance.now(),
+    }),
+  stopIdleSession: () => set({ idleActive: false, idleSkillIds: [] }),
+  addIdleXp: (amount) =>
+    set((state) => (amount > 0 ? { idleSessionXp: state.idleSessionXp + amount } : state)),
+  addIdleLoot: (deltas) =>
+    set((state) => {
+      const loot = { ...state.idleSessionLoot };
+      let changed = false;
+      for (const [itemId, qty] of Object.entries(deltas)) {
+        if (qty <= 0) continue;
+        loot[itemId] = (loot[itemId] ?? 0) + qty;
+        changed = true;
+      }
+      return changed ? { idleSessionLoot: loot } : state;
+    }),
   setCraftingUnlocked: (craftingUnlocked) => set({ craftingUnlocked }),
   setCraftingJob: (craftingJob) => set({ craftingJob }),
   setOffering: (instanceId, toolId) =>
@@ -389,6 +457,12 @@ export const useHud = create<HudState>((set) => ({
       collections: {},
       skillTrees: {},
       stats: {},
+      cursorStats: { ...DEFAULT_CURSOR_STATS },
+      idleActive: false,
+      idleSkillIds: [],
+      idleSessionXp: 0,
+      idleSessionLoot: {},
+      idleSessionStartedAt: undefined,
       craftingUnlocked: false,
       craftingJob: undefined,
       offerings: {},
@@ -428,6 +502,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setCollections(snapshot.player.collections ?? {});
   hud.setSkillTrees(snapshot.player.skillTrees ?? {});
   hud.setStats(snapshot.stats ?? {});
+  if (snapshot.cursorStats) hud.setCursorStats(snapshot.cursorStats);
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
   // Seed already-owned collectibles as discovered (silently, no toast flood),
   // then surface the New badge if any discovery is still unacknowledged.
@@ -474,15 +549,27 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         break;
       }
       case 'inventory.changed': {
+        const state = useHud.getState();
         // First-time collectible acquisition is derived here (player-scoped, so it
         // never fires on other players' loot): mark + toast + raise the New badge.
         for (const [itemId, count] of Object.entries(event.inventory)) {
           if (count > 0 && markDiscovered(itemId)) {
-            useHud.getState().pushDiscoveryToast(itemId);
-            useHud.getState().setNewCollectibles(true);
+            state.pushDiscoveryToast(itemId);
+            state.setNewCollectibles(true);
           }
         }
-        useHud.getState().setInventory(event.inventory);
+        // While idle, attribute positive inventory deltas to the session loot tally
+        // (player-scoped, so this is genuinely the local player's idle gains).
+        if (state.idleActive) {
+          const prev = state.inventory;
+          const deltas: Record<string, number> = {};
+          for (const [itemId, count] of Object.entries(event.inventory)) {
+            const gained = count - (prev[itemId] ?? 0);
+            if (gained > 0) deltas[itemId] = gained;
+          }
+          if (Object.keys(deltas).length > 0) state.addIdleLoot(deltas);
+        }
+        state.setInventory(event.inventory);
         break;
       }
       case 'pickup.collected': {
@@ -498,7 +585,9 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         break;
       }
       case 'skill.xpGained': {
-        useHud.getState().setSkill(event.skillId, { xp: event.totalXp, level: event.level });
+        const state = useHud.getState();
+        state.setSkill(event.skillId, { xp: event.totalXp, level: event.level });
+        if (state.idleActive) state.addIdleXp(event.amount);
         break;
       }
       case 'craftingJobStarted': {
@@ -564,6 +653,18 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'player.statsChanged': {
         useHud.getState().setStatsFor(event.skillId, event.stats);
+        break;
+      }
+      case 'player.cursorStatsChanged': {
+        useHud.getState().setCursorStats(event.stats);
+        break;
+      }
+      case 'idle.started': {
+        useHud.getState().startIdleSession(event.skillIds);
+        break;
+      }
+      case 'idle.stopped': {
+        useHud.getState().stopIdleSession();
         break;
       }
       case 'cosmetic.unlocked': {

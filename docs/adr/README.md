@@ -35,6 +35,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0021](0021-minimal-onboarding-arc-parked.md) | Minimal onboarding is active; full arc is parked behind a typed flag | Accepted — updates active flow from 0011/0013-era onboarding |
 | [0022](0022-skill-trees-replace-flat-upgrades.md) | Per-Skill Skill Trees replace flat upgrades; the tree gates Tier, tools gate type | Accepted — supersedes 0020, retires 0008 tier/wield gating |
 | [0023](0023-runtime-level-travel-via-beacons.md) | Runtime Level Travel is client-orchestrated via Beacons; destinations are placement data | Accepted — extends 0011's carry mechanism, builds on 0016 |
+| [0024](0024-idle-mode-and-clicker-meta-track.md) | Idle Mode is a sim-driven auto-gather loop, gated by a Clicker meta-track | Accepted — evolves 0015 (sim writes cursor coords), broadens 0022's tree machinery |
 
 ## Supersession map
 
@@ -53,6 +54,10 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 - **0022** superseded **0020** (Collections now grant Skill XP; Skill Points are
   per-level tree points; per-Skill Skill Trees replace the flat upgrade) and
   retired **0008**'s tool-tier/wield gating (the tree gates Tier; tools gate type).
+- **0024** evolved **0015** (the sim now writes `cursor.x/y` and reads Entity
+  coordinates while idle — the Cursor is authoritative and spatial in Idle Mode)
+  and broadened **0022**'s Skill Tree machinery to a non-Skill tree (the Clicker
+  meta-track, keyed `'clicker'` via `TreeId`).
 
 ## Adding an ADR
 

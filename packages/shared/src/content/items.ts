@@ -192,6 +192,46 @@ export const oakGoldenAcorn: ItemDefinition = {
   worldTextureId: 'item_oak_golden_acorn',
 };
 
+// Deepvein (higher-tier Mining) collectibles. The generic mid-tier requirement
+// is the existing `iron_chunk` Item above; these are the rarer flavour drops
+// that feed The Deepvein Reliquary, dropped by Boulder / Veined Rock / Magic
+// Stone (parallel to the Oak collectible ladder).
+export const miningGeodeHeart: ItemDefinition = {
+  id: 'mining_geode_heart',
+  displayName: 'Geode Heart',
+  rarity: 'rare',
+  category: 'resource',
+  description: 'The crystal core of a split geode, cool and faintly glittering.',
+  worldTextureId: 'item_mining_geode_heart',
+};
+
+export const miningMagnetiteShard: ItemDefinition = {
+  id: 'mining_magnetite_shard',
+  displayName: 'Magnetite Shard',
+  rarity: 'rare',
+  category: 'resource',
+  description: 'A sliver of lodestone that tugs gently at anything iron.',
+  worldTextureId: 'item_mining_magnetite_shard',
+};
+
+export const miningRunedSliver: ItemDefinition = {
+  id: 'mining_runed_sliver',
+  displayName: 'Runed Sliver',
+  rarity: 'epic',
+  category: 'resource',
+  description: 'A shard of arcane stone etched with a single glowing rune.',
+  worldTextureId: 'item_mining_runed_sliver',
+};
+
+export const miningMeteoricCore: ItemDefinition = {
+  id: 'mining_meteoric_core',
+  displayName: 'Meteoric Core',
+  rarity: 'legendary',
+  category: 'resource',
+  description: 'The dense heart of a fallen star, still warm to the touch.',
+  worldTextureId: 'item_mining_meteoric_core',
+};
+
 export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   wood,
   stone,
@@ -212,4 +252,8 @@ export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   oakGall,
   oakMistletoeSprig,
   oakGoldenAcorn,
+  miningGeodeHeart,
+  miningMagnetiteShard,
+  miningRunedSliver,
+  miningMeteoricCore,
 ];

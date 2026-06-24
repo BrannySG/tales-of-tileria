@@ -41,31 +41,45 @@ export const oakBasic: LootTable = {
   ],
 };
 
-/** Boulder (tier-2 pickaxe): stone plus a guaranteed Iron Chunk, rarely a second. */
+/**
+ * Boulder (tier-2 pickaxe): stone plus a guaranteed Iron Chunk, rarely a
+ * second, and the entry rung of the Deepvein collectible ladder (Geode Heart).
+ */
 export const boulderLoot: LootTable = {
   id: 'boulder',
   rolls: [
     { itemId: 'stone', minQuantity: 1, maxQuantity: 3, chance: 1 },
     { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 1 },
     { itemId: 'iron_chunk', minQuantity: 1, maxQuantity: 1, chance: 0.15 },
+    { itemId: 'mining_geode_heart', minQuantity: 1, maxQuantity: 1, chance: 0.1 },
   ],
 };
 
-/** Veined Rock (iron pickaxe): a reliable, plentiful source of Iron Chunks. */
+/**
+ * Veined Rock (iron pickaxe): a reliable, plentiful source of Iron Chunks,
+ * plus Magnetite Shards and a very rare Meteoric Core for the Deepvein ladder.
+ */
 export const veinedRockLoot: LootTable = {
   id: 'veined_rock',
   rolls: [
     { itemId: 'stone', minQuantity: 1, maxQuantity: 2, chance: 1 },
     { itemId: 'iron_chunk', minQuantity: 2, maxQuantity: 4, chance: 1 },
+    { itemId: 'mining_magnetite_shard', minQuantity: 1, maxQuantity: 1, chance: 0.12 },
+    { itemId: 'mining_meteoric_core', minQuantity: 1, maxQuantity: 1, chance: 0.004 },
   ],
 };
 
-/** Magic Stone (iron pickaxe): stone plus a rare Aether Shard. */
+/**
+ * Magic Stone (iron pickaxe): stone plus a rare Aether Shard, an epic Runed
+ * Sliver, and a very rare Meteoric Core for the Deepvein ladder.
+ */
 export const magicStoneLoot: LootTable = {
   id: 'magic_stone',
   rolls: [
     { itemId: 'stone', minQuantity: 1, maxQuantity: 3, chance: 1 },
     { itemId: 'aether_shard', minQuantity: 1, maxQuantity: 1, chance: 0.15 },
+    { itemId: 'mining_runed_sliver', minQuantity: 1, maxQuantity: 1, chance: 0.05 },
+    { itemId: 'mining_meteoric_core', minQuantity: 1, maxQuantity: 1, chance: 0.004 },
   ],
 };
 

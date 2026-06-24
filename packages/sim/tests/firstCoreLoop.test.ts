@@ -59,18 +59,18 @@ function rockLevel(count: number): LevelDefinition {
 describe('skills — XP + level up', () => {
   it('awards woodcutting XP on deplete and levels up at the curve thresholds', () => {
     const world = new World(richLevel(), { seed: 1, startingTools: ['axe_rusty'], combat: { activeDamage: 100 } });
-    // L2 needs 83 XP; each tree = 12 woodcutting XP, so early trees stay level 1.
+    // L2 needs 83 XP; each T1 tree = 2 woodcutting XP, so early trees stay level 1.
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'tree1' });
     expect(typesOf(events)).toContain('skill.xpGained');
     const gained = events.find((e) => e.type === 'skill.xpGained');
-    expect(gained && gained.type === 'skill.xpGained' && gained.amount).toBe(12);
-    expect(world.getPlayer().skills.woodcutting.xp).toBe(12);
+    expect(gained && gained.type === 'skill.xpGained' && gained.amount).toBe(2);
+    expect(world.getPlayer().skills.woodcutting.xp).toBe(2);
     expect(world.getPlayer().skills.woodcutting.level).toBe(1);
 
     world.applyCommand({ type: 'entity.tap', instanceId: 'tree2' });
     world.applyCommand({ type: 'entity.tap', instanceId: 'tree3' });
-    world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' }); // oak blocked, no XP; chop trees gave 36
-    expect(world.getPlayer().skills.woodcutting.xp).toBe(36);
+    world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' }); // oak blocked, no XP; chop trees gave 6
+    expect(world.getPlayer().skills.woodcutting.xp).toBe(6);
     expect(world.getPlayer().skills.woodcutting.level).toBe(1);
   });
 
@@ -132,7 +132,9 @@ describe('tier gating (see ADR-0022)', () => {
     player.skills = emptySkills();
     // Tier-2 node (woodcutting_t2) requires Woodcutting 5 to allocate.
     player.skills.woodcutting = { xp: xpToReach(5), level: 5 };
-    player.skillTrees = { woodcutting: { allocated: ['woodcutting_c1', 'woodcutting_t2'] } };
+    player.skillTrees = {
+      woodcutting: { allocated: { woodcutting_tap1: 1, woodcutting_hov1: 1, woodcutting_t2: 1 } },
+    };
     const world = new World(richLevel(), { seed: 1, player, combat: { activeDamage: 100 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'oak1' });
     expect(typesOf(events)).toContain('entity.damaged');

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cursorSkinTextureId, type CombatConfig, type Rarity, type ToolType } from '@tot/shared';
+import { cursorSkinTextureId, type CombatConfig, type Rarity, type SkillId, type ToolType, type TreeId } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
 import { Bag } from './Bag';
@@ -8,6 +8,9 @@ import { DevPanel } from './DevPanel';
 import { ProfileModal } from './ProfileModal';
 import { LeaderboardModal } from './LeaderboardModal';
 import { DiscoveryToasts, CompletionCelebration } from './CollectionFeedback';
+import { IdleModeBar } from './IdleModeBar';
+import { IdleSessionPanel } from './IdleSessionPanel';
+import { SkillTracker } from './SkillTracker';
 import { newAchievementIds, newCursorSkinIds } from './cosmetics';
 
 export type HudVariant = 'game' | 'zoo';
@@ -24,10 +27,14 @@ export interface HudCallbacks {
   onOpenSettings: () => void;
   /** Opens the Collection Book (game variant only). */
   onOpenCollections: () => void;
-  /** Opens the Skill Tree modal (game variant only). */
-  onOpenSkillTree: () => void;
+  /** Opens the Skill Tree modal (game variant only), optionally pre-selecting a Skill. */
+  onOpenSkillTree: (skillId?: TreeId) => void;
   /** Equips a Cursor skin (sends the authoritative command). */
   onEquipCursor: (cursorSkinId: string) => void;
+  /** Enter Idle Mode for the given Skills (sends the authoritative command). */
+  onStartIdle: (skillIds: SkillId[]) => void;
+  /** Leave Idle Mode (sends the authoritative command). */
+  onStopIdle: () => void;
   /** Content Zoo only: fire a loot burst of a chosen rarity to tune feel. */
   onTestLootBurst: (rarity: Rarity) => void;
 }
@@ -35,6 +42,8 @@ export interface HudCallbacks {
 export interface HudProps extends HudCallbacks {
   variant?: HudVariant;
   locationName?: string;
+  /** The gatherable Skills present in this Level (drives the Idle Mode bar). */
+  idleableSkills?: SkillId[];
 }
 
 function SettingsGearIcon() {
@@ -168,7 +177,7 @@ export function Hud(props: HudProps) {
           </button>
           <button
             className="hud-upgrades-button"
-            onClick={props.onOpenSkillTree}
+            onClick={() => props.onOpenSkillTree()}
             aria-label="Skill Tree"
             title="Skill Tree"
           >
@@ -183,8 +192,15 @@ export function Hud(props: HudProps) {
       <Bag />
       {variant === 'game' && (
         <>
+          <SkillTracker onOpenSkillTree={props.onOpenSkillTree} />
           <DiscoveryToasts />
           <CompletionCelebration onOpenSkillTree={props.onOpenSkillTree} />
+          <IdleSessionPanel />
+          <IdleModeBar
+            skillsInLevel={props.idleableSkills ?? []}
+            onStartIdle={props.onStartIdle}
+            onStopIdle={props.onStopIdle}
+          />
         </>
       )}
       {variant === 'zoo' && (

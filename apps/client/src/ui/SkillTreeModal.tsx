@@ -1,64 +1,107 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  listSkillTrees,
-  type SkillId,
+  CLICKER_LEVELS_PER_TOTAL,
+  CLICKER_TREE_ID,
+  listAllTrees,
   type SkillNodeEffect,
   type SkillTreeNode,
+  type TreeId,
 } from '@tot/shared';
 import { useHud } from '../state/store';
 import { SkillIcon } from './SkillIcon';
 import { skillLabel } from './skillPresentation';
 
 export interface SkillTreeModalProps {
+  /** Pre-select this tree when the modal opens (e.g. from the Skill Tracker). */
+  initialSkillId?: TreeId;
   /** Allocate one node (sim-authoritative: only sends the command). */
-  onAllocate: (skillId: SkillId, nodeId: string) => void;
-  /** Refund a whole skill's tree (sim-authoritative). */
-  onRespec: (skillId: SkillId) => void;
+  onAllocate: (treeId: TreeId, nodeId: string) => void;
+  /** Refund a whole tree (sim-authoritative). */
+  onRespec: (treeId: TreeId) => void;
   onClose: () => void;
 }
 
-/** Per-node derived UI state (mirrors the sim's allocation rules; ADR-0022). */
-type NodeStatus = 'allocated' | 'available' | 'locked';
+/** Display label for a tree id (the Clicker meta-track plus the Skills). */
+function treeLabel(treeId: TreeId): string {
+  return treeId === CLICKER_TREE_ID ? 'Clicker' : skillLabel(treeId);
+}
+
+/**
+ * Per-node derived UI state (mirrors the sim's allocation rules; ADR-0022):
+ * - `maxed`     — at max Rank (root counts); fully lit, nothing left to buy.
+ * - `partial`   — at Rank >= 1 but below max; lit, can buy another Rank.
+ * - `available` — Rank 0 but allocatable now (connected, level + points met).
+ * - `locked`    — Rank 0 and not yet allocatable.
+ */
+type NodeStatus = 'maxed' | 'partial' | 'available' | 'locked';
 
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 1.6;
 const PADDING = 90;
+const DOUBLE_TAP_MS = 320;
 
-/** A one-line, player-facing description of a node's effect. */
+/**
+ * A one-line, player-facing description of a node's effect for a given Rank step
+ * (the gain from one more Rank; see CONTEXT.md: Rank). `tierUnlock` is Rank-less.
+ */
 function effectText(effect: SkillNodeEffect): string {
   if (effect.kind === 'tierUnlock') return `Unlocks Tier ${effect.tier}`;
+  if (effect.kind === 'idleCapability') return 'Unlocks Idle Mode';
+  if (effect.kind === 'idleSkill') return 'Lets you idle this Skill';
+  if (effect.kind === 'none') return '';
+  if (effect.kind === 'cursorStat') {
+    switch (effect.stat) {
+      case 'autoMoveSpeed':
+        return `+${effect.amount} Cursor Move Speed / rank`;
+      case 'idleYield':
+        return `+${Math.round(effect.amount * 100)}% Idle XP / rank`;
+      case 'maxIdleSkills':
+        return `+${effect.amount} Simultaneous Idle Skill / rank`;
+    }
+  }
   switch (effect.stat) {
     case 'tapDamage':
-      return `+${effect.amount} Tap Damage`;
+      return `+${effect.amount} Tap Damage / rank`;
     case 'hoverDamage':
-      return `+${effect.amount} Hover Damage`;
+      return `+${effect.amount} Hover Damage / rank`;
     case 'hoverRate':
       // Hover Rate nodes lower the tick interval (faster) — show it as a speed-up.
-      return `${effect.amount <= 0 ? '+' : '-'}${Math.abs(effect.amount * 100).toFixed(0)}% Hover Speed`;
+      return `${effect.amount <= 0 ? '+' : '-'}${Math.abs(effect.amount * 100).toFixed(0)}% Hover Speed / rank`;
     case 'critChance':
-      return `+${Math.round(effect.amount * 100)}% Crit Chance`;
+      return `+${Math.round(effect.amount * 100)}% Crit Chance / rank`;
     case 'critDamage':
-      return `+${Math.round(effect.amount * 100)}% Crit Damage`;
+      return `+${Math.round(effect.amount * 100)}% Crit Damage / rank`;
   }
 }
 
 /** A short stat-row value formatter for the live Stat panel. */
-function StatPanel({ skillId }: { skillId: SkillId }) {
-  const stats = useHud((s) => s.stats[skillId]);
-  if (!stats) return null;
-  const rows: { label: string; value: string }[] = [
-    { label: 'Tap Damage', value: `${stats.tapDamage}` },
-    { label: 'Hover Damage', value: `${stats.hoverDamage}` },
-    { label: 'Hover Speed', value: `${stats.hoverRate.toFixed(2)}s / tick` },
-    { label: 'Crit Chance', value: `${Math.round(stats.critChance * 100)}%` },
-    { label: 'Crit Damage', value: `${Math.round(stats.critDamage * 100)}%` },
-    { label: 'Max Tier', value: `T${stats.maxTierUnlocked}` },
-  ];
+function StatPanel({ treeId }: { treeId: TreeId }) {
+  const stats = useHud((s) => (treeId === CLICKER_TREE_ID ? undefined : s.stats[treeId]));
+  const cursorStats = useHud((s) => s.cursorStats);
+  const rows: { label: string; value: string }[] =
+    treeId === CLICKER_TREE_ID
+      ? [
+          { label: 'Idle Mode', value: cursorStats.idleUnlocked ? 'Unlocked' : 'Locked' },
+          { label: 'Move Speed', value: `${Math.round(cursorStats.autoMoveSpeed)}` },
+          { label: 'Idle XP', value: `${Math.round(cursorStats.idleYieldMultiplier * 100)}%` },
+          { label: 'Idle Skills', value: `${cursorStats.maxIdleSkills}` },
+        ]
+      : stats
+        ? [
+            { label: 'Tap Damage', value: `${stats.tapDamage}` },
+            { label: 'Hover Damage', value: `${stats.hoverDamage}` },
+            { label: 'Hover Speed', value: `${stats.hoverRate.toFixed(2)}s / tick` },
+            { label: 'Crit Chance', value: `${Math.round(stats.critChance * 100)}%` },
+            { label: 'Crit Damage', value: `${Math.round(stats.critDamage * 100)}%` },
+            { label: 'Max Tier', value: `T${stats.maxTierUnlocked}` },
+          ]
+        : [];
+  if (rows.length === 0) return null;
   return (
     <div className="skilltree-stats">
       <div className="skilltree-stats-head">
-        <SkillIcon skillId={skillId} size={22} />
-        <span>{skillLabel(skillId)} Stats</span>
+        <SkillIcon skillId={treeId} size={22} />
+        <span>{treeLabel(treeId)} Stats</span>
       </div>
       <dl className="skilltree-stats-grid">
         {rows.map((r) => (
@@ -72,33 +115,98 @@ function StatPanel({ skillId }: { skillId: SkillId }) {
   );
 }
 
-export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModalProps) {
-  const trees = useMemo(() => listSkillTrees(), []);
-  const [skillId, setSkillId] = useState<SkillId>(trees[0]?.skillId ?? 'mining');
+export function SkillTreeModal({ initialSkillId, onAllocate, onRespec, onClose }: SkillTreeModalProps) {
+  const trees = useMemo(() => listAllTrees(), []);
+  const [skillId, setSkillId] = useState<TreeId>(initialSkillId ?? trees[0]?.skillId ?? 'mining');
   const tree = useMemo(() => trees.find((t) => t.skillId === skillId), [trees, skillId]);
 
-  const allocatedList = useHud((s) => s.skillTrees[skillId]?.allocated);
-  const level = useHud((s) => s.skills[skillId]?.level ?? 1);
+  const allocatedMap = useHud((s) => s.skillTrees[skillId]?.allocated);
+  // The funding "level": a Skill's own level, or the derived Clicker level
+  // (total Skill levels / 10; see CONTEXT.md: Clicker).
+  const skills = useHud((s) => s.skills);
+  const level =
+    skillId === CLICKER_TREE_ID
+      ? Math.floor(
+          Object.values(skills).reduce((sum, s) => sum + s.level, 0) / CLICKER_LEVELS_PER_TOTAL,
+        )
+      : (skills[skillId]?.level ?? 1);
 
-  const allocated = useMemo(() => new Set(allocatedList ?? []), [allocatedList]);
+  // nodeId -> current Rank (>= 1). Root is implicit and not stored here.
+  const allocated = useMemo(
+    () => new Map<string, number>(Object.entries(allocatedMap ?? {})),
+    [allocatedMap],
+  );
+
+  const rootId = tree?.rootNodeId;
+
+  // Current Rank / max Rank helpers (the root is always at its max Rank).
+  const maxRankOf = (node: SkillTreeNode) => Math.max(1, node.maxRank ?? 1);
+  const rankOf = (node: SkillTreeNode) =>
+    node.id === rootId ? maxRankOf(node) : (allocated.get(node.id) ?? 0);
 
   // Skill Point economy, derived locally (see CONTEXT.md: Skill Point): 1 per
-  // level, minus the summed cost of allocated nodes.
+  // level, minus the summed cost of every allocated Rank (cost * rank).
   const { spent, available } = useMemo(() => {
     if (!tree) return { spent: 0, available: 0 };
     const byId = new Map(tree.nodes.map((n) => [n.id, n]));
     let s = 0;
-    for (const id of allocated) s += byId.get(id)?.cost ?? 0;
+    for (const [id, rank] of allocated) s += (byId.get(id)?.cost ?? 0) * rank;
     return { spent: s, available: Math.max(0, level - s) };
   }, [tree, allocated, level]);
 
-  const rootId = tree?.rootNodeId;
-
   const statusOf = (node: SkillTreeNode): NodeStatus => {
-    if (node.id === rootId || allocated.has(node.id)) return 'allocated';
-    const connected = node.edges.some((e) => e === rootId || allocated.has(e));
+    const rank = rankOf(node);
+    const maxRank = maxRankOf(node);
+    if (rank >= maxRank) return 'maxed';
+    if (rank >= 1) return 'partial';
+    const connected = node.edges.some((e) => e === rootId || (allocated.get(e) ?? 0) >= 1);
     const eligible = connected && level >= node.levelReq && available >= node.cost;
     return eligible ? 'available' : 'locked';
+  };
+
+  // ---- Allocation feedback: pulse the node whose Rank just rose -------------
+  // Sounds are sim-authoritative (fired in SceneRenderer off the event); the
+  // visual pulse is pure presentation, driven by diffing the projected ranks.
+  type Pulse = { nodeId: string; kind: 'rank' | 'max' | 'tier'; nonce: number };
+  const [pulse, setPulse] = useState<Pulse | null>(null);
+  const prevRanks = useRef<{ skillId: TreeId; ranks: Map<string, number> } | null>(null);
+  const [spentPulse, setSpentPulse] = useState(0);
+  const prevSpent = useRef<{ skillId: TreeId; spent: number } | null>(null);
+
+  useEffect(() => {
+    const prev = prevRanks.current;
+    if (prev && prev.skillId === skillId && tree) {
+      for (const [id, rank] of allocated) {
+        if (rank > (prev.ranks.get(id) ?? 0)) {
+          const node = tree.nodes.find((n) => n.id === id);
+          const kind: Pulse['kind'] =
+            node?.effect.kind === 'tierUnlock'
+              ? 'tier'
+              : node && rank >= maxRankOf(node)
+                ? 'max'
+                : 'rank';
+          setPulse({ nodeId: id, kind, nonce: performance.now() });
+        }
+      }
+    }
+    prevRanks.current = { skillId, ranks: new Map(allocated) };
+  }, [allocated, skillId, tree]);
+
+  // Pulse the points readout whenever points are spent (or refunded).
+  useEffect(() => {
+    const prev = prevSpent.current;
+    if (prev && prev.skillId === skillId && spent !== prev.spent) {
+      setSpentPulse(performance.now());
+    }
+    prevSpent.current = { skillId, spent };
+  }, [spent, skillId]);
+
+  /** Whether a node can take another Rank right now (mirrors the sim rules). */
+  const canAllocate = (node: SkillTreeNode): boolean => {
+    if (node.id === rootId) return false;
+    if (rankOf(node) >= maxRankOf(node)) return false;
+    const connected = node.edges.some((e) => e === rootId || (allocated.get(e) ?? 0) >= 1);
+    return connected && level >= node.levelReq && available >= node.cost;
   };
 
   const [selectedId, setSelectedId] = useState<string | undefined>();
@@ -202,7 +310,29 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
   }, [onClose]);
 
   const tryAllocateSelected = () => {
-    if (selected && selectedStatus === 'available') onAllocate(skillId, selected.id);
+    if (selected && canAllocate(selected)) onAllocate(skillId, selected.id);
+  };
+
+  const lastNodeTap = useRef<{ nodeId: string; atMs: number } | null>(null);
+
+  const onNodeTap = (node: SkillTreeNode) => {
+    if (dragged.current) return;
+    setSelectedId(node.id);
+    const now = performance.now();
+    const prev = lastNodeTap.current;
+    const isDoubleTap = prev?.nodeId === node.id && now - prev.atMs <= DOUBLE_TAP_MS;
+    if (isDoubleTap && canAllocate(node)) onAllocate(skillId, node.id);
+    lastNodeTap.current = isDoubleTap ? null : { nodeId: node.id, atMs: now };
+  };
+
+  // Buy as many Ranks as the player can currently afford, in one go. Each Rank
+  // is its own command; the sim re-validates points/connectivity per Rank.
+  const allocateMaxSelected = () => {
+    if (!selected || selected.cost <= 0) return;
+    const remaining = maxRankOf(selected) - rankOf(selected);
+    const affordable = Math.floor(available / selected.cost);
+    const count = Math.max(0, Math.min(remaining, affordable));
+    for (let i = 0; i < count; i++) onAllocate(skillId, selected.id);
   };
 
   const [confirmReset, setConfirmReset] = useState(false);
@@ -230,7 +360,7 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
                 onClick={() => setSkillId(t.skillId)}
               >
                 <SkillIcon skillId={t.skillId} size={20} />
-                {skillLabel(t.skillId)}
+                {treeLabel(t.skillId)}
               </button>
             ))}
           </div>
@@ -257,8 +387,8 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
                     node.edges.map((edgeId) => {
                       const from = tree.nodes.find((n) => n.id === edgeId);
                       if (!from) return null;
-                      const lit = allocated.has(node.id) || node.id === rootId;
-                      const fromLit = allocated.has(edgeId) || edgeId === rootId;
+                      const lit = (allocated.get(node.id) ?? 0) >= 1 || node.id === rootId;
+                      const fromLit = (allocated.get(edgeId) ?? 0) >= 1 || edgeId === rootId;
                       return (
                         <line
                           key={`${node.id}-${edgeId}`}
@@ -276,6 +406,9 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
                     const status = statusOf(node);
                     const isTier = node.effect.kind === 'tierUnlock';
                     const r = isTier ? 34 : 26;
+                    const maxRank = maxRankOf(node);
+                    const rank = rankOf(node);
+                    const ranked = !isTier && maxRank > 1 && node.id !== rootId;
                     return (
                       <g
                         key={node.id}
@@ -283,20 +416,33 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
                         className={`skilltree-node ${status} ${isTier ? 'tier' : ''} ${
                           node.id === selectedId ? 'selected' : ''
                         }`}
-                        onClick={() => {
-                          if (dragged.current) return;
-                          setSelectedId(node.id);
-                        }}
+                        onClick={() => onNodeTap(node)}
                         role="button"
-                        aria-label={`${node.label} (${status})`}
+                        aria-label={`${node.label} (${status}${ranked ? `, rank ${rank}/${maxRank}` : ''})`}
                       >
-                        <circle r={r} />
+                        {pulse?.nodeId === node.id && (
+                          <circle
+                            key={pulse.nonce}
+                            className={`skilltree-pulse ${pulse.kind}`}
+                            r={r}
+                          />
+                        )}
+                        <circle
+                          r={r}
+                          className={pulse?.nodeId === node.id ? `skilltree-node-pop ${pulse.kind}` : undefined}
+                          key={pulse?.nodeId === node.id ? `pop-${pulse.nonce}` : 'circle'}
+                        />
                         <text className="skilltree-node-label" y={r + 16} textAnchor="middle">
                           {node.label}
                         </text>
                         {isTier && (
                           <text className="skilltree-node-tier" textAnchor="middle" dy="6">
                             T{node.effect.kind === 'tierUnlock' ? node.effect.tier : ''}
+                          </text>
+                        )}
+                        {ranked && (
+                          <text className="skilltree-node-rank" textAnchor="middle" dy="6">
+                            {rank}/{maxRank}
                           </text>
                         )}
                       </g>
@@ -316,7 +462,10 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
             </div>
 
             <div className="skilltree-points" aria-live="polite">
-              <strong>{available}</strong> point{available === 1 ? '' : 's'} available
+              <strong key={spentPulse} className={spentPulse ? 'skilltree-points-pop' : undefined}>
+                {available}
+              </strong>{' '}
+              point{available === 1 ? '' : 's'} available
               <span className="skilltree-points-sub">
                 Lv {level} · {spent} spent
               </span>
@@ -324,7 +473,7 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
           </div>
 
           <aside className="skilltree-side">
-            <StatPanel skillId={skillId} />
+            <StatPanel treeId={skillId} />
 
             <div className="skilltree-detail">
               {selected ? (
@@ -332,15 +481,30 @@ export function SkillTreeModal({ onAllocate, onRespec, onClose }: SkillTreeModal
                   <div className="skilltree-detail-title">{selected.label}</div>
                   <div className="skilltree-detail-effect">{effectText(selected.effect)}</div>
                   <div className="skilltree-detail-meta">
-                    <span>Cost: {selected.cost}</span>
+                    <span>Cost: {selected.cost}/rank</span>
                     <span>Requires Lv {selected.levelReq}</span>
                   </div>
-                  {selectedStatus === 'allocated' ? (
-                    <div className="skilltree-detail-state allocated">{'\u2713'} Allocated</div>
-                  ) : selectedStatus === 'available' ? (
-                    <button className="prog-primary-button" onClick={tryAllocateSelected}>
-                      Allocate ({selected.cost})
-                    </button>
+                  {maxRankOf(selected) > 1 && selected.id !== rootId && (
+                    <div className="skilltree-detail-rank">
+                      Rank {rankOf(selected)}/{maxRankOf(selected)}
+                    </div>
+                  )}
+                  {selectedStatus === 'maxed' ? (
+                    <div className="skilltree-detail-state allocated">
+                      {'\u2713'} {maxRankOf(selected) > 1 ? 'Maxed' : 'Allocated'}
+                    </div>
+                  ) : canAllocate(selected) ? (
+                    <div className="skilltree-detail-actions">
+                      <button className="prog-primary-button" onClick={tryAllocateSelected}>
+                        Allocate ({selected.cost})
+                      </button>
+                      {maxRankOf(selected) - rankOf(selected) > 1 &&
+                        available >= selected.cost * 2 && (
+                          <button className="skilltree-max-button" onClick={allocateMaxSelected}>
+                            Max
+                          </button>
+                        )}
+                    </div>
                   ) : (
                     <div className="skilltree-detail-state locked">
                       {level < selected.levelReq

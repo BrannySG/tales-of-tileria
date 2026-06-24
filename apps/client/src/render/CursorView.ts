@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite } from 'pixi.js';
-import { CURSOR_SHADOW_OFFSET, createCursorShadow } from './entityFx';
+import { CURSOR_SHADOW_OFFSET, createCursorShadow, drawMoon } from './entityFx';
 import type { TextureMap } from './assets';
 
 const RING_RADIUS = 30;
@@ -19,11 +19,14 @@ export class CursorView {
   private readonly carriedItem: Sprite;
   private readonly arrow: Sprite;
   private readonly arrowShadow: Sprite;
+  private readonly moon = new Graphics();
 
   private hovering = false;
   private locked = false;
+  private idle = false;
   private pulse = 0;
   private ringAlpha = 0;
+  private moonBob = 0;
 
   constructor(
     private readonly textures: TextureMap,
@@ -79,7 +82,20 @@ export class CursorView {
     this.arrowShadow.x = CURSOR_SHADOW_OFFSET.x;
     this.arrowShadow.y = CURSOR_SHADOW_OFFSET.y;
 
-    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow, this.carriedItem);
+    // The Idle Mode "moon" indicator (see CONTEXT.md: Idle Mode), floating above
+    // the cursor tip. Hidden until Idle Mode starts.
+    drawMoon(this.moon);
+    this.moon.x = 4;
+    this.moon.y = -34;
+    this.moon.visible = false;
+
+    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow, this.carriedItem, this.moon);
+  }
+
+  /** Shows/hides the Idle Mode moon indicator above the cursor. */
+  setIdle(idle: boolean): void {
+    this.idle = idle;
+    this.moon.visible = idle;
   }
 
   /** Shows (or with `undefined`, hides) the armed Item the cursor is carrying. */
@@ -144,6 +160,11 @@ export class CursorView {
       const alpha = (1 - this.pulse) * 0.6;
       this.lockRing.clear();
       this.lockRing.circle(0, 0, r).stroke({ color: 0xffd24a, width: 3, alpha });
+    }
+
+    if (this.idle) {
+      this.moonBob = (this.moonBob + dt) % (Math.PI * 2);
+      this.moon.y = -34 + Math.sin(this.moonBob * 2) * 2;
     }
   }
 
