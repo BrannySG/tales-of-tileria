@@ -43,7 +43,8 @@ Trees. The tree gates Tier; tools gate type only; Stats resolve in one place.**
   axe/pickaxe). Tool tiers/crafting stay in content for the future Gear sprint.
 - **Stats, one resolver.** `deriveStats(player, skillId, combat)` is the single
   choke point that sums `base (Level combat + passiveDamage) + Skill Tree (+
-  future Gear)` into a `SkillStats` block (`tapDamage`, `hoverDamage`, `hoverRate`,
+  future Gear)` *(now framed as **Artifacts** — see the Update)* into a
+  `SkillStats` block (`tapDamage`, `hoverDamage`, `hoverRate`,
   `critChance`, `critDamage`, `maxTierUnlocked`). Tap damage, passive cadence/
   damage, crit, and Tier gating all read it. Nothing else computes Stats.
 - **Crit.** Tap only, via the existing **seeded sim RNG** (deterministic for
@@ -95,3 +96,13 @@ two refinements were made for legibility and depth:
 - **Migration.** The shape change + new node ids/topology mean a clean reset:
   existing saves keep XP/levels but start with empty trees (Skill Points
   auto-refund), consistent with ADR-0016's dev-only-saves stance.
+
+## Update (2026-06-25) — "future Gear" is now "Artifacts"
+
+The `deriveStats` seam reserved here for a future **Gear** source has been
+reframed: the creative direction (`creative/design-ideas.md`) retires traditional
+"Gear" in favour of **Artifacts** — equippable Cursor relics with behavioural
+effects, slotted via the Clicker tree. The technical seam is unchanged (add one
+source to `deriveStats`); only the name/concept changed. When Artifacts ship they
+get their own ADR + `CONTEXT.md` vocabulary. Read "future Gear" above as "future
+Artifacts".

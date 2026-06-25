@@ -13,7 +13,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25
+> Last reviewed: 2026-06-25 *(doc-cleanup pass: deduped the "cursor boss fight" question; ratings re-confirmed)*
 
 ---
 
@@ -318,8 +318,8 @@ Threads still to figure out:
   (a choice screen? a ritual?)?
 - How do new zones unlock per reawaken — strictly gated, or soft-gated by power?
 - Where do the council boss fights live (authored Levels?) and how does the
-  "different fight style per member" scale across reawakens?
-- What does a "boss fight" look like in cursor-click terms? (Core design question
-  before any boss content is built.)
+  "different fight style per member" scale across reawakens? (The "what *is* a
+  cursor boss fight" question lives in the **Council boss fight** section's Notes
+  above — not repeated here.)
 - Does the Clicker track (ADR-0024) survive rebirth automatically, or must it be
   earned as eternal like a Skill?

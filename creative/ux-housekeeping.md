@@ -9,260 +9,249 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(Collection juice + hover preview bar shipped — v0.1.44)*
+> Last reviewed: 2026-06-25 *(added the **Item Card** visual language from the loot mockup — shared component + token set, with a now-vs-deferred surface-adoption plan; grilled + locked the hover-rail interactivity model (passive + wheel + fade/peek) and the cursor-affordance DECISION-FIRST gate (glow-only, `locked > armed > interactable`); current build v0.1.47)*
 
 ---
 
-## Collection Book — registration juice and icon-first layout
+## Active backlog
 
-> **Priority: HIGH — shipped 2026-06-25 (v0.1.44)**
-> Impact: Every Collection registration — a core progression action that used to
-> feel flat and forgettable.
+Live UX/polish items not yet shipped. (Shipped items are collapsed to pointers near
+the bottom of this doc.)
 
-### Problem *(premise corrected on build)*
+### Item Card visual language (how an Item looks, everywhere)
 
-Adding an item to a Collection **didn't feel good**. The felt gap was **no moment
-of reward** on the tap — only a tiny slot pulse + a `loot` SFX fired. (The earlier
-note that "the panel instantly disappears" was inaccurate: the modal never closed
-on register; it only closes on overlay/×/Esc. The real problem was missing reward
-feedback, not auto-close.) The book should feel awesome; it used to feel like
-ticking a box.
+> **Priority: HIGH — defines the look; adopt incrementally**
+> Impact: Every surface that shows an Item — the loot reel, hover-preview drops,
+> "new item" toasts, and later the Bag, Vendor, and Collection Book.
 
-### Resolution (shipped)
+A reference mockup ([`mockups/item-card-loot.png`](mockups/item-card-loot.png), locked
+2026-06-25) sets the visual language for **how an Item is presented anywhere it
+appears**. Treat it as one shared component + token set — the **Item Card** — not
+per-surface bespoke styling.
 
-- **Registration juice (rarity-tiered, restrained).** Every register now plays a
-  slot **slam** (scale punch) + a **rarity-coloured flash ring**; Rare+ adds a
-  bigger punch and a **whole-panel shake**. Common/Uncommon stay subtle (no shake)
-  so frequent gather registrations don't rattle the screen. Driven entirely
-  client-side: `bindHud` diffs the `collection.registered` totals to find the slot
-  whose count jumped + its rarity (a transient `lastRegister` signal) — **no sim
-  change** (the sim still owns `collection.register`).
-- **Two reward tiers.** Per-slot register = the new slam/flash; **entry-complete**
-  keeps the existing `CompletionCelebration` toast as the louder second tier.
-- **Icon-first detail.** The detail panel's spreadsheet text (rarity label,
-  registered/owned counts, source line) collapses behind a single compact
-  "Need N more" status line and reveals on hover/focus; a rarity-bordered icon
-  leads each row. The centre list was already icon-first, so it was left as is.
-- `prefers-reduced-motion` disables the slam/flash/shake.
+#### Tokens (the language)
+- **Rarity gradient fill** keyed off `RARITY_COLOR` (light→deep diagonal). Rarity
+  reads from the *fill*, not just a border.
+- **Soft white rim + drop shadow** — the card reads as a raised, physical chip.
+- **Icon-forward** — the item icon leads (left for wide cards, centred for grid
+  slots), large, sitting directly on the gradient (no inner box).
+- **Outlined display-font name** (white fill + dark stroke) with a small uppercase
+  **rarity label** above it.
+- **Quantity badge** (`×N`) large, white-outlined, **overhanging the top-right
+  corner** — the signature flourish; built to absorb coalesced stacks.
+- **Reduced motion:** any animated variant degrades to a static card.
+
+#### Shape variants (same tokens, different footprint)
+- **Loot tile** — wide capsule; the loot reel's hero/trail tiles (see design-ideas.md).
+- **Compact chip** — hover-preview drop rail entries (icon + rarity + chance + `×N`).
+- **Grid slot** — Bag / Collection / Vendor square cells (rarity-tinted slot + badge).
+
+#### Single choke point
+Build one `ItemCard` component (or a shared CSS token layer) so rarity colour, badge,
+and font live in **one place**. Per [`architecture.mdc`](../.cursor/rules/architecture.mdc),
+derived display must not be copy-pasted across JSX/Pixi — this is the choke point for
+"what an Item looks like".
+
+#### Surface adoption — now vs deferred
+
+**Now (this initiative / current sprints):**
+- **Loot reel** — canonical home of the language (design-ideas.md → loot reel).
+- **Hover-preview drop rail** — chips adopt the gradient + badge (folds into the
+  hover-rail pass below; the two were always meant to share a pattern).
+- **"New item" discovery toast** (`CollectionFeedback`) — restyle the first-acquire
+  toast into a hero Item Card. Cheap (same component) and a high-emotion moment.
+
+**Deferred (future sprints — documented now, built later):**
+- **Bag** grid — rarity-tinted slots + overhanging `×N` badge. Larger surface; its
+  own polish pass once the component exists.
+- **Vendor** sell list — items as Item Cards. Whole-scene restyle; defer to a Vendor
+  visual pass.
+- **Collection Book** full gradient fills — **careful**: registration juice +
+  icon-first detail just shipped (v0.1.44). Adopt in a dedicated Collection visual
+  pass so we don't fight recent work.
+- **Idle session panel** grid — restyle to match. Low priority now that the reel runs
+  in idle too.
+- **World floating loot text / completion celebration** — optional rarity-colour echo
+  on the Pixi `+N` text. Different medium (canvas), lowest priority.
 
 **Review**
 
 Pros:
-- Fixed a felt gap on a loop players hit repeatedly — high touch frequency, zero
-  sim changes (client diff of the authoritative event).
-- Reuses rarity colours + the slot-pulse pattern — consistent arcade feel.
-- Icon-first detail improves scanability; the hover-reveal keeps requirement
-  context one hover away.
-- Slam + rarity flash gives an emotional peak on commitment (vs the drop peak the
-  loot carousel idea targets).
+- One component → consistent "an Item" look across the whole game; rarity becomes a
+  glanceable, learned language rather than five bespoke treatments.
+- The defer list keeps the first build small (reel + rail + toast) while guaranteeing
+  later surfaces converge instead of drifting.
+- Reuses `RARITY_COLOR` and the existing icon assets — pure presentation, no sim
+  changes.
 
 Cons / risks:
-- Modal shake is gated to Rare+ to avoid Common-registration annoyance — watch in
-  playtest that the threshold feels right.
-- Hover-reveal of detail text is mouse-friendly; touch users rely on the compact
-  status line + the existing `title` tooltip. Fine for now.
+- A shared component must flex across capsule / chip / grid-slot footprints without
+  becoming a config soup. Keep variants explicit, not a pile of boolean props.
+- Heavy gradients + badges everywhere could over-saturate dense grids (Bag/Collection);
+  tune intensity down for grid slots vs the hero loot tile.
+- Touch/dense layouts: the overhanging badge must not clip neighbours in tight grids.
 
 Notes:
-- **Done.** Sequence simplified from the original "throb → vanish → slam" (there is
-  no distinct source element in the modal) to slot slam + rarity flash + Rare+
-  panel shake — same reward peak, fewer moving parts.
-- Pair with the loot carousel (design-ideas) for consistent "items feel earned"
-  language across Bag, Collection, and Vendor.
+- Build the component while building the loot reel; the reel proves the language, then
+  the rail and toast adopt it in the same sprint.
+- **ADR candidate (not yet):** once the language is proven on reel + rail, a short ADR
+  ("Items render through one shared Item Card") may be worth it to lock the choke
+  point — defer until it's real.
 
 ---
 
-## HUD UI scale slider (Settings)
+### Hover preview interaction pass — horizontal loot rail + cursor visibility
 
-> **Priority: MEDIUM**
-> Impact: Readability and accessibility for players who need larger HUD text,
-> icons, and controls — without changing world/canvas scale.
+> **Priority: HIGH**
+> Impact: Every active gather loop where the player hovers entities and checks
+> drop details.
 
-### Intent
+### Problem
 
-Add a **UI scale** option in Settings: a **nice slider** so players can adjust
-the **HUD overlay's scale**. Primary goal is **readability** for those who need
-it (small screens, vision preferences, high-DPI laptops zoomed out). Secondary:
-it should **feel good** to use — not a buried dev toggle.
+The current hover preview can feel awkward to interact with:
+
+- The drop chips stack/scale in a way that feels visually unstable.
+- If the player moves from world hover to the preview details area, interaction
+  feedback is unclear and the Cursor can feel "lost"/hidden.
+- Dense drop lists need clearer navigation than a compressed, always-fit row.
 
 ### Direction
 
-- **Settings → Display** (or Accessibility) section with a labelled slider,
-  matching the existing audio slider pattern (`VolumeRow` in `SettingsMenu`).
-- **Live preview** as the player drags — HUD resizes immediately, no Apply button.
-- **Persist** across sessions (same pattern as `AudioSettings` in the HUD store /
-  `localStorage`).
-- **Default 100%** at the centre of a sensible range (e.g. **80%–150%** or
-  **75%–175%** — tune in playtest). Show a numeric label (`100%`) beside the
-  slider.
-- **HUD only** — scales the DOM overlay (`hud-layer`, modals: Bag, Collection Book,
-  Skill Tree, Vendor, Settings). Does **not** scale the Pixi world canvas; the game
-  view stays the same size.
+- Convert the drops strip into a **horizontal loot rail** inside the preview.
+  Keep one row, allow overflow, and enable clear left/right drag-wheel-scroll.
+- **Adopt the Item Card language** (above): each drop is a **compact chip** variant —
+  rarity gradient + icon + chance + `×N` badge — so the hover rail and the loot reel
+  speak the same visual language.
+- Keep drop cards at a **stable size** while scrolling (avoid per-card scale jumps
+  during normal hover traversal).
+- Ensure the player's Cursor remains **visible and readable** over the preview so
+  moving from world to HUD does not feel like crossing into a non-interactive
+  dead zone.
+- Keep the quick-glance behaviour: important stats stay visible even when the
+  loot rail overflows.
 
-### Feel-good details
+### Decisions (locked 2026-06-25)
 
-- Slider thumb and track styled to match the game's UI chrome (not browser default
-  where avoidable).
-- Optional subtle **snap or emphasis at 100%** so reset-to-default is discoverable.
-- At high scale, respect **safe-area insets** — panels shouldn't clip off-screen;
-  prefer scaling from anchor corners already used in `styles.css` (`--hud-scale`).
-- Consider a **Reset to default** text button next to the slider.
+- **The bar stays passive** (`pointer-events: none`, sticky/last-seen). Most entities
+  have only 2–5 drops; overflow is the exception, so we don't make the rail a
+  click/drag target — that would reintroduce the world-hover flicker risk below.
+- **Stable-size auto-fit + fade-edge + peek.** Chips keep a constant size; when the
+  list overflows, fade the rail edges and peek the next chip so overflow is obvious.
+- **Wheel-scroll via a global listener** while the preview is visible — gives manual
+  navigation of dense lists without needing pointer-events on the bar.
+- **Cursor continuity** is handled by the new glow affordance (above): ensure the
+  cursor stays clearly painted over the bar region and glows over interactable chips,
+  so world→HUD never feels like a dead zone. No separate cursor-continuity hack.
 
-### Implementation hook
+### Constraints / fit
 
-The HUD already uses a CSS variable `--hud-scale` on `.hud-layer` (today tied to
-letterbox `stage.scale`). A player preference would compose as e.g.
-`effectiveScale = stage.scale * uiScalePreference` — keep the fit-contain factor
-and the user multiplier separate.
-
-**Review**
-
-Pros:
-- Directly helps readability — the main stated goal — with minimal gameplay impact.
-- Reuses Settings modal + slider row pattern; persistence seam mirrors audio.
-- `--hud-scale` is already threaded through HUD CSS — one multiplier, wide reach.
-- Presentation-only; no sim or protocol changes.
-
-Cons / risks:
-- Extreme scale + many open modals can overflow small viewports — needs min/max
-  clamp and playtest on mobile.
-- Composing two scale factors (`stage.scale` × user pref) must stay consistent
-  on every HUD surface (including Vendor full-screen and Collection Book).
-- Scaling text without reflow can make long labels clip — may need `max-width`
-  or allow wrap at high scale.
-
-Notes:
-- Frame as **accessibility / readability**, not "zoom the whole game."
-- Ship alongside or before Collection Book icon-first work — both target legibility.
-- Do not conflate with browser zoom; this is an in-game preference players can
-  find without OS settings.
-
----
-
-## Bottom-right hover preview bar (replaces right-click Inspect)
-
-> **Priority: HIGH — shipped 2026-06-25 (v0.1.44, ADR-0028)**
-> Impact: Every hover over a gatherable entity — the most common non-click action.
-
-### Problem
-
-Inspect / "hover tooltips" used to open only on **right-click** (or Ctrl+primary
-click / touch long-press). That was clunky and easy to miss. The floating
-`InspectPanel` also fought hover collisions, weird anchor math, and screen-edge
-clipping.
-
-### Resolution (shipped)
-
-A **persistent, sticky preview bar** (`HoverPreviewBar`) docked **bottom-right,
-above the Skill Tracker**:
-
-- **Reveals on entity hover** (same moment we send `entity.hoverStart`), and is
-  **sticky/last-seen** — it keeps showing the last hovered entity instead of
-  flickering with the fast click loop; it retires after a short idle
-  (`PREVIEW_IDLE_HIDE_MS`).
-- Shows the `buildInspectModel` data: name, HP, requirements, XP, respawn, drops —
-  **now including the drop % (`chanceText`)** the old panel never rendered.
-- Rarity-coloured borders + a gentle Rare+ aura. One fixed slot, no anchor math,
-  zero edge-clipping.
-- **The old path was deleted** (not just deprecated): `inspectGesture`, the touch
-  long-press, `openInspect`/`syncInspectProjection`/`worldToHostPixel`, the
-  `InspectInfo` store slice, the `onInspect` option, `InspectPanel.tsx`, and the
-  `.inspect-*` CSS. `buildInspectModel` stays (it feeds the bar). See ADR-0028.
-
-### Deferred
-
-- **Smaller profile card** (top-left `hud-profile`) — intentionally left out to
-  keep the diff focused; still a standalone polish task.
-- The sim's lock / hover-damage mechanics are untouched (only presentation
-  changed). Right-click now does nothing for inspect — free to repurpose later
-  (e.g. an expanded detail view).
+- Must remain presentation-only (no sim/protocol changes).
+- Must work with both world-hover and DOM-hover interactions without special-case
+  rules per panel.
+- Should respect reduced-motion preferences if any motion is retained in the rail.
 
 **Review**
 
 Pros:
-- Fixed a felt UX gap on every session (inspect is now on the action players
-  already perform — hover).
-- Reuses `buildInspectModel` + HUD store — presentation-only, no sim changes.
-- Drop % was already computed; this surfaced it.
-- Fixed anchor eliminated an entire class of layout bugs (and deleted the code
-  that caused them).
+- Directly targets a felt friction in the most-used loop (hover -> decide -> click).
+- Horizontal rail is a familiar pattern for variable-length drop lists.
+- Stable card sizing improves readability and perceived polish.
+- Cursor visibility continuity should reduce "UI broke" moments when crossing
+  world/HUD boundaries.
 
 Cons / risks:
-- Bottom-right is crowded; the bar sits above the Skill Tracker. A Level with an
-  unusually tall tracker (5+ gatherable Skills — none today) could crowd it.
-- Touch users lose the explicit long-press inspect; they get the sticky preview on
-  tap-hover instead.
+- Horizontal scrolling can hide information if no affordance (fade edges, peek,
+  or wheel support) is provided.
+- Over-correcting motion could make rare drops feel less special; keep rarity
+  emphasis without layout jitter.
+- Needs careful hitbox handling so world hover exit/entry does not flicker the
+  panel state while interacting with the rail.
 
 Notes:
-- **Done.** Sticky last-seen behaviour + Rare+ aura reuse `RARITY_COLOR` and the
-  loot border/glow patterns for consistency.
+- This is a follow-up pass on the shipped hover-preview system, not a rollback to
+  the old inspect popover.
+- If the rail works well here, reuse as a pattern for other overflowing icon rows.
 
 ---
 
-## Stop auto-wiping progression on join
+### Cursor affordance state for interactable targets (DOM + world)
 
-> **Priority: HIGH — shipped 2026-06-25**
-> Impact: Every returning player session.
-
-### Problem
-
-`WIPE_PROGRESSION_ON_JOIN` reset skills, inventory, tools, quests, etc. on every
-game load. Felt bad in play; the Settings **Force wipe save** button is enough
-for testing.
-
-### Resolution
-
-- `WIPE_PROGRESSION_ON_JOIN` set to `false` — normal `loadPlayerSave()` path
-  restores progress.
-- Manual wipe remains in Settings via `wipeProgressionSave()`.
-- `WelcomeNotice` progression-wipe copy only appears if the toggle is ever turned
-  back on for a dev pass.
-
-**Review**
-
-Pros:
-- Progress now matches player expectation and the v0.2.0 patch-note promise.
-- Testing still has an explicit, intentional wipe control.
-
-Cons / risks:
-- Stale saves during rapid schema churn may need a schema bump instead of a
-  join-time wipe — already handled by `SCHEMA_VERSION`.
-
-Notes:
-- **Done.** Do not re-enable join-time wipe without an explicit decision.
-
----
-
-## Hide entity lock button (keep mechanic)
-
-> **Priority: MEDIUM — UI removed 2026-06-25**
-> Impact: Cleaner entity chrome; lock still works via Spacebar.
+> **Priority: HIGH**
+> Impact: Global interaction clarity across HUD controls and world entities.
 
 ### Problem
 
-The in-world lock toggle on entities adds clutter without being discoverable
-enough to justify the UI cost.
+Because the game uses a custom Cursor everywhere, players lose a standard browser
+signal ("pointer cursor") that something is clickable/pressable. This weakens
+affordance in both DOM UI and world interactions.
 
 ### Direction
 
-- Remove the Pixi lock button from `EntityView`.
-- **Keep** sim commands (`entity.lock` / `entity.unlock`), cursor locked visual,
-  and **Spacebar toggle** on the current target — the mechanic stays, just not
-  on-entity chrome.
-- Can restore a HUD affordance later if lock becomes a taught mechanic again.
+Add an explicit **interactable Cursor state** whenever the current hover target
+accepts an action:
+
+- Applies to both **DOM controls** (buttons, rows, tabs, clickable cards) and
+  **world targets** (entities, interactables, hover-preview chips).
+- Uses a subtle but unmistakable visual cue that reads as "you can act here" without
+  becoming noisy.
+- Keeps existing semantic Cursor states (tool/armed/locked, etc.) and layers
+  affordance predictably rather than replacing them.
+
+### Decisions (locked 2026-06-25)
+
+- **Visual language: glow-only.** A soft ring/halo around the cursor tip when the
+  hover target is interactable — **no scale/pop** (avoids clashing with rarity juice
+  and the existing tool/lock rings; calmest cross-surface signal). Tune intensity up
+  only if playtests still miss interactables.
+- **Precedence: `locked > armed > interactable`.** Committed/semantic states always
+  beat the generic affordance hint — the glow is suppressed while locked or armed, so
+  there's no flicker or stacked rings to debug.
+- Applies on both **DOM controls** (buttons, rows, tabs, clickable cards) and
+  **world targets** (entities, interactables, hover-preview chips), driven from the
+  same hover handlers.
 
 **Review**
 
 Pros:
-- Less visual noise over every hovered entity.
-- Spacebar path already exists for keyboard players.
+- Restores missing interaction feedback players expect from web UI conventions.
+- Improves discoverability of clickable controls without extra tutorial text.
+- One cross-surface rule (DOM + world) reduces UX inconsistency.
+- Presentation-layer change with high perceived quality impact.
 
 Cons / risks:
-- Mobile / touch-only players lose lock entirely until we add another affordance.
-- Lock is still a core hover-damage mechanic — if we hide all UI, we should
-  teach it elsewhere or accept hover-only passive damage.
+- Too much glow/scale could look busy given existing rarity effects and HUD juice.
+- State-priority conflicts can produce flicker unless transition rules are explicit.
+- Requires coverage auditing so all interactables opt into the same signal.
 
 Notes:
-- **UI removed.** Sim + Spacebar unchanged. Revisit if touch lock is needed.
+- Treat this as a cursor-system polish pass, not a one-off fix for a single panel.
+- Start subtle and tune upward only if playtests still miss interactables.
+
+---
+
+---
+
+## Shipped — archived (pointers only)
+
+These were full write-ups; the authoritative record now lives in the ADR / patch
+notes. Kept as one-liners so the active backlog above stays the live list.
+
+- **Collection Book registration juice + icon-first detail** — rarity-tiered slot
+  slam/flash, Rare+ panel shake; client-side diff of `collection.registered`, no
+  sim change. Shipped v0.1.44.
+- **Bottom-right hover preview bar (replaces right-click Inspect)** — sticky
+  `HoverPreviewBar` showing name/HP/reqs/XP/respawn/drops + drop %; old
+  Inspect gesture + `InspectPanel` deleted. Shipped v0.1.44 — see **ADR-0028**.
+  *(Deferred follow-up: smaller top-left profile card — still a standalone task.)*
+- **HUD UI scale slider (Settings)** — accessibility/readability slider scaling the
+  DOM HUD only (75%–175%, Reset), persisted via `uiScale` in the HUD store;
+  composes with `stage.scale` via `--hud-scale`. Shipped (`SettingsMenu.tsx`).
+- **Stop auto-wiping progression on join** — `WIPE_PROGRESSION_ON_JOIN = false`;
+  normal `loadPlayerSave()` restores progress; manual wipe stays in Settings.
+  Shipped v0.1.42. Do not re-enable without an explicit decision.
+- **Hide entity lock button (keep mechanic)** — removed the in-world Pixi lock
+  toggle; sim `entity.lock`/`unlock` + Spacebar toggle + locked cursor visual
+  unchanged. Shipped v0.1.42. Revisit if touch lock is needed.
 
 ---
 

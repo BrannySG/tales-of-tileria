@@ -95,6 +95,10 @@ more than one player interacts with the same entity:
   contribution.
 - `lastHit` — whoever lands the depleting blow takes the loot/XP.
 - `personal` — the entity is instanced per player (each sees their own state).
+  *(Note: ADR-0025 deliberately did **not** use per-player instancing for Personal
+  Breakables / Landmarks. It adds a per-Player break overlay + per-player snapshot
+  projection over shared, world-owned entities instead. `personal` remains the
+  authored rule name, but the implemented mechanism is the overlay.)*
 
 The current `EntityInstance.locked: boolean` (a pickup/shrine "not yet active"
 gate) is **orthogonal** to claims and stays as is. The tech-doc's mooted

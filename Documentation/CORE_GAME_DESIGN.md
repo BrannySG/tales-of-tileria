@@ -1,682 +1,302 @@
-# Idle Cursor MMO — Core Game Design
+# Tales of Tileria — Core Game Design
 
-> **Vocabulary note:** [`CONTEXT.md`](../CONTEXT.md) is the canonical glossary
-> and wins on any conflict. In particular, this document's "Area" and "Zone"
-> both map to the canonical term **Level** (a runtime copy is a **Level
-> instance**). Treat such terms here as historical synonyms pending cleanup.
+> **What this doc is.** A concise statement of the game's *design intent* — the
+> fantasy, the pillars, the tone, and the rules we hold ourselves to — plus a
+> current-state summary of the systems that exist. It is **not** the authority on
+> mechanics or vocabulary.
+>
+> - For **vocabulary**, [`CONTEXT.md`](../CONTEXT.md) is canonical and wins on any
+>   conflict. (This doc's older "Area"/"Zone" both mean **Level**.)
+> - For **why a system is the way it is**, read the [ADRs](../docs/adr/README.md).
+> - For the **live game-loop snapshot** and near-term ideas, see
+>   [`creative/`](../creative) and `.cursor/rules/creative-docs.mdc`.
+>
+> **Last reconciled with the codebase: 2026-06-25.** Where this doc and an ADR or
+> CONTEXT disagree, they win; fix this doc to match.
 
-## 1. High-Level Pitch
+---
 
-A browser-based idle clicker MMO where players interact with a living fantasy world through a magical cursor. The player is not a normal character walking around the world. Instead, they are perceived by NPCs as a mysterious divine force: breaking objects, moving tools, harvesting resources, crafting items, completing quests, and reshaping the world through clicks, hovering, and idle interaction.
+## 1. Pitch
 
-The game combines:
+A browser-based idle "god cursor" game. The player is not a character who walks
+the world — they are a divine cursor that breaks objects, moves tools, harvests
+resources, crafts, completes quests, and reshapes the world through clicks,
+hovering, and idle interaction. NPCs perceive the cursor as a mysterious divine
+force and never see the machinery behind it.
 
-- The satisfying active clicking and power growth of **Clicker Heroes** and **Cookie Clicker**
-- The skill, gear, resource, and quest progression of **RuneScape**
-- The idle and offline systems of **Melvor Idle**
-- The social presence and shared-world feeling of an **MMO**
+It blends the active clicking + power growth of *Clicker Heroes* / *Cookie
+Clicker*, the skill/resource/quest progression of *RuneScape*, the idle systems of
+*Melvor Idle*, and the social presence of an MMO.
 
-The prototype should prove the core fantasy:
+The fantasy to prove:
 
-> “I am a godlike cursor interacting with a tiny fantasy world, helping, confusing, and terrifying its inhabitants while growing stronger through skills, loot, quests, and gear.”
+> "I am a godlike cursor interacting with a tiny fantasy world — helping,
+> confusing, and terrifying its inhabitants while growing stronger through skills,
+> loot, quests, and relics."
 
 ---
 
 ## 2. Design Pillars
 
-### 2.1 Satisfying Moment-to-Moment Interaction
+### 2.1 Satisfying moment-to-moment interaction
+Moving the cursor over entities, tapping for **Active damage**, and hovering/
+**Locking** for **Passive damage** must feel good immediately — clear HP bars, hit
+feedback, drops, and NPC reactions. The cursor should always feel like it has
+physical force in the world.
 
-The main action should feel good immediately:
+### 2.2 Hybrid active + idle
+Two play styles coexist: **active** (route between entities, tap fast — the
+optimal path) and **idle**. "Idle" today means two distinct things, kept separate
+in CONTEXT: **Lock** (pin the cursor to one target for hands-free Passive damage)
+and **Idle Mode** (a sim-authoritative auto-gather state that detaches the cursor
+and roams the Level — ADR-0024). Idle is useful but tuned below active.
 
-- Move cursor over entities
-- Click rapidly to deal active damage
-- Hover or lock onto an entity to deal passive damage
-- Break rocks, chop trees, damage enemies, collect resources
-- See clear health bars, hit feedback, drops, and reactions
+### 2.3 Skill-based progression
+Activities are tied to Skills (V1: **Mining**, **Woodcutting**; **Crafting**
+supports them; Combat is deferred — see §7). A Skill's **Skill Tree** gates which
+**Tier** of entity it can harvest and grows its Stats; see §6 and ADR-0022. Skill
+level grants the tree's Skill Points.
 
-The player should always feel like their cursor has physical force in the world.
+### 2.4 Meaningful items and relics
+Items should matter beyond raw numbers. **Tools** are access keys (own *an* axe to
+chop, *a* pickaxe to mine — type only; tool tier no longer gates, ADR-0022).
+Deeper power is the planned **Artifacts** system: equippable cursor relics with
+behavioural effects (skill enhancers, proc/AoE), slotted via the Clicker tree —
+the chase-item layer that supersedes the old "Gear" framing (see
+`creative/design-ideas.md`; reserved seam in `deriveStats`, ADR-0022). Memorable
+items unlock *new options*, not just bigger numbers.
 
-### 2.2 Hybrid Active + Idle Gameplay
+### 2.5 MMO illusion with shared spaces
+The world should feel online and social without full-MMO complexity. The open
+world is a real, server-authoritative shared instance (ADR-0014/0016): players see
+each other's cursors and break shared entities. Some moments stay private
+(onboarding, story beats, personal crafting/Vendor scenes).
 
-The game should support two play styles:
-
-#### Active Play
-
-Players move between entities and click rapidly to break them faster. This should be the optimal way to progress.
-
-#### Idle Play
-
-Players hover over or lock onto an entity to deal slower passive damage while the game remains open. This allows the player to tab out or partially disengage while still making progress.
-
-Idle progression should be useful, but not as efficient as active play.
-
-### 2.3 Skill-Based Progression
-
-Activities are tied to skills such as:
-
-- Mining
-- Woodcutting
-- Combat
-- Crafting
-- Farming
-
-Entities may require specific skill levels to interact with them. For example:
-
-- Small Rock: Mining Level 1
-- Copper Rock: Mining Level 5
-- Ancient Tree: Woodcutting Level 50
-
-Skills should unlock new resources, tools, gear, quests, and world interactions.
-
-### 2.4 Meaningful Gear and Items
-
-Items should matter. Gear should not only increase numbers; it should also unlock new mechanics and interactions.
+### 2.6 NPCs react to divine cursor activity
+NPCs live *inside* the fiction and never see the machinery. They must **never name
+the player's mechanics** — no "cursor", "click", "tap", "hover", "lock", or UI
+verbs like "claim your reward". They react with sincere **bewilderment** at
+impossible events: objects shattering on their own, tools drifting skyward,
+materials appearing from nowhere. The humour is their genuine confusion, never a
+wink at the player.
 
 Examples:
 
-- Pickaxe: allows mining
-- Axe: allows woodcutting
-- Stone Sword: allows combat interactions
-- Rare mining gloves: increase ore rarity
-- Full woodcutting set: enables chain chopping nearby trees
-- Divine charm: increases idle lock efficiency
-
-Progression should feel like RuneScape: items become memorable because they unlock new options.
-
-### 2.5 MMO Illusion with Shared Spaces
-
-The game should feel online and social, but should avoid full MMO complexity during the prototype.
-
-The first zone should be a small shared instance where multiple players can see each other and interact with shared resources.
-
-Some sequences can be private, especially:
-
-- Tutorial moments
-- Story beats
-- Personal crafting
-- Quest-specific scenes
-
-Shared zones should make the world feel alive without requiring a fully persistent global simulation.
-
-### 2.6 NPCs React to Divine Cursor Activity
-
-NPCs should not treat the player like a normal character. They should interpret player actions as divine, supernatural, or mysterious events.
-
-NPCs live *inside* the fiction and never see the machinery behind it. They must **never name the player's mechanics** — no "cursor", "click", "tap", "hover", "lock", or UI verbs like "claim your reward". Instead they react with sincere **bewilderment** at the impossible things happening around them: objects shattering on their own, tools drifting up into the sky, materials appearing from nowhere. The humour comes from their genuine confusion, never from winking at the player.
-
-Examples:
-
-- “The gods have taken my axe!”
-- “Another request from above, is it?”
-- “The very stones tremble, and I cannot say why…”
-- “Please stop smashing my belongings, mighty one.”
-
-This tone should be playful, charming, and lightly absurd — but always sincere bewilderment, never meta-awareness.
+- "The gods have taken my axe!"
+- "Another request from above, is it?"
+- "The very stones tremble, and I cannot say why…"
+- "Please stop smashing my belongings, mighty one."
 
 ---
 
-## 3. Core Gameplay Loop
+## 3. Core Loop (current state)
 
-### 3.1 Primary Loop
+The authoritative live loop is summarised in `.cursor/rules/creative-docs.mdc`
+(Current Game Loop Snapshot). In brief:
 
-1. Enter an area
-2. Identify interactable entities
-3. Click, hover, or lock cursor onto entities
-4. Deal damage over time
-5. Entity breaks, dies, or completes interaction
-6. Player receives drops, XP, quest progress, or unlocks
-7. Player upgrades gear, skills, and access
-8. New entities, quests, and zones become available
+1. Cursor over an entity → **tap** (Active) or **hover/Lock** (Passive).
+2. Entity depletes → **loot burst** (items auto-awarded to the Bag) + **Skill XP**.
+3. Entity respawns; repeat. Efficient routing speeds active play.
+4. Spend gathered output: register into the **Collection Book** for Skill XP, build
+   the **Furnace** and **craft** (claimed at the Shrine, ADR-0010), or **sell** at
+   the Black Market Vendor for Gold or source-Skill XP (ADR-0027).
+5. Skill XP → levels → **Skill Points** → spend in the **Skill Tree** (unlock Tiers,
+   grow Stats — ADR-0022). Broad levelling derives the **Clicker** meta-track, which
+   gates **Idle Mode** (ADR-0024).
+6. **Travel** between Levels via Beacons/edges (ADR-0023/0026).
 
-### 3.2 Active Interaction Loop
-
-1. Player selects a target
-2. Player rapidly clicks to deal damage
-3. Target loses HP with visible feedback
-4. Player moves to next target while previous target respawns
-5. Efficient routing improves progression speed
-
-### 3.3 Idle Interaction Loop
-
-1. Player hovers over or selects a target
-2. Player locks cursor onto that target
-3. Passive damage begins
-4. Entity eventually breaks
-5. Drops are collected automatically or after a simple collection prompt
-6. Entity respawns after a timer
-7. Lock may continue to next respawn if allowed by entity rules
-
-### 3.4 Offline/Long Timer Loop
-
-Some systems can progress while the player is away, but core farming should mostly require the game to be open.
-
-Good offline-style systems:
-
-- Farming crops
-- Crafting timers
-- Construction upgrades
-- NPC errands
-- Resource refinement
-
-Example:
-
-> Plant wheat, wait 6 hours, return to harvest.
+(Loot is auto-awarded by the sim; the carousel/queue presentation idea is not built
+— see `creative/design-ideas.md`.)
 
 ---
 
 ## 4. Cursor Interaction Model
 
-The cursor is the player’s main presence in the world.
+Cursor states and damage types are defined canonically in CONTEXT (Free / Hover /
+Click / Lock / Blocked; Active vs Passive). Key points:
 
-### 4.1 Cursor States
+- **Active damage** — high, from tapping; the optimal progression path.
+- **Passive damage** — slower DoT on the current Target while hovering **or**
+  Locked. The rate is the **same** whether hovered or Locked — Lock is a hands-free
+  state, not a higher damage tier.
+- **Lock** — pins a Target so Passive keeps ticking with no further input; the
+  player may still tap while Locked.
+- All Stats (Tap/Hover Damage, Hover Rate, Crit) resolve at one choke point,
+  `deriveStats` (ADR-0022).
 
-#### Free Cursor
-
-Default state. Player can move freely and inspect entities.
-
-#### Hovering
-
-Cursor is over an interactable entity. The entity displays relevant information such as name, HP, required skill, and possible action.
-
-#### Clicking
-
-Each click deals active damage or performs an action.
-
-#### Locked
-
-Player locks onto an entity. Cursor remains attached or focused on the target and deals passive damage over time.
-
-#### Disabled / Blocked
-
-Cursor cannot interact with an entity because requirements are not met, another player has claimed it, or the entity is unavailable.
-
-### 4.2 Damage Types
-
-#### Active Damage
-
-High damage from clicking. This should be the most efficient progression method.
-
-#### Passive Damage
-
-A slower damage-over-time applied to the current Target while hovering **or**
-Locked. Per `CONTEXT.md` (canonical), the Passive rate is the **same** whether the
-target was hovered or Locked — Lock is a hands-free state, not a higher damage
-tier. The early draft below treated hover and lock as separate rates; that is
-superseded.
-
-#### Lock
-
-A hands-free state, not a damage type: the player pins a Target and Passive damage
-keeps ticking with no further input (true idle). While Locked the player may still
-tap for Active damage.
-
-### 4.3 Suggested Balance Direction
-
-Initial rough target (Active is meant to dominate; Passive is the idle floor):
-
-- Active clicking: 100% efficiency (the optimal path)
-- Passive (hover or lock): a slower idle rate, tuned well below Active
-
-This should be tuned heavily through playtesting.
+Balance direction (tune via playtest): Active dominates; Passive is the idle floor.
 
 ---
 
 ## 5. World Structure
 
-### 5.1 Area-Based World
+The world is a set of **Levels** (CONTEXT is canonical; "Area"/"Zone" are retired
+synonyms). Live Levels today: the shared open world **`bigworld_01` ("The
+Clearing")**, the **Black Market** (`blackmarket_01`), and **Deepwood**
+(`deepwood_01`, reached by edge Travel). Levels are authored in the Level Editor
+and bundled into `@tot/shared`.
 
-The world is composed of many small areas. Each area contains a focused set of activities, entities, quests, NPCs, and resources.
+Design intent for Levels:
 
-Examples:
+- **Layered, not disposable.** Earlier Levels keep value via rare drops, high-Tier
+  locked resources, quest callbacks, skill-specific farming routes, and later quest
+  steps.
+- **Level archetypes:** private story (onboarding/cutscenes), shared resource (the
+  open world), town/social (Vendors, crafting, shrines), and event (bosses, rare
+  spawns — see the timed-rare-spawn idea in `creative/design-ideas.md`).
 
-- Grass Plains
-- Pebble Cave
-- Old Forest
-- Riverbank
-- Blacksmith Yard
-- Goblin Hollow
-- Shrine Town
-
-### 5.2 Area Design Philosophy
-
-Areas should not become irrelevant immediately after progression. Earlier areas may contain:
-
-- Rare drops
-- High-level locked resources
-- Quest callbacks
-- Hidden events
-- Skill-specific farming routes
-- NPCs with later quest steps
-
-This creates a world that feels layered rather than disposable.
-
-### 5.3 Zone Types
-
-#### Private Story Zone
-
-Used for tutorial and scripted sequences.
-
-#### Shared Resource Zone
-
-Used for normal farming and social presence. Zone 1 should use this model.
-
-#### Town Zone
-
-A larger social area with NPCs, crafting, shops, shrines, and quest hubs.
-
-#### Event Zone
-
-Used for bosses, rare spawns, competitions, and temporary events.
+**Multiplayer ownership rules** are enforced per Level via `interactionRule`
+(ADR-0014/0016): `lastHit` (open-world default), `claimed` (peaceful), and
+`sharedContribution` (events; currently stubbed to last-hit). `personal` is
+modelled as a per-player overlay rather than per-player instancing (ADR-0025).
 
 ---
 
-## 6. Multiplayer Interaction Rules
+## 6. Progression (current state)
 
-Different zones may use different resource ownership rules.
+- **Skill Trees replace flat upgrades (ADR-0022).** Completing a Collection Entry
+  awards **Skill XP**; each Skill level grants one **Skill Point** for that Skill's
+  tree. Trees gate harvest **Tier** and grow Stats; the root is free; respec
+  refunds the whole tree.
+- **Tools gate type only.** Own *an* axe/pickaxe to harvest at all; tool tier and
+  wield-level no longer gate (the old `minTier`/`wieldRequirement` model is retired,
+  ADR-0008 → ADR-0022). Tool tiers/crafting remain as content flavour.
+- **Idle / meta (ADR-0024).** Broad Skill levelling derives the **Clicker** level,
+  whose meta-track gates Idle Mode and per-Skill idle nodes.
+- **Economy (ADR-0027).** Gold has a source/sink via selling at the Black Market;
+  sell-for-XP routes to the item's source Skill; sell values are rarity-derived
+  content, tuned below Collection-entry XP so Collections stay optimal-but-slower.
+  Buying is a "coming soon" tab pending **Artifacts**.
 
-### 6.1 Claimed Interaction
-
-First player to interact with an entity claims it. Only that player can damage or harvest it.
-
-Best for:
-
-- Normal rocks
-- Trees
-- Quest entities
-- Personal progression resources
-
-Anti-abuse requirements:
-
-- Claims expire if the player stops interacting
-- Claims expire after inactivity
-- Claims may expire if damage contribution is too low
-- Entity respawns are distributed enough to prevent blocking
-
-### 6.2 Shared Contribution
-
-Multiple players can damage the same entity. Rewards are based on contribution.
-
-Best for:
-
-- Bosses
-- Large resource nodes
-- Public events
-- Rare world spawns
-
-### 6.3 Last-Hit Rules
-
-Whoever lands the final hit gets the main reward.
-
-Best for:
-
-- Optional chaos zones
-- Competitive events
-- High-risk/high-reward content
-
-This should not be the default rule because it can easily feel frustrating.
+**First power spike (intent):** gather → fill a Collection Entry → earn a Skill
+Point → spend it for a Stat bump or a Tier unlock → feel the next node die faster
+(or a new Tier open). Real progress within the first few minutes.
 
 ---
 
-## 7. Prototype / MVP Scope
+## 7. Prototype scope & deferrals
 
-The first prototype should prove the core game loop in one shared zone.
+Proven in-build: cursor movement/clicking, Active + Passive damage, entity HP/
+respawn, drops, shared multiplayer instance with visible cursors, quests, NPC
+reactions, first tools, Skill XP/levels/trees, Collections, crafting, selling,
+Idle Mode, Travel, leaderboards, cursor skins.
 
-### 7.1 MVP Goals
+Deferred / not in V1 (do not document as live):
 
-The MVP should demonstrate:
-
-- Cursor movement and clicking
-- Active damage
-- Idle lock damage
-- Entity HP and respawning
-- Basic resource drops
-- Shared instance state
-- Other players visible in the same zone
-- Basic quests
-- NPC reactions
-- First tools and gear
-- Simple skill XP
-- Modular content definitions
-
-### 7.2 MVP Area: The Grass Plains
-
-The first zone is a small grassy area similar to the mockup.
-
-#### Entities
-
-- Small Rock
-- Basic Tree
-- Old Shack
-- NPC Villager
-- Axe Pickup
-- Pickaxe Pickup
-- Shrine / Offering Spot
-
-#### Skills
-
-- Mining
-- Woodcutting
-- Basic Combat or Tool Use
-
-#### Starting Gear
-
-- None initially
-- Axe unlocked during tutorial
-- Pickaxe unlocked shortly after
-- Stone Sword unlocked as a later early reward
-
-#### Resources
-
-- Wood
-- Stone
-- Gold or Coins
-- Basic loot items
+- **Combat skill, enemies, and the Stone Sword** — cut from the V1 chain; V1 is
+  Woodcutting / Mining / Crafting ("deepen before you widen", §12).
+- **Farming/offline crops** — aspirational; current idle is in-tab Idle Mode
+  (ADR-0024), not offline crop timers.
+- **Artifacts**, **timed rare spawns**, **stack caps + saw refinement**, **loot
+  carousel** — design ideas, not built (`creative/design-ideas.md`).
 
 ---
 
-## 8. Tutorial / Onboarding Flow
+## 8. Onboarding (current state)
 
-### 8.1 Tone
+The **active default is a minimal onboarding** (ADR-0021): a brief opening, the
+player names themselves, then they enter the shared open world directly. The full
+narrative arc — void cinematic → playable tutorial quest chain → **Ancient Tree →
+Council of Clickers → Banishment** (ADR-0005/0009/0012/0013) — is **parked behind a
+typed flag** (`ONBOARDING_VARIANT: 'arc'`) and stays authored, dev-runnable, and
+testable. Onboarding scripting always lives in a client Director driving the world
+through the same public commands (ADR-0005); the Player snapshot carries name,
+tools, skills, inventory, and quests across the Level swap (ADR-0011).
 
-The tutorial should be playful and story-driven. The player should learn by causing chaos in the world.
-
-### 8.2 Onboarding Phases
-
-Onboarding has two phases (see CONTEXT.md: Onboarding) and ends with the
-Banishment arc that hands the player into the shared Open World.
-
-#### Phase 1 — Void cinematic (presentation only)
-
-Over blackness, drifting Wisps and decorative props (a rock, a tree, a house)
-unveil and break on cue — three taps shatter each in turn. These props are
-Director-owned sprites, **not** real Entities; they never touch authoritative HP
-(ADR-0005). The final tap reveals the live tutorial Level with the shack already
-destroyed and a bewildered NPC beside it.
-
-> “MY SHACK! By the roots and rocks, what invisible menace has done this?!”
-
-The player is granted **Smite** (a temporary Divine power) at the intro start
-(ADR-0012).
-
-#### Phase 2 — Playable tutorial
-
-The revealed Level runs on the real sim: Entities have HP, are gated by Tools,
-and the player follows an authored Quest chain (§9). The Director grants only the
-first quest; the rest self-propagates in the sim, and claiming a quest unlocks
-the next interactable via `enableEntityTag` (ADR-0009). Teaching beats:
-
-- Tap an Entity for Active damage; hover or Lock for Passive damage.
-- Tools gate what you can damage (no Axe → the tree won't budge, and the world
-  reports *why* it is Blocked).
-- Crafting is physical: resources fly into the Furnace, and the result waits as an
-  Offering on the Shrine to be claimed (ADR-0010).
-
-#### Phase 3 — Ancient Tree, Council, Banishment
-
-The chain ends at the **Ancient Tree** — an effectively unbreakable gate. Striking
-it (especially with Smite) triggers the **Council of Clickers**: an authored Level
-of celestial Cursor-beings who judge the player and enact the **Banishment**,
-stripping Smite (ADR-0013). The player is then dropped into the shared **Open
-World** (`bigworld_01`) — their first genuine multiplayer space (ADR-0016) — with
-Tools, Skills, Inventory, Divine name, and Quests all retained.
+The full quest chain (when the arc runs) is authored data in
+`packages/shared/src/content/quests.ts` and self-propagates in the sim (ADR-0009)
+— see that file and ADR-0009 rather than duplicating the table here.
 
 Throughout, NPC voice stays sincerely bewildered and never names mechanics (§2.6).
 
 ---
 
-## 9. First Quest Chain
+## 9. Crafting fantasy
 
-The authored chain lives in `packages/shared/src/content/quests.ts` and advances
-from generic gameplay events (ADR-0009). Each claim auto-grants the next quest
-and, where noted, enables the next interactable Entity. Every quest rewards Gold +
-XP; the "Unlocks" column lists the `enableEntityTag` effect.
-
-| # | Quest | Objective | Unlocks on claim |
-|---|-------|-----------|------------------|
-| 1 | A Rude Awakening | Pick up the Axe | — |
-| 2 | Timber! | Chop 3 Trees | — |
-| 3 | Home Sweet Home | Rebuild the Shack | the Pickaxe pickup |
-| 4 | A Sturdier Tool | Pick up the Pickaxe | — |
-| 5 | Stone Cold | Mine 10 Stone | the Furnace (Buildable) |
-| 6 | Forge Ahead | Build the Furnace | the Shrine (enables Dedication) |
-| 7 | A Gift Worthy of Gods | Craft & claim the Stone Axe | — |
-| 8 | A Pick to Match | Craft & claim the Stone Pickaxe | — |
-| 9 | The Path Beyond | Strike the Ancient Tree | triggers the Council cutscene |
-
-Notes:
-
-- Crafting unlocks at the **Shrine Dedication** (the player naming themselves), a
-  scripted client beat — not a quest reward (ADR-0011, and ADR-0009's noted
-  exception).
-- "The Path Beyond" is a tracker/flavour quest: the Ancient Tree never depletes,
-  so the Director watches for the scripted strike and runs the Council/Banishment
-  arc (ADR-0013).
-- The Combat skill, enemies (Grass Slimes / training dummies), and the Stone Sword
-  from earlier drafts are **not** in the current chain. Woodcutting, Mining, and
-  Crafting are the V1 loops (see §16: "Deepen before you widen").
-
----
-
-## 10. Crafting Fantasy
-
-Crafting should reinforce the “god cursor” fantasy.
-
-The **Furnace (the forge)** is the physical crafting station — the craft prompt
-lives over it, not over the Blacksmith. The Blacksmith remains the *voice* of
-crafting: he reacts and narrates, but the player interacts with the forge.
-
-Example flow:
-
-1. Player clicks the Furnace (the forge)
-2. Crafting menu opens
-3. Player selects item
-4. Required materials fly physically into the forge
-5. Blacksmith reacts and voices the work
-6. The item is forged
-7. Item is placed on a shrine or offering table
-8. Player clicks item to collect
+Crafting reinforces the god-cursor fantasy and stays **physical and active**, not a
+silent menu transaction. The **Furnace** is the station — the craft prompt lives
+over it. Materials fly into the forge, the Blacksmith *voices* the work (he is the
+voice, not the station), the item is forged, and it waits as a glowing **Offering
+on the Shrine** for the player to claim (ADR-0010).
 
 Blacksmith line examples:
 
-- “Ah, another request from the gods!”
-- “Wood and stone from the sky again. Right. Let me fetch my hammer.”
-- “I do not question the floating sword. I merely craft it.”
+- "Ah, another request from the gods!"
+- "Wood and stone from the sky again. Right. Let me fetch my hammer."
+- "I do not question the floating sword. I merely craft it."
 
 ---
 
-## 11. Entity Design
+## 10. Loot & drops
 
-Each interactable entity should have:
+Tiers of drop: **common** (constant use — Wood, Stone, Gold), **uncommon** (early
+upgrades), **rare** (long-term goals), **ultra-rare** (prestige/cosmetic). Loot is
+auto-awarded by the sim on depletion (ADR-0007); rarity should drive presentation
+emphasis.
 
-- ID
-- Display name
-- Entity type
-- Required skill
-- Required tool
-- HP
-- Respawn time
-- Loot table
-- XP reward
-- Interaction rule
-- Visual state
-- Optional NPC reaction hooks
-
-Example entity types:
-
-- Resource node
-- Enemy
-- NPC
-- Pickup
-- Quest object
-- Crafting station
-- Shrine
+**Rare-drop philosophy:** ultra-rares are exciting but never required for normal
+progression — they grant identity, prestige, cosmetics, convenience, or alternate
+playstyles, not mandatory power. (Currency is **Gold**; "Coins" is retired.)
 
 ---
 
-## 12. Early Progression
+## 11. UI design rules
 
-### 12.1 First 10 Minutes Target
+Stay readable and low-clutter. Visible at a glance: currency, current quest, cursor
+identity, the entity under the cursor (the **Hover Preview Bar**, bottom-right —
+name/HP/reqs/rewards/drop %, ADR-0028), and nearby players. Tools **auto-equip**
+the best usable one for the target — there is no manual loadout hotbar (ADR-0008).
+Hidden until needed: full loot tables, exact rates, skill breakdowns, detailed
+stats, advanced recipes.
 
-In the first 10 minutes, the player should:
+> Rule: only surface 2–3 important states per entity at once.
 
-- Break the shack
-- Meet the first NPC
-- Pick up axe
-- Chop first tree
-- Learn active click damage
-- Learn idle lock damage
-- Complete first quest
-- Pick up pickaxe
-- Mine first rock
-- Open basic crafting
-- Receive first crafted item
-- See at least one other player in the shared zone
-
-### 12.2 First Power Spike
-
-The player should quickly experience a noticeable improvement.
-
-Damage growth and node access are separate concerns (see ADR-0020):
-
-- **Tools** gate *access* and tier identity: which Entities a player may damage,
-  and major capability jumps. A higher-tier pickaxe unlocks harder rocks; it does
-  not, by itself, add click damage.
-- **Skill Points** (earned by completing Collection Entries) grow *Active click
-  damage* within a Skill, one repeatable `+1` upgrade per Skill in V1 (Steady
-  Strike for Mining, Sure Chop for Woodcutting). Base Active damage is the
-  Level's `CombatConfig.activeDamage`; the per-Skill bonus stacks on top for
-  Entities of that Skill.
-
-So the early power spike is: gather → fill a Collection Entry → earn a Skill
-Point → buy `+1 Active click damage` → feel the next node die faster. This makes
-progression feel real immediately while keeping tools responsible for unlocking
-new content.
+Two voices stay separate: in-world diegetic NPC speech vs out-of-world developer/
+system messages (e.g. the welcome notice). They must look and read differently so
+players never confuse the game's voice with the app's voice.
 
 ---
 
-## 13. Loot and Drops
+## 12. Design rules (first-core-loop addendum)
 
-### 13.1 Drop Categories
-
-#### Common Drops
-
-Used constantly.
-
-Examples:
-
-- Wood
-- Stone
-- Coins
-
-#### Uncommon Drops
-
-Used for early upgrades.
-
-Examples:
-
-- Strong Branch
-- Smooth Pebble
-- Resin Chunk
-
-#### Rare Drops
-
-Exciting long-term goals.
-
-Examples:
-
-- Tiny Tree Spirit
-- Shimmering Bark
-- Cracked Geode
-
-#### Ultra-Rare Drops
-
-Very low-rate prestige or cosmetic rewards.
-
-Examples:
-
-- 1 in 10,000 pet
-- Cosmetic cursor skin
-- Rare shrine decoration
-
-### 13.2 Rare Drop Philosophy
-
-Ultra-rare drops should be exciting but should not be required for normal progression. They should provide identity, prestige, cosmetics, convenience, or alternate playstyles rather than mandatory power.
-
----
-
-## 14. UI Requirements From a Design Perspective
-
-The game should stay readable and low-clutter.
-
-Visible at a glance:
-
-- Currency
-- Current quest
-- Cursor/player identity
-- Equipped tool hotbar
-- Entity name and HP when relevant
-- Other players nearby
-
-Hidden until needed:
-
-- Full loot tables
-- Exact drop rates
-- Skill breakdowns
-- Detailed stats
-- Advanced crafting recipes
-
-Rule:
-
-> Only show 2–3 important states per entity at once.
-
----
-
-## 15. Key Open Design Questions
-
-These should be answered through prototyping and playtesting:
-
-1. How fast should entities break during active play?
-2. How efficient should lock-idle damage be compared to clicking?
-3. Should loot auto-collect, require clicking, or depend on upgrades?
-4. How many players should share a Zone 1 instance?
-5. Should early resource nodes be claimed or shared?
-6. Should other players’ damage numbers be visible?
-7. How often should NPCs react before becoming annoying?
-8. How much of the tutorial should be private before joining the shared zone?
-9. Should the cursor have cosmetics from day one?
-10. Should early gear be crafted, dropped, or quest-rewarded?
-
----
-
-## 16. Design Rules (First Core Loop addendum)
-
-These rules crystallised while building the first repeatable loop (gather → skill
-XP → build → craft → unlock). They constrain future feature work; treat them as
-defaults to be argued against, not casual preferences.
+Defaults to be argued against, not casual preferences:
 
 - **Progression unlocks interactions.** Advancement is gated by what the player
-  *can now do*, not just bigger numbers. New tools, tiers, and quest claims open
-  up new entities (the Oak you couldn't fell, the furnace you couldn't build).
-  Prefer "now you can interact with X" over "now X gives +10%".
-- **Own it, then grow into it.** A tool can be owned before it is usable (the
-  Stone Axe needs Woodcutting 3 to wield). Goals you can see but not yet use are a
-  deliberate motivator; the UI must say *why* it's blocked.
-- **Crafting is physical and active.** Crafting happens in the world (resources
-  fly to the System NPC, work/spark animation, a glowing Offering on the shrine
-  you must claim) — not a silent menu transaction. Active play is the high-value
-  path; idle is the floor, not the ceiling.
-- **Deepen before you widen.** Push Woodcutting, Mining, and Crafting further
-  (more tiers, more meaningful gates) before adding new skills or systems. Three
-  loops that feel great beat ten that feel flat.
-- **The divine voice is consistent, and never meta.** NPCs (and the world) speak
-  to the player as a divine force with a name; the shrine, nameplate, and dialogue
-  all read the one authoritative Divine name. NPCs live inside the fiction: they
-  never name the player's mechanics ("cursor", "click", "tap", "hover", "lock") or
-  use UI verbs ("claim your reward"). They react only with sincere bewilderment at
-  the impossible events around them (see §2.6). Out-of-world tutorial captions
-  ("Tap to Mine") and developer/system messages are a separate channel and may
-  name mechanics.
-- **In-world fiction and out-of-world dev messaging stay separate.** Diegetic NPC
-  speech bubbles are not the same channel as developer/system messages (e.g. the
-  Zone 1 welcome). They must look and read differently so players never confuse the
-  game's voice with the app's voice.
+  *can now do*, not just bigger numbers — new Tiers, tools, and quest claims open
+  new entities. Prefer "now you can interact with X" over "now X gives +10%".
+- **Crafting is physical and active.** Crafting happens in the world (materials fly
+  to the forge, the Blacksmith voices it, a glowing Offering on the Shrine to
+  claim), never a silent menu. Active play is the high-value path; idle is the
+  floor, not the ceiling.
+- **Deepen before you widen.** Push Woodcutting, Mining, and Crafting further (more
+  Tiers, more meaningful gates) before adding new Skills or systems. Three loops
+  that feel great beat ten that feel flat.
+- **The divine voice is consistent, and never meta.** NPCs and the world address
+  the player as a named divine force (shrine, nameplate, dialogue all read the one
+  authoritative Divine name). They never name the player's mechanics or use UI
+  verbs; they react only with sincere bewilderment (§2.6). Out-of-world captions
+  ("Tap to Mine") and system messages are a separate channel and may name mechanics.
+
+> Note on an earlier rule: "own it, then grow into it" (a tool you own but can't yet
+> wield) reflected the retired tool tier/wield gating. Access is now gated by the
+> Skill Tree's Tier unlocks (ADR-0022), so this is no longer a live constraint.
+
+---
+
+## 13. Open design questions
+
+Answer through prototyping and playtesting:
+
+1. How fast should entities break during active play?
+2. How efficient should idle (Lock / Idle Mode) be vs clicking?
+3. Should loot auto-collect, require clicking, or depend on upgrades? (Currently
+   auto-collected.)
+4. How many players should share an open-world instance? (Currently `maxPlayers` 6.)
+5. Should early resource nodes be claimed or shared? (Open world defaults `lastHit`.)
+6. Should other players' damage numbers be visible?
+7. How often should NPCs react before becoming annoying?
+8. How much onboarding should be private before the shared world? (Minimal default
+   today; full arc parked.)
+9. Cursor cosmetics from day one? (Cursor skins exist, unlocked by Achievements.)
+10. Should early gear be crafted, dropped, or quest-rewarded? (Relevant once
+    **Artifacts** is designed.)

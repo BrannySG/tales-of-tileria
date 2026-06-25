@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-17
+- Parked by: [ADR-0021](0021-minimal-onboarding-arc-parked.md) (full arc behind `ONBOARDING_VARIANT: 'arc'`; minimal flow is the default)
 
 ## Context
 
@@ -28,7 +29,9 @@ using the persisted divine name, deliver the verdict, and issue
 `player.setDivinePower smite:false` (the real Banishment).
 
 `OnboardingMode` becomes a three-phase machine — **tutorial → council → mortal
-realm** — each phase a `WorldScene` carrying the Player snapshot. Smite is still
+realm** — each phase a `WorldScene` carrying the Player snapshot. *(This full arc
+is **parked** by ADR-0021 behind `ONBOARDING_VARIANT: 'arc'`; the active default is
+a minimal flow. The machine below stays authored and dev-runnable — see the Update.)* Smite is still
 unlocked entering the Council and revoked leaving it, so the snapshot carried into
 the mortal realm has the power already stripped. The Ancient Tree blink (a white
 flash + `onAscend`) drives the tutorial→council transition; the Council's verdict

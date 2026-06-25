@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-16
+- Updated by: [ADR-0003](0003-one-presentation-shell.md), [ADR-0015](0015-player-driven-camera-coexists-with-cinematic.md) (Viewport is now 1920×1080)
 
 ## Context
 

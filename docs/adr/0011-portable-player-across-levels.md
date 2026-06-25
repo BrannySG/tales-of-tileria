@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-17
+- Superseded in part by: [ADR-0013](0013-council-of-clickers-is-an-authored-level.md) (transition trigger), [ADR-0021](0021-minimal-onboarding-arc-parked.md) (naming/crafting decoupled); carry mechanism generalised by [ADR-0023](0023-runtime-level-travel-via-beacons.md)
 
 ## Context
 
@@ -26,6 +27,10 @@ On claiming `first_offering`, the client snapshots the live Player, fades out,
 shows an out-of-world dev welcome, tears down the tutorial session, and builds a
 Zone 1 session seeded with that snapshot — so name/tools/skills/inventory/quests
 survive intact (the `better_wood` oak quest is carried and finished in Zone 1).
+*(The `first_offering` trigger and `better_wood` oak quest were superseded by
+ADR-0013's Council/Banishment transition and then parked by ADR-0021; "Zone 1" is
+the shared open world, today `bigworld_01`. The carry mechanism itself is
+unchanged and is what ADR-0023 generalises to all Level Travel.)*
 
 Make the **divine name sim-authoritative**: a `player.setName` command trims/caps
 the input, sets `Player.displayName`, and emits `player.nameChanged`. *(Originally

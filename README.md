@@ -20,8 +20,10 @@ packages/sim      Headless, deterministic game logic (multi-tenant World,
 apps/client       Vite + React + PixiJS. React owns all DOM UI; Pixi owns the
                   world canvas. Modes: /zoo, /editor, /game.
 apps/server       Cloudflare Worker + Durable Objects: the authoritative
-                  multiplayer runtime (one InstanceDO per Level instance + a
-                  per-Level RouterDO). Runs the same `@tot/sim` World server-side.
+                  multiplayer runtime (one InstanceDO per Level instance, a
+                  per-Level RouterDO, and a global LeaderboardDO). Runs the same
+                  `@tot/sim` World server-side.
+tools/spritegen   Local-only CLI that generates game-ready sprites (not shipped).
 ```
 
 Logic and rendering are separated by a transport boundary (commands in, events
@@ -66,12 +68,16 @@ live at `https://tot-server.branny.workers.dev` (and the custom domain
 Then open one of the modes (also reachable from the top nav):
 
 - `#/zoo` — **Content Zoo**: hover an entity to deal passive damage, click to
-  tap (active), and Lock to idle-farm hands-free. The dev panel live-tunes
-  damage/respawn and toggles sound.
+  tap (active), and **Lock** to pin the Cursor to one target for hands-free
+  passive damage. (Lock is not Idle Mode — Idle Mode, ADR-0024, detaches the
+  Cursor and auto-roams the Level.) The dev panel live-tunes damage/respawn and
+  toggles sound.
 - `#/editor` — **Level Editor**: drag entities from the palette onto the canvas,
   drag to reposition, edit per-instance overrides (HP, respawn, loot table), and
   **Save** (writes `LevelDefinition` JSON into `packages/shared/content/levels/`).
-- `#/game` — loads a saved level and runs it through the same sim + renderer.
+- `#/game` — drops the player into the shared, server-authoritative open world
+  (`bigworld_01`, "The Clearing") through the same sim + renderer; Beacons Travel
+  to other Levels (e.g. the Black Market).
 
 ## Scripts
 

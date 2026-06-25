@@ -59,17 +59,19 @@ tools/spritegen   Local-only CLI that generates game-ready sprites (not shipped)
 | `entities.ts` | Entity definitions (behavior, HP, loot ref, XP, requirements, tags) |
 | `entityArt.ts` + `content/entity-art.json` | Visual transform overlay (`resolveArt`) — ADR-0004 |
 | `items.ts` | Item definitions (name, rarity, category, description, `worldTextureId`) |
-| `tools.ts` | Tool definitions (type, tier, wield requirement) — ADR-0008 |
+| `tools.ts` | Tool definitions (type, tier, wield req — tier/wield gating retired by ADR-0022) — ADR-0008 |
 | `lootTables.ts` | Loot rolls |
 | `recipes.ts` | Crafting recipes — ADR-0010 |
 | `quests.ts` | The quest chain (prereqs + `enableEntityTag` unlocks) — ADR-0009 |
 | `skills.ts` | Skill XP curve / definitions |
-| `collections.ts` | Collections + entries (Skill Point rewards) — ADR-0020 |
+| `skillTrees.ts` | Per-Skill Skill Trees: nodes, Tier-unlock + Stat effects, ranks — ADR-0022 |
+| `collections.ts` | Collections + entries (Skill **XP** rewards) — ADR-0020/0022 |
+| `economy.ts` | Sell values by rarity + source-Skill XP routing (Vendor trade) — ADR-0027 |
 | `achievements.ts` | Passive milestones → cursor-skin unlocks — ADR-0017 |
 | `cursorSkins.ts` | Cursor skin registry — ADR-0017 |
 | `itemInteractions.ts` | Data-driven "use item on entity" table — ADR-0018 |
 | `registry.ts` | Aggregated lookups over the above |
-| `content/levels/*.json` | Authored Levels (bundled via `levels.ts`) |
+| `content/levels/*.json` | Authored Levels (bundled via `levels.ts`); Travel destinations + Arrival Anchors are placement data — ADR-0023/0026 |
 
 Levels are **bundled into `@tot/shared`** so the server and production client read
 identical content without dev middleware (ADR-0016).
@@ -89,6 +91,7 @@ pnpm deploy:server  # build client + deploy the Worker (needs wrangler login)
 After substantive changes run `pnpm typecheck` and `pnpm test`. Multiplayer
 (`#/game`, end of onboarding) needs both `pnpm dev` and `pnpm dev:server`;
 single-player modes (Zoo, Editor, tutorial/Council) need only `pnpm dev`.
+(`README.md` has the fuller script list — production build, deploy, and the live-wipe runbook.)
 
 ## Conventions
 

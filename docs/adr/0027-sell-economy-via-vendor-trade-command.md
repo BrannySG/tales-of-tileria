@@ -65,8 +65,9 @@ deferred.**
 - The trade command/event protocol is now established; future trade actions
   (buying, other Vendors, other currencies) extend it the same way.
 - **Given up / deferred:** **Buying** is a visible "coming soon" tab only — it
-  waits on the **equippable Gear-grants-Stats rework** (its own future ADR), which
-  is the natural stock for an Equipment vendor. The other two Black Market Vendors
+  waits on the **equippable Gear-grants-Stats rework** *(now the **Artifacts**
+  system — see the Update on ADR-0022 and `creative/design-ideas.md`)*, its own
+  future ADR, which is the natural stock for an Equipment vendor. The other two Black Market Vendors
   (Equipment, Generic) stay inert until they get profiles. Sell values are a
   first tuning pass, not balanced economy. The "Jim's Gym" framing for a
   sell-for-XP trainer (see `creative/design-ideas.md`) is superseded as the

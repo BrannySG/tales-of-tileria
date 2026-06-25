@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-18
+- Evolved by: [ADR-0024](0024-idle-mode-and-clicker-meta-track.md) (Cursor becomes spatial/authoritative in Idle Mode)
 
 ## Context
 
@@ -35,9 +36,12 @@ Split the two fused concepts and add a dedicated owner:
   on `cameraFocus`), and `cameraReset` now returns to the `CameraController`'s
   last clamped resting position (world-centre on a fresh load) before handing
   control back (`setCameraInputEnabled(true)`).
-- The Cursor stays in screen space and is unaffected; the sim only stores
-  `cursor.x/y` and never uses them spatially, so no world-coordinate conversion
-  is needed.
+- The Cursor stays in screen space and is unaffected; at the time of this ADR the
+  sim only stored `cursor.x/y` and never used them spatially, so no
+  world-coordinate conversion is needed. *(Superseded by ADR-0024: in Idle Mode the
+  sim **reads** Entity coordinates and **writes** `cursor.x/y` to auto-roam, so the
+  Cursor is authoritative and spatial there. The camera ownership split in this ADR
+  is unaffected.)*
 
 ## Consequences
 
@@ -53,3 +57,10 @@ Split the two fused concepts and add a dedicated owner:
   ports unchanged when the World becomes multi-tenant (ADR-0014).
 - Touch drag uses a small movement threshold so taps below it still fall through
   as tap-to-damage; edge-push is a mouse-only affordance.
+
+## Update (2026-06-25)
+
+ADR-0024 (Idle Mode) overturns the "the sim never uses `cursor.x/y` spatially"
+premise: while idle, the sim reads Entity coordinates and writes the Cursor's
+position to auto-roam the Level. The two-driver camera ownership rule (player owns
+the resting view, the Director borrows it) is unchanged.

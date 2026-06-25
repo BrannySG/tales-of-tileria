@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-17
+- Updated by: [ADR-0021](0021-minimal-onboarding-arc-parked.md) (crafting-unlock side effect decoupled from naming)
 
 ## Context
 

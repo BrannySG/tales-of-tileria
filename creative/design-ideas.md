@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(Artifacts direction, rare spawns, Collection juice, portal travel direction)*
+> Last reviewed: 2026-06-25 *(loot reel locked from mockup — form/overflow/fanfare/both-modes decided; introduces the cross-cutting **Item Card** visual language, specced in ux-housekeeping.md)*
 
 ---
 
@@ -22,60 +22,83 @@ a great grind of course.
 
 ---
 
-## Loot drop carousel — the slot wheel
+## Loot drop carousel — the loot reel (slot wheel)
 
-> **Priority: HIGH**
+> **Priority: HIGH — in active design (grilled 2026-06-25; mockup locked)**
 > Impact: Directly enhances the core active-play loop (the most-used path every session).
 
-When loot drops, create a slot-wheel-style carousel UI that's constantly cycling
-through the items you're receiving. It should feel like a constantly moving slot
-wheel.
+When loot drops, a **vertical loot reel** runs down the **left edge** of the screen,
+constantly cycling the items you receive. The decisions below are **locked** (grilling
+session + reference mockup: [`mockups/item-card-loot.png`](mockups/item-card-loot.png)).
 
-- Emphasise rarity visually via the UI.
-- Play different fanfare based on rarity (common = small chime, legendary = big
-  moment).
-- Items feel valuable and earned instead of just appearing.
-- As players get stronger and gain items faster, the queue cycles faster too —
-  so you'll see that wheel style element constantly spinning when actively
-  playing. A tangible sense of your own progression.
+### Form & placement
+- **Vertical reel, left edge.** Newest drop enters at the **top**; older entries
+  shift **down**. Deliberately on the left so it never crowds the busy bottom-right
+  corner (hover preview bar + Skill Tracker).
+- **Hero + aging trail.** The newest tile is the **hero** — full size, full
+  saturation. As new loot arrives, older tiles **shrink, desaturate, and fade** while
+  moving down, then retire. **~3 tiles** visible (hero + 2 fading), matching the
+  mockup. This gives the "constantly cycling" motion with a clear focal point instead
+  of a noisy marquee.
 
-### Active vs idle presentation
+### Tile = the Item Card
+Each tile is the **Item Card** visual language (defined in
+[`ux-housekeeping.md`](ux-housekeeping.md) → *Item Card visual language*): a
+rarity-coloured gradient capsule, soft white rim + drop shadow, icon leading on the
+left, a small uppercase rarity label above a big white **outlined display-font** name,
+and a large white-outlined **quantity badge (`×N`) overhanging the top-right corner**.
 
-- **Active play:** the slot-wheel carousel (always moving, per-item fanfare).
-- **Idle mode / not playing:** simplified list/grid of items gained, stacking
-  things up. No fanfare needed; just a clean tally.
+### Overflow & speed-scaling
+- **Adaptive speed:** the reel cycles faster as backlog grows — the "your power is
+  growing" progression signal the doc always wanted.
+- **Coalescing:** identical items arriving close together merge into one tile with a
+  rising `×N` count (the big badge is built for exactly this) instead of spamming
+  tiles.
+- **Hard visible cap (~3):** excess folds into counts rather than backing the queue
+  up — kills the "anxiety backlog" risk.
+
+### Fanfare (rarity peaks without noise)
+- **Rare+ only get audio:** escalating chimes + a visual flourish on the hero tile
+  (Rare < Epic < Legendary).
+- **Common/Uncommon are visual-only** (rarity colour + a subtle tile pop, no sound).
+- The existing per-drop world loot SFX stays as the baseline "tick"; the reel layers
+  Rare+ fanfare on top — no double-audio for commons.
+
+### Active vs idle
+- **The reel runs in both modes** (decided 2026-06-25). Coalescing absorbs idle
+  bursts into `×N` tiles, so no separate idle variant is needed for now. The existing
+  `IdleSessionPanel` grid tally stays as the per-session idle summary.
+
+### Data / seam
+- Pure presentation: hook a new `bindHud` case on `loot.rolled` (carries per-item
+  `itemId` + `quantity`) into a new `lootFeed` store slice; mount the reel in the HUD
+  layer. **No sim/protocol change** — loot is already auto-awarded (ADR-0007).
+- `prefers-reduced-motion`: disable the scroll/scale animation; swap tiles instantly
+  in a static stack.
 
 **Review**
 
 Pros:
-- This is a presentation layer on top of an already-authoritative loot system
-  (loot is auto-awarded by the sim; the carousel is purely client-side). High
-  ROI — no sim changes required.
-- Rarity fanfare creates emotional peaks that currently don't exist. Rare drops
-  feel the same as common ones right now.
-- Speed-scaling as progression signal is elegant: players will feel their own
-  power growth without a tooltip or number.
-- Active vs idle split is already natural — the sim already distinguishes the two
-  modes, so the presentation can branch cleanly.
+- Presentation layer on an already-authoritative loot system (sim auto-awards loot;
+  the reel is client-side). High ROI — no sim changes.
+- Rarity fanfare creates emotional peaks that don't exist today (rare drops currently
+  feel identical to commons).
+- Adaptive speed makes progression *felt* without a number; coalescing + hard cap
+  defuse the backlog-anxiety risk the original idea flagged.
+- Establishes the **Item Card** language (see ux-housekeeping.md), which then
+  propagates to the hover rail, "new item" toasts, and later Bag/Vendor.
 
 Cons / risks:
-- Queue overflow at high loot rates needs design: a carousel backing up is
-  anxiety-inducing, not satisfying. Need a max queue length and a flush rule.
-- Fanfare frequency can become noise very quickly. Common drops must be subtle
-  or they drown out the rare moments. Needs tuning.
-- Could distract from clicking (the primary action) if it takes too much screen
-  real estate. Must stay peripheral.
+- Left-edge placement must stay narrow so it never competes with the click target.
+- Coalescing window needs tuning: too long and distinct drops merge confusingly; too
+  short and bursts still spam.
+- Rare+ audio must be distinct per tier or the escalation reads as one sound.
 
 Notes:
-- The existing Bag and loot burst system stays unchanged — the carousel is an
-  additional feedback layer, not a replacement.
-- Implement the idle grid variant at the same time as the carousel; they are two
-  faces of the same feature.
-- This is the highest-ROI pure-presentation feature in this doc.
-- Sequenced as its own focused follow-up sprint (split out of the Black Market
-  Vendor sprint, ADR-0027): it has enough of its own design surface — queue
-  overflow/flush, rarity fanfare tuning, active-vs-idle variants — to deserve
-  dedicated attention rather than riding along with another feature.
+- The existing Bag and Pixi loot burst stay unchanged — the reel is an additional
+  feedback layer, not a replacement.
+- This is the highest-ROI pure-presentation feature in this doc and the canonical
+  home of the Item Card visual language.
 
 ---
 
@@ -411,15 +434,24 @@ Cons / risks:
   it as cosmetic ceremony with no payoff.
 
 Notes:
-- This direction **supersedes** signpost-as-teleporter framing for inter-region
-  travel; signposts can remain local flavor/wayfinding props.
+- **Reconcile with shipped Travel (ADR-0023/0026).** Inter-Level Travel *already
+  exists*: Beacons (ADR-0023) and edge-to-edge signpost Travel with Arrival
+  Anchors (ADR-0026 — the north **signpost** in `bigworld_01` goes to
+  `deepwood_01`; a south **beacon** returns). So this idea is **not** a clean
+  "supersede"; scope it as the **next major-region** travel layer (repaired blue
+  portals between large regions), with signposts/beacons remaining valid for the
+  first region pair and local wayfinding.
+- **DECISION FIRST:** do repaired portals *replace* beacons/signposts as the
+  canonical major-region gate, or sit alongside them? If they become the canonical
+  pattern, this needs its own ADR (a Travel-model migration on top of 0023/0026),
+  since the "repair to activate" gate adds the first sim-authoritative Travel
+  precondition (0023 deliberately has none).
 - Keep unlock requirements data-driven (region/tag/content tables), not one-off
   scripted conditions.
 - Candidate requirement pattern: one "regional core" item assembled from local
   farming drops, then consumed to activate that region's gate.
 - **Escalation rule:** raise to **HIGH** when there are at least two destination
   regions ready to chain through portals.
-- Current Game Loop Snapshot unchanged (concept only; not shipped).
 
 ---
 
@@ -429,93 +461,35 @@ Notes:
 > The Gear framing is retired in favour of **Artifacts** (same `deriveStats` seam,
 > different thematic and effect model). Kept as a one-line pointer only.
 
-## Items sell for XP — the economy question
+## Items sell for XP — the economy question *(RESOLVED — shipped, ADR-0027)*
 
 > **Priority: RESOLVED — shipped (ADR-0027)**
-> Original design question: Is XP a progression route for surplus loot, and how
-> does it interact with Collections?
+> Pointer only; the full record lives in the ADR + `economy.ts`.
 
-An idea: items should be sellable for XP, not just gold.
+Surplus loot is sellable at the Black Market General Vendor for **Gold OR
+source-Skill XP** (player's choice), rarity-derived values tuned **below**
+Collection-entry XP so Collections stay optimal-but-slower — the intended "Gold now
+vs XP now vs hold for a Collection" decision layer. See ADR-0027 and
+`packages/shared/src/content/economy.ts`.
 
-The standard to establish here:
-
-- Are we a game about levelling up as far as you can? If so, loot drops should
-  always be sellable.
-- XP reward scales massively with rarity (e.g. common = small XP, legendary =
-  big XP).
-- **Tension with Collections:** a Collection Entry requiring 3 legendary drops
-  might reward 8,000 XP, while selling each for 1,000 XP individually totals
-  only 3,000 XP. A clearly more valuable reward — but it requires holding onto
-  the drops. Players making that trade-off adds a nice thinking layer to the
-  loop.
-
-**Review**
-
-Pros:
-- Creates a genuine decision layer at every rare drop: sell now vs hold for
-  Collection. This is the exact kind of thinking good idle/clicker loops reward.
-- Filled the gap where items with no immediate use piled up in the Bag — sell
-  is now the fast, lossy route (ADR-0027).
-- Reinforces "XP is the core resource" framing via per-Skill sell XP routing.
-- The Collection tension (sell 3x vs complete entry) remains the designed
-  trade-off — Collections tuned above sell-XP.
-
-Cons / risks *(mostly resolved at ship; kept for tuning)*:
-- If sell-XP rates are too generous, players will sell everything and Collections
-  become suboptimal — ongoing balance concern, not a blocker.
-- Manual sell adds inventory management burden; auto-sell remains an open QoL
-  question (monetization survey territory).
-
-Notes:
-- **Resolved:** dual `Gold | XP` sell mode at the Black Market General Vendor;
-  XP routes to the Item's source Skill; sell values are rarity-derived and tuned
-  below Collection entry XP. See ADR-0027 and `packages/shared/src/content/economy.ts`.
-- Remaining open questions (not blocking):
-  1. Auto-sell convenience (monetization survey territory).
-  2. Buy tab stock once **Artifacts** system lands (supersedes Gear).
-- This section stays as historical context for why Collections vs sell tension
-  was designed the way it was.
+Open follow-ups (not blocking): auto-sell convenience (monetization-survey
+territory); Buy-tab stock once **Artifacts** lands.
 
 ---
 
-## Jim's Gym — vendor for selling
+## Jim's Gym — future character Vendor/Level *(sell role superseded by ADR-0027)*
 
-> **Priority: LOW (superseded for sell; still valid as a future character Level)**
-> Impact: A second Vendor identity and Level — not required now that the Black
-> Market handles sell.
+> **Priority: LOW (future character Level; selling already lives at the Black Market)**
+> Impact: A second Vendor identity and Level — not required now.
 
-The Clicker we sell to could be a buff gym-owner Clicker called **Jim**. We go
-to **Jim's Gym** to train ourselves up and get stronger. Sells as a character,
-and the gym framing makes the "sell items → gain XP → get stronger" loop feel
-physical and fun.
-
-*(Originally noted as "waffling" — kept because the name and vibe are strong.)*
-
-**Review**
-
-Pros:
-- "Jim's Gym" is immediately evocative. The gym-as-power metaphor maps cleanly
-  onto the sell-items → gain strength loop without needing to explain it.
-- Jim as a Cursor-being NPC (see CONTEXT.md: Cursor-being) fits the existing
-  entity model perfectly. No new system needed for the character itself.
-- A distinct Level for the Gym gives a reason to travel, adding loop variety.
-
-Cons / risks:
-- Sell already lives at the Black Market — Jim risks duplicating a screen unless
-  he offers something distinct (Buy stock, training minigame, hatch-gated back room).
-- A new Level means Level Editor work, art, NPC dialogue, and a Beacon placement.
-  Non-trivial for what is initially just a sell screen.
-- "Gym" framing may clash with the mystical/divine aesthetic if not handled
-  carefully. Jim needs a voice that stays in the game's sincere-bewilderment tone
-  (see CORE_GAME_DESIGN §2.6) — not a winking joke.
-
-Notes:
-- Reposition Jim as a **future** Vendor with a unique hook (Buy tab, XP boost
-  consumables, or hatch-gated Gym interior) — not the first sell sink.
-- Pairs well with **Shop unlock via hatch** above: Jim's Gym is the reward behind
-  the broken door.
-- Jim's dialogue is an opportunity to reinforce the Clicker lore (Clickers as
-  the player's race). He could be a fellow Clicker — a trainer, not a mortal.
+A buff gym-owner Clicker, **Jim**, whose gym frames a "train to get stronger" loop.
+Selling shipped first at the Black Market (ADR-0027), so Jim is **not** the sell
+sink. Keep him as a *future* Vendor only if he earns a distinct hook — Buy-tab
+stock (once **Artifacts** ships), XP-boost consumables, or a hatch-gated interior
+(pairs with **Shop unlock via hatch** above). Jim should be a fellow Clicker (a
+trainer, not a mortal) whose voice stays in the sincere-bewilderment tone (never a
+winking gym joke). A new Level means Editor/art/dialogue/Beacon work — only worth it
+for a unique hook, not a duplicate sell screen.
 
 ---
 

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-19
+- Updated by: [ADR-0021](0021-minimal-onboarding-arc-parked.md) (active onboarding default → minimal; full arc parked)
 
 ## Context
 
@@ -10,8 +11,11 @@ target multi-tenant `World` shape, and the `interactionRule` claim model) but
 deferred the runtime. The game now needs a real shared world: after onboarding,
 and for returning players in Game mode, players drop into one open world
 (`bigworld_01`) where they see each other's cursors, break entities together, and
-roll into a fresh instance once one fills. Onboarding (tutorial + Council) and
-cutscenes must stay single-player.
+roll into a fresh instance once one fills. Onboarding and cutscenes must stay
+single-player. *(This ADR described onboarding as "tutorial + Council"; ADR-0021
+later made a **minimal** flow the active default and parked the full
+tutorial/Council arc behind a flag. Either way the principle holds: onboarding runs
+single-player and players enter the shared world afterwards.)*
 
 We want an "MMO vibe" — players don't opt in, they just arrive together — without
 building a heavyweight game server, and with the existing pure `World` sim reused

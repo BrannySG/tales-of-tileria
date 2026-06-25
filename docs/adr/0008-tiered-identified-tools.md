@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-17
+- Superseded in part by: [ADR-0022](0022-skill-trees-replace-flat-upgrades.md) (tier/wield gating retired; tools gate type only)
 
 ## Context
 

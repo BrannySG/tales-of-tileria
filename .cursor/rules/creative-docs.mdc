@@ -59,18 +59,19 @@ agent **must** do the following before finishing:
 - Idle Mode: cursor detaches from pointer, auto-roams Level, gathers chosen Skill(s) hands-off
 - Server-side (multiplayer tab stays gathering when backgrounded)
 
-### Layer 5 — Social
-- Shared multiplayer world (`bigworld_01`), other cursors visible with nametags
+### Layer 5 — Social / multi-Level world
+- Shared multiplayer world (`bigworld_01`, "The Clearing"), other cursors visible with nametags
+- In-world Travel between Levels: Black Market via Beacon (ADR-0023), Deepwood via edge/signpost Travel with Arrival Anchors (ADR-0026)
+- Per-player **Personal Breakables / Landmarks** (e.g. the Giant Stump): break state persists per player via an overlay (ADR-0025)
 - Leaderboards: Woodcutting level, Mining level, Total level (global SQLite DO)
 - Cursor skins as cosmetics, unlocked by Achievements
 
 ### What is parked / not yet built
-- **HUD UI scale slider** (Settings — readability/accessibility, persisted preference) — see `creative/ux-housekeeping.md`
 - Full onboarding arc (tutorial quest chain, Council of Clickers, Banishment) — behind `ONBOARDING_VARIANT: 'arc'` flag
 - **Artifacts system** (Cursor equipment — proc/AoE effects, Clicker-tree slot unlocks, chase items) — supersedes Gear; own ADR sprint — see `creative/design-ideas.md`
 - **Timed rare spawns** (long variable respawn, contested drops, level-wide announcement) — see `creative/design-ideas.md`
 - Buying from Vendors — visible "coming soon" tab; waits on **Artifacts**
-- Loot drop carousel UI — not built (sequenced as its own follow-up sprint)
+- Loot drop carousel / **loot reel** — not built; design **locked** from mockup (left-edge vertical reel, hero+aging trail, coalescing `×N`, Rare+ fanfare, runs in both modes) and it introduces the cross-cutting **Item Card** visual language (shared component for how an Item looks across reel / hover rail / "new item" toast now, Bag / Vendor / Collection deferred) — see `creative/design-ideas.md` + `creative/ux-housekeeping.md`
 - Boot screen "Wake up" cinematic — not built
 - Boss fights (Council members) — no combat system for them yet
 - Rebirth / Eternal Skills / Reawaken tree — not designed yet
@@ -80,9 +81,13 @@ agent **must** do the following before finishing:
 - Custom scrollbar — not built
 
 ### Recently shipped
+*(Current build: `GAME_VERSION` in `apps/client/src/version.ts` — 0.1.47 at this review. Patch-note version strings may lag; `version.ts` is the source of truth.)*
 - Hover preview bar (sticky bottom-right; surfaces drop %, replaces right-click Inspect; old popover + anchor math deleted) — v0.1.44, ADR-0028
 - Collection Book registration juice (rarity-tiered slot slam + flash, Rare+ panel shake) + icon-first detail layout — v0.1.44
 - Black Market Vendor + Sell economy (Gold/XP toggle, source-Skill XP routing, rarity-derived values) — see ADR-0027
+- HUD UI scale slider (Settings — readability/accessibility, 75%–175%, persisted via `uiScale`)
+- Stop auto-wiping progression on join (`WIPE_PROGRESSION_ON_JOIN = false`); hide in-world entity lock button (mechanic + Spacebar kept) — v0.1.42
+- Deepwood (second region) + edge/signpost Travel with Arrival Anchors (ADR-0026); per-player Personal Breakables / Landmarks incl. the Giant Stump (ADR-0025)
 
 ## How priority decisions are made
 

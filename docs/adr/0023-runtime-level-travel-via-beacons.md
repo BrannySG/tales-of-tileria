@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-23
+- Extended by: [ADR-0026](0026-edge-traversal-with-arrival-anchors.md) (named Arrival Anchors frame the camera on edge-to-edge Travel)
 
 ## Context
 
@@ -74,5 +75,7 @@ a non-reusable hook to the headless core.
   travel-as-a-group: each traveler is routed density-first, so co-located friends
   usually but not always land in the same instance; the reserved `instanceHint`
   seam (ADR-0016) is the future hook for party travel. Instances stay ephemeral
-  and there are no authored spawn points (arrivals start at the cursor), unchanged
-  from ADR-0016.
+  and there are no authored *cursor* spawn points (arrivals start at the cursor),
+  unchanged from ADR-0016. *(ADR-0026 later adds named **Arrival Anchors** that
+  frame the **camera** at the matching edge on edge-to-edge Travel; the cursor
+  landing position is still unauthored.)*

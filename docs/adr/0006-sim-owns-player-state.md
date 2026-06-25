@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-06-17
+- Evolved by: [ADR-0014](0014-multi-tenant-world-and-event-addressing.md), [ADR-0016](0016-authoritative-multiplayer-runtime.md) (single-player `World` → multi-tenant)
 
 ## Context
 

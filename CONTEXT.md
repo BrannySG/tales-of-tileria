@@ -95,9 +95,9 @@ language in the design docs, this file wins and the docs should be reconciled.
 
 ## World
 
-- **Level** — An authored place a player can be in (e.g. "The Grass Plains").
-  This is the canonical term for a place. Created and saved by the Level Editor
-  as a LevelDefinition. Retires the design-doc synonyms "Area" and "Zone".
+- **Level** — An authored place a player can be in (e.g. "The Clearing"). This is
+  the canonical term for a place. Created and saved by the Level Editor as a
+  LevelDefinition. Retires the design-doc synonyms "Area" and "Zone".
 - **Level instance** — A runtime, possibly-multiplayer copy of a Level, holding
   live state (entity HP, claims, respawn timers). Many instances can exist for
   one Level. A Player's personal state (Divine name, Owned tools, Skills,
@@ -117,13 +117,16 @@ language in the design docs, this file wins and the docs should be reconciled.
   anchor). It only frames the destination camera — presentation, not sim state.
   A Beacon with no anchor keeps the legacy "arrive centred on the world" behaviour
   (see ADR-0026).
-- **Shared zone** — The canonical networked open world (`bigworld_01`, "The Open
-  World"), the active destination right after first-run onboarding and the default
-  destination for returning players in Game mode. The player's first time
-  genuinely existing around other players: real, server-authoritative
-  multiplayer (see ADR-0016), not faked presence. The retired `mortal_realm_01`
-  was its single-player predecessor; its lived-in content is being folded into
-  `bigworld_01`.
+- **Shared zone** — The canonical networked open world (`bigworld_01`, whose
+  in-world display name is **"The Clearing"**), the active destination right after
+  first-run onboarding and the default destination for returning players in Game
+  mode. The player's first time genuinely existing around other players: real,
+  server-authoritative multiplayer (see ADR-0016), not faked presence. The retired
+  `mortal_realm_01` was its single-player predecessor; its lived-in content is being
+  folded into `bigworld_01`. *(Canonical public name is "The Clearing", matching the
+  Level's `displayName`. The asset manifest still labels its background "Grass
+  Plains" — a code-side label to reconcile separately; "The Open World" is an older
+  synonym.)*
 - **Black Market** — A shadowed trade Level where Vendors deal in Mortal Trade.
   It is a place, not a shop system; individual stores and transactions remain
   separate concepts.
@@ -315,8 +318,10 @@ language in the design docs, this file wins and the docs should be reconciled.
   a Tool requirement to say *what kind* of tool an entity needs.
 - **Tool tier** — A numeric rank on a Tool definition (higher = more capable).
   Tool tier **no longer gates** harvesting (see ADR-0022): tiers/crafting remain
-  in content for flavour and the future Gear sprint, but access is decided by the
-  Skill Tree's Tier unlocks, not by which tool tier you hold.
+  in content for flavour and the future **Artifacts** sprint (the relic-equipment
+  direction that supersedes the old "Gear" framing — see `creative/design-ideas.md`
+  and the Update on ADR-0022), but access is decided by the Skill Tree's Tier
+  unlocks, not by which tool tier you hold.
 - **Wield requirement** — A legacy Skill-level gate on a Tool definition. **No
   longer enforced** (see ADR-0022); tools gate by *type ownership* only. The field
   stays in content for now but does not block use.
@@ -420,8 +425,10 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Stat** — A sim-resolved per-Skill combat/gathering value: **Tap Damage**
   (active click), **Hover Damage** (passive tick), **Hover Rate** (passive tick
   cadence, lower = faster), **Crit Chance**, **Crit Damage**. Resolved per
-  interaction by the target Entity's Skill as `base + Skill Tree (+ future Gear)`
-  through one resolver (`deriveStats`); never computed anywhere else.
+  interaction by the target Entity's Skill as `base + Skill Tree (+ future
+  Artifacts)` through one resolver (`deriveStats`); never computed anywhere else.
+  (The reserved third source was formerly framed as "Gear"; the creative direction
+  is now **Artifacts** — see ADR-0022's Update.)
 - **Crit** — A chance-based bonus on **Tap** damage only (seeded sim RNG for
   determinism): a crit multiplies Tap Damage by Crit Damage. Stacks
   multiplicatively with Smite (see ADR-0022).
@@ -492,13 +499,15 @@ language in the design docs, this file wins and the docs should be reconciled.
   owned Tools), the Cursor skin gallery, and Achievements. It doubles as the
   surface where the player previews and equips Cursor skins. Locked skins show a
   silhouette and their unlock condition.
-- **Inspect** — A contextual read action on a world Entity (right-click, long
-  press, or equivalent) that opens the Inspect panel for that specific Entity.
-  Inspect is presentation-only and never mutates authoritative world state.
-- **Inspect panel** — A lightweight, non-blocking popover anchored near an
-  Entity that summarizes what it is (kind/flavor), its requirements, rewards,
-  live status (HP/respawn), and its drop table presentation. Distinct from the
-  player **Profile**, which is player identity/progression.
+- **Hover Preview Bar** — A sticky, fixed-position bar in the bottom-right of the
+  screen that reads out the Entity currently under the Cursor: what it is
+  (kind/flavor), its requirements, rewards, live status (HP/respawn), and its drop
+  table with drop percentages. It is presentation-only and never mutates
+  authoritative world state — it projects `buildInspectModel` + authoritative HP
+  (see ADR-0028). Distinct from the player **Profile** (identity/progression). It
+  **supersedes** the old right-click **Inspect** popover: the modal Inspect
+  gesture + world-anchored panel were removed (ADR-0028), though the underlying
+  `buildInspectModel` derivation it reused is kept and now feeds the bar.
 - **New indicator** — A red dot that flags unacknowledged new content (a freshly
   unlocked Cursor skin or completed Achievement) on the HUD avatar and within the
   Profile. "Seen" is a per-device read-receipt held on the client, not
