@@ -160,7 +160,11 @@ language in the design docs, this file wins and the docs should be reconciled.
   distinct from a **Networked cursor** (a real other player).
 - **Vendor** — A non-celestial Cursor-being who fronts a Black Market stall and
   deals in Mortal Trade. A Vendor is a merchant presence, not a real player and
-  not a System NPC.
+  not a System NPC. A *wired* Vendor is interactive: tapping it opens its Shop
+  (see Shop, Sell; ADR-0027). Which Vendors are wired is data-driven by a client
+  Vendor profile keyed on the placement's Cursor skin — the Black Market General
+  vendor is the first; the Equipment and Generic vendors stay inert until given
+  profiles.
 - **Ancient Tree** — An imposing, effectively unbreakable Resource that gates the
   path beyond the tutorial. Striking it (especially with Smite) triggers the
   Council of Clickers cutscene. It is never actually depleted and remains a
@@ -242,6 +246,28 @@ language in the design docs, this file wins and the docs should be reconciled.
   the rolled Items visibly burst from the entity, arc out, and settle on the
   floor, each glowing in its Rarity color. Purely presentational — the loot is
   already awarded to the Inventory the instant the entity is depleted.
+- **Shop** — A Vendor's trade surface: the player opens it by tapping a wired
+  Vendor (see Vendor) and trades there. The first Shop is the Black Market General
+  vendor's, presented as a dedicated full-screen Vendor scene (the Vendor's
+  Cursor-skin portrait bobs and speaks on the left; trade tabs on the right). The
+  Shop has a **Sell** tab (live) and a **Buy** tab (deferred — see ADR-0027). The
+  scene is presentation; the trade itself is a sim command.
+- **Sell** — Trading owned Items to a Vendor for either Gold or Skill XP (the
+  **Sell mode**), sim-authoritative via the `item.sell` command (see ADR-0027). A
+  no-op when the player owns too few, or when XP is requested for a Gold-only
+  Item. Distinct from Registration (which donates Items into a Collection for a
+  larger XP reward): selling is the fast, lossy route, Collections the slower,
+  richer one.
+- **Sell mode** — Which currency a Sell trades for: **Gold** (the player's income
+  to spend) or **XP** (fed to the Item's source Skill — Wood → Woodcutting, Stone
+  → Mining). Gold-only Items have no source Skill and hide the XP mode. The player
+  chooses per sale; the trade-off (Gold now, XP now, or hold for a Collection) is
+  a deliberate decision layer.
+- **Sell value** — The per-unit Gold and XP an Item sells for. Derived from the
+  Item's Rarity (a single rarity → `{ gold, xp }` table) with optional per-Item
+  overrides; quantity multiplies. Authored content (see ADR-0027); sell-XP is
+  tuned below the equivalent Collection-entry XP so Collections stay the better
+  long play.
 
 ## Tooling
 

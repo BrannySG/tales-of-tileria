@@ -59,6 +59,7 @@ import type { SoundSystem } from '../audio/SoundSystem';
 import type { SoundName } from '../audio/synth';
 import { useHud, type InspectInfo } from '../state/store';
 import { skillIconTextureId, skillLabel } from '../ui/skillPresentation';
+import { getVendorProfile } from '../content/vendorDialogue';
 
 interface FloatingText {
   text: Container;
@@ -126,6 +127,11 @@ export interface SceneRendererOptions {
    */
   onBeaconActivate?: (instanceId: string) => void;
   /**
+   * Invoked when a Vendor (Black Market cursor-being) is tapped: opens the
+   * Vendor scene for that placement (see CONTEXT.md: Shop, Vendor; ADR-0027).
+   */
+  onVendorActivate?: (instanceId: string) => void;
+  /**
    * World point to centre the camera on at startup (see ADR-0026): an edge-to-
    * edge Travel arrival lands looking at the matching edge. Omit to centre the
    * whole world (the default).
@@ -178,7 +184,6 @@ export class SceneRenderer {
   /** Other players' cursors in this Level instance (networked sessions only). */
   private remoteCursors?: RemoteCursorManager;
   private currentTargetId: string | undefined;
-  private locked = false;
   /** This client's player id (networked or single-player), set at init from the snapshot. */
   private localId = '';
   /** True while the LOCAL player is idle-gathering (the sim drives the cursor). */
@@ -612,11 +617,20 @@ export class SceneRenderer {
     if (def.kind === 'npc') {
       this.npcReactions.register(view, inst.x, inst.y);
     } else if (def.kind === 'cursorBeing') {
-      // Celestial/other cursors are non-interactive scriptable speakers. They
-      // start hidden when locked so a director can reveal them on cue.
-      view.setInteractive(false);
-      if (inst.locked) {
-        view.container.visible = false;
+      // A Vendor cursor-being with a wired profile (see vendorDialogue.ts) is
+      // tappable to open its Shop scene (see CONTEXT.md: Vendor; ADR-0027).
+      // Every other cursor-being (Council members, ambient crowd) stays a
+      // non-interactive scriptable speaker, hidden when locked for a director.
+      const vendorProfile = (def.tags ?? []).includes('vendor')
+        ? getVendorProfile(inst.skinId)
+        : undefined;
+      if (vendorProfile && this.opts.interactive !== false && !inst.locked) {
+        this.wireVendor(view, inst.instanceId);
+      } else {
+        view.setInteractive(false);
+        if (inst.locked) {
+          view.container.visible = false;
+        }
       }
     } else if (def.kind === 'shrine') {
       // A locked shrine stays hidden until enabled, then appears on cue.
@@ -850,15 +864,6 @@ export class SceneRenderer {
         this.opts.transport.send({ type: 'entity.tap', instanceId });
       }
     });
-    if (!isPickup) {
-      view.onLockToggle = () => {
-        if (this.locked && this.currentTargetId === instanceId) {
-          this.opts.transport.send({ type: 'entity.unlock' });
-        } else {
-          this.opts.transport.send({ type: 'entity.lock', instanceId });
-        }
-      };
-    }
   }
 
   /**
@@ -886,6 +891,31 @@ export class SceneRenderer {
       // An armed Item still takes precedence on any prop.
       if (this.tryUseArmedItemOn(instanceId)) return;
       if (isBeacon) this.opts.onBeaconActivate?.(instanceId);
+    });
+  }
+
+  /**
+   * Wires a Vendor cursor-being: hovering shows its nameplate + targeting cue
+   * for discoverability; tapping opens the Vendor scene (see CONTEXT.md: Shop,
+   * Vendor; ADR-0027). An armed Item still takes precedence (consistency with
+   * props), though Vendors are not Item-interaction targets today.
+   */
+  private wireVendor(view: EntityView, instanceId: string): void {
+    view.setInteractive(true);
+    const target = view.hitTarget;
+    target.on('pointerover', () => {
+      this.cursorView?.setTargeting(true);
+      view.setTargeted(true);
+    });
+    target.on('pointerout', () => {
+      this.cursorView?.setTargeting(false);
+      view.setTargeted(false);
+    });
+    target.on('pointertap', (e: FederatedPointerEvent) => {
+      e.stopPropagation();
+      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
+      if (this.tryUseArmedItemOn(instanceId)) return;
+      this.opts.onVendorActivate?.(instanceId);
     });
   }
 
@@ -1111,7 +1141,6 @@ export class SceneRenderer {
           this.views.get(this.currentTargetId)?.setTargeted(false);
         }
         this.currentTargetId = event.instanceId;
-        this.locked = event.locked;
         if (event.instanceId) {
           const view = this.views.get(event.instanceId);
           view?.setTargeted(true);

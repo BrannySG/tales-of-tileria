@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js';
 import type { DamageSource, EntityDefinition, EntityInstance, EntityRuntimeState } from '@tot/shared';
 import { Animator, Easings } from './juice';
 import type { TextureMap } from './assets';
@@ -9,7 +9,6 @@ import { SpeechBubble, type SpeechOptions } from './SpeechBubble';
 
 const HP_BAR_WIDTH = 66;
 const HP_BAR_HEIGHT = 8;
-const LOCK_BTN_RADIUS = 11;
 
 function hpColor(ratio: number): number {
   if (ratio > 0.5) return 0x6cc24a;
@@ -20,8 +19,8 @@ function hpColor(ratio: number): number {
 /**
  * Visual representation of one entity instance: the sprite (with outline stroke
  * + contact shadow), an additive flash overlay for hits, a contextual HP bar +
- * name label + lock toggle, and all procedural juice (flash / shake / squash /
- * deplete / respawn pop).
+ * name label, and all procedural juice (flash / shake / squash / deplete /
+ * respawn pop). Lock is keyboard-only (Spacebar) — no in-world lock button.
  */
 export class EntityView {
   readonly container = new Container();
@@ -29,8 +28,6 @@ export class EntityView {
   readonly hitTarget: Sprite;
   /** Y offset from the container origin (ground) to the sprite's visual center. */
   readonly hitOffsetY: number;
-  /** Set by SceneRenderer; invoked when the in-world lock toggle is tapped. */
-  onLockToggle?: () => void;
 
   private readonly shadow: Graphics;
   private readonly art = new Container();
@@ -40,8 +37,6 @@ export class EntityView {
   private readonly hpBg = new Graphics();
   private readonly hpFill = new Graphics();
   private readonly nameLabel: Text;
-  private readonly lockButton = new Container();
-  private readonly lockGlyph = new Graphics();
   private readonly animator = new Animator();
 
   private readonly baseScale: number;
@@ -74,7 +69,6 @@ export class EntityView {
   private shake = 0;
   private squash = 0;
   private targeted = false;
-  private locked = false;
 
   hp: number;
   maxHp: number;
@@ -170,8 +164,7 @@ export class EntityView {
     this.hpBg.y = topY;
     this.hpFill.y = topY;
 
-    this.buildLockButton(topY);
-    this.ui.addChild(this.nameLabel, this.hpBg, this.hpFill, this.lockButton);
+    this.ui.addChild(this.nameLabel, this.hpBg, this.hpFill);
 
     if (this.state === 'unbuilt') this.applyUnbuiltArt();
     if (instance.extinguished) this.applyOutArt();
@@ -208,10 +201,8 @@ export class EntityView {
     this.updateUiVisibility();
   }
 
-  setLocked(locked: boolean): void {
-    this.locked = locked;
-    this.drawLockGlyph();
-  }
+  /** Reserved for a future in-world locked indicator; cursor shows lock state today. */
+  setLocked(_locked: boolean): void {}
 
   onDamaged(hp: number, maxHp: number, source: DamageSource): void {
     this.hp = hp;
@@ -294,37 +285,6 @@ export class EntityView {
     this.container.destroy({ children: true });
   }
 
-  private buildLockButton(topY: number): void {
-    const bg = new Graphics();
-    bg.circle(0, 0, LOCK_BTN_RADIUS)
-      .fill({ color: 0x14161b, alpha: 0.82 })
-      .stroke({ color: 0x000000, width: 1, alpha: 0.5 });
-    this.lockButton.addChild(bg, this.lockGlyph);
-    this.lockButton.x = HP_BAR_WIDTH / 2 + LOCK_BTN_RADIUS + 6;
-    this.lockButton.y = topY + HP_BAR_HEIGHT / 2;
-    this.lockButton.eventMode = 'static';
-    this.lockButton.cursor = 'none';
-    this.lockButton.on('pointertap', (e: FederatedPointerEvent) => {
-      e.stopPropagation();
-      this.onLockToggle?.();
-    });
-    this.drawLockGlyph();
-  }
-
-  private drawLockGlyph(): void {
-    const color = this.locked ? 0xffd24a : 0xe8eaed;
-    this.lockGlyph.clear();
-    // Shackle (open when unlocked: shifted up-left).
-    const sx = this.locked ? 0 : -1.4;
-    this.lockGlyph
-      .arc(sx, -3.2, 3.1, Math.PI, 0)
-      .stroke({ color, width: 1.7 });
-    // Body.
-    this.lockGlyph.roundRect(-4.6, -3, 9.2, 8, 1.6).fill(color);
-    // Keyhole.
-    this.lockGlyph.circle(0, 0.6, 1).fill(0x14161b);
-  }
-
   /** Plays the hit juice (flash/shake/squash) without changing HP — for cinematic props. */
   hit(source: DamageSource = 'active'): void {
     this.playHit(source);
@@ -403,21 +363,19 @@ export class EntityView {
 
   private updateUiVisibility(): void {
     if (this.isNpc) {
-      // NPCs are non-combat: always show the name, never the HP bar / lock.
+      // NPCs are non-combat: always show the name, never the HP bar.
       this.hpBg.visible = false;
       this.hpFill.visible = false;
       this.nameLabel.visible = true;
-      this.lockButton.visible = false;
       this.ui.visible = true;
       return;
     }
     if (this.isProp) {
-      // Props (water/fire): no HP bar or lock; show the name only while hovered
+      // Props (water/fire): no HP bar; show the name only while hovered
       // so the player can tell what they're about to use an item on.
       this.hpBg.visible = false;
       this.hpFill.visible = false;
       this.nameLabel.visible = this.targeted;
-      this.lockButton.visible = false;
       this.ui.visible = this.targeted;
       return;
     }
@@ -427,7 +385,6 @@ export class EntityView {
     this.hpBg.visible = showBar;
     this.hpFill.visible = showBar;
     this.nameLabel.visible = available && this.targeted;
-    this.lockButton.visible = available && this.targeted;
     this.ui.visible = showBar || this.nameLabel.visible;
   }
 

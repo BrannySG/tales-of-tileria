@@ -38,6 +38,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0024](0024-idle-mode-and-clicker-meta-track.md) | Idle Mode is a sim-driven auto-gather loop, gated by a Clicker meta-track | Accepted — evolves 0015 (sim writes cursor coords), broadens 0022's tree machinery |
 | [0025](0025-per-player-permanent-entity-state.md) | Per-player permanent entity state via a Player overlay + snapshot projection (Personal Breakables / Landmarks) | Accepted — builds on 0006/0014, persists per 0011/0016 |
 | [0026](0026-edge-traversal-with-arrival-anchors.md) | Edge-to-edge Level Travel via Arrival Anchors | Accepted — extends 0023 |
+| [0027](0027-sell-economy-via-vendor-trade-command.md) | Sell economy via a sim-authoritative Vendor trade command (Black Market) | Accepted — builds on 0006/0016, gives Gold its first sink/source |
 
 ## Supersession map
 
@@ -67,6 +68,11 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 - **0026** extends **0023**'s placement-data Travel with named Arrival Anchors so
   edge-to-edge Travel lands at the matching edge, replacing 0023's "arrive at the
   cursor" default when an anchor is named.
+- **0027** builds on **0006**/**0016** (the sim owns Player state; the same World
+  runs server-side) by adding the first trade command (`item.sell`) and its
+  `shop.sold` event, giving the **0008**-era Gold currency its first sink/source.
+  It defers buying to a future Gear ADR and supersedes the "Jim's Gym first"
+  framing in `creative/design-ideas.md` (selling lands at the Black Market first).
 
 ## Adding an ADR
 

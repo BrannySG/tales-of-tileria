@@ -22,17 +22,12 @@ const SAVE_KEY = 'tot.playerSave';
 const SCHEMA_VERSION = 2;
 
 /**
- * TESTING TOGGLE — flip to `false` to restore normal cross-session persistence.
- *
- * While `true`, every time a returning player joins (see `GameMode`) we reset
- * their *progression* save back to the starter kit: skills, inventory, tools,
- * crafting, quests, collections, skill trees, divine powers, passive damage.
- * Identity / "key data" is deliberately kept — the persisted username (a
- * separate localStorage key) plus unlocked + equipped cursor skins. This keeps
- * testing fast (a fresh run every join) without making players re-do onboarding
- * or re-enter their name. Returning players get a heads-up via `WelcomeNotice`.
+ * Dev-only join-time wipe — keep `false` for normal play. When `true`, every
+ * returning join (see `GameMode`) resets progression to the starter kit while
+ * keeping identity (username) and cosmetics (cursor skins). Prefer the Settings
+ * "Force wipe save" button for ad-hoc testing instead of leaving this on.
  */
-export const WIPE_PROGRESSION_ON_JOIN = true;
+export const WIPE_PROGRESSION_ON_JOIN = false;
 
 interface SaveEnvelope {
   schemaVersion: number;

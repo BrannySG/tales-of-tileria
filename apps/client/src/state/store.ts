@@ -699,6 +699,14 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         if (event.playerId === localPlayerId) useHud.getState().setCursorSkin(event.cursorSkinId);
         break;
       }
+      case 'shop.sold': {
+        // Trade feedback is owned by the Vendor scene, which subscribes to this
+        // event directly for its running tally + reaction lines (see ADR-0027).
+        // The authoritative state already rode the companion `inventory.changed`
+        // (item removed / Gold credited) and, for XP sales, `skill.xpGained`, so
+        // there is nothing further to project into the HUD store here.
+        break;
+      }
     }
   });
 }

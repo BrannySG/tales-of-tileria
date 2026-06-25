@@ -22,7 +22,9 @@ import {
   requireQuestDefinition,
   requireRecipeDefinition,
   requireToolDefinition,
+  resolveSellValue,
   sandboxSkillTrees,
+  sellSkillFor,
   skillTreePoints,
   treeEarnedLevel,
   xpToLevel,
@@ -43,6 +45,7 @@ import {
   type Player,
   type PlayerId,
   type PresenceInfo,
+  type SellMode,
   type SimCommand,
   type SimEvent,
   type SkillId,
@@ -557,6 +560,9 @@ export class World {
 
       case 'cosmetic.equip':
         return this.equipCursorSkin(cmd.cursorSkinId, playerId, session);
+
+      case 'item.sell':
+        return this.sellItem(cmd.itemId, cmd.quantity, cmd.mode, session);
 
       default:
         return [];
@@ -1780,6 +1786,49 @@ export class World {
     for (const item of items) {
       events.push(...this.advanceQuests({ kind: 'itemCollected', itemId: item.itemId, quantity: item.quantity }, session));
     }
+    return events;
+  }
+
+  /**
+   * Sell owned Items to a Vendor for Gold or source-Skill XP (see CONTEXT.md:
+   * Sell; ADR-0027). Validates ownership and that the trade is possible, debits
+   * the Items, credits Gold or awards Skill XP, and emits the state events plus
+   * a private `shop.sold` feedback hook. A no-op (returns []) when the quantity
+   * is invalid, unaffordable, the Item is unsellable, or `'xp'` is requested for
+   * a Gold-only Item.
+   */
+  private sellItem(
+    itemId: string,
+    quantity: number,
+    mode: SellMode,
+    session: PlayerSession,
+  ): SimEvent[] {
+    const qty = Math.floor(quantity);
+    if (qty <= 0) return [];
+    const inv = session.player.inventory;
+    if ((inv[itemId] ?? 0) < qty) return [];
+    const perUnit = resolveSellValue(itemId, mode);
+    if (perUnit === null || perUnit <= 0) return [];
+    const total = perUnit * qty;
+
+    // Debit the sold stack (drop the key when emptied to keep the Bag clean).
+    const remaining = (inv[itemId] ?? 0) - qty;
+    if (remaining > 0) inv[itemId] = remaining;
+    else delete inv[itemId];
+
+    if (mode === 'gold') {
+      inv.gold = (inv.gold ?? 0) + total;
+      return [
+        { type: 'inventory.changed', inventory: { ...inv } },
+        { type: 'shop.sold', itemId, quantity: qty, mode, goldGained: total },
+      ];
+    }
+
+    // mode === 'xp': resolveSellValue already guaranteed a source Skill exists.
+    const skillId = sellSkillFor(itemId)!;
+    const events: SimEvent[] = [{ type: 'inventory.changed', inventory: { ...inv } }];
+    events.push(...this.awardSkillXp({ [skillId]: total }, session));
+    events.push({ type: 'shop.sold', itemId, quantity: qty, mode, xpGained: total, skillId });
     return events;
   }
 }

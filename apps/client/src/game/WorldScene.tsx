@@ -23,6 +23,8 @@ import { CollectionBookModal } from '../ui/CollectionBookModal';
 import { SkillTreeModal } from '../ui/SkillTreeModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
 import { InspectPanel } from '../ui/InspectPanel';
+import { VendorScene } from '../ui/VendorScene';
+import { getVendorProfile } from '../content/vendorDialogue';
 
 export interface WorldSceneProps {
   level: LevelDefinition;
@@ -91,6 +93,8 @@ export function WorldScene({
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [skillTreeOpen, setSkillTreeOpen] = useState(false);
   const [skillTreeInitial, setSkillTreeInitial] = useState<TreeId | undefined>(undefined);
+  // The Vendor (Black Market shop) scene: which placement is open, if any.
+  const [vendorInstanceId, setVendorInstanceId] = useState<string | undefined>(undefined);
   const { hostRef, sessionRef, ready } = useWorldScene(level, {
     playerName,
     tool,
@@ -101,9 +105,16 @@ export function WorldScene({
     onOpenCrafting: () => setCraftingOpen(true),
     onInspect: (inspect) => useHud.getState().openInspect(inspect),
     onBeaconActivate,
+    onVendorActivate: (instanceId) => setVendorInstanceId(instanceId),
     arrivalAnchor,
     onReady,
   });
+  // Resolve the tapped Vendor's profile from its placement Cursor-skin (ADR-0027).
+  const vendorProfile = useMemo(() => {
+    if (!vendorInstanceId) return undefined;
+    const placed = level.entities.find((e) => e.instanceId === vendorInstanceId);
+    return getVendorProfile(placed?.overrides?.skinId);
+  }, [vendorInstanceId, level]);
   const stage = useStageScale(hostRef);
 
   const onCraft = (recipeId: string) => {
@@ -258,6 +269,13 @@ export function WorldScene({
                 onAllocate={onAllocateNode}
                 onRespec={onRespecTree}
                 onClose={() => setSkillTreeOpen(false)}
+              />
+            )}
+            {vendorProfile && sessionRef.current && (
+              <VendorScene
+                profile={vendorProfile}
+                transport={sessionRef.current.transport}
+                onClose={() => setVendorInstanceId(undefined)}
               />
             )}
             <InspectPanel />

@@ -103,7 +103,23 @@ export type SimCommand =
       /** Leave Idle Mode and hand the cursor back to the player. */
       type: 'idle.stop';
     }
-  | { type: 'cosmetic.equip'; cursorSkinId: string };
+  | { type: 'cosmetic.equip'; cursorSkinId: string }
+  | {
+      /**
+       * Sell owned Items to a Vendor (see CONTEXT.md: Shop, Sell). Trades a
+       * quantity of one Item for either Gold or its source-Skill XP (the
+       * `mode`), at the sim-resolved Sell value (see ADR-0027). A no-op if the
+       * player owns fewer than `quantity`, or if `mode` is `'xp'` and the Item
+       * has no mapped source Skill. Buying is deferred (see ADR-0027).
+       */
+      type: 'item.sell';
+      itemId: string;
+      quantity: number;
+      mode: SellMode;
+    };
+
+/** Which currency a Sell trades for (see CONTEXT.md: Sell mode). */
+export type SellMode = 'gold' | 'xp';
 
 /** Identifier of a removable divine power (see CONTEXT.md: Divine power). */
 export type DivinePowerId = 'smite';
@@ -365,6 +381,24 @@ export type SimEvent =
       playerId: PlayerId;
       cursorSkinId: string;
     }
+  // --- Trade / Shop (see CONTEXT.md: Sell, ADR-0027) ---
+  | {
+      /**
+       * An Item was sold to a Vendor (see CONTEXT.md: Sell). Private feedback
+       * hook for the Vendor scene (running total, reaction lines). The actual
+       * state changes ride companion events: `inventory.changed` (item removed,
+       * Gold credited) and, for `mode: 'xp'`, `skill.xpGained`.
+       */
+      type: 'shop.sold';
+      itemId: string;
+      quantity: number;
+      mode: SellMode;
+      /** Gold credited (present when `mode` is `'gold'`). */
+      goldGained?: number;
+      /** Skill XP credited and the Skill it fed (present when `mode` is `'xp'`). */
+      xpGained?: number;
+      skillId?: SkillId;
+    }
   // --- Multiplayer presence (see ADR-0016) ---
   | {
       /** Another player entered the Level instance (or is already present on join). */
@@ -452,6 +486,8 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   // Cosmetics: unlocks are private; an equip must be seen by everyone.
   'cosmetic.unlocked': 'player',
   'cosmetic.equipped': 'world',
+  // Trade: a sale is one player's private feedback (state rides inventory/skill).
+  'shop.sold': 'player',
   // Presence: shared world state every player in the instance must see.
   'presence.joined': 'world',
   'presence.left': 'world',

@@ -113,6 +113,8 @@ export function useWorldScene(
     onInspect?: (inspect: InspectInfo) => void;
     /** Invoked when a Beacon is tapped, to offer Travel (see ADR-0023). */
     onBeaconActivate?: (instanceId: string) => void;
+    /** Invoked when a Vendor is tapped, to open the Shop scene (see ADR-0027). */
+    onVendorActivate?: (instanceId: string) => void;
     /** World point to centre the camera on at startup (Travel arrival, ADR-0026). */
     arrivalAnchor?: { x: number; y: number };
     /** Invoked once the session is live; return an optional cleanup. */
@@ -194,6 +196,7 @@ export function useWorldScene(
         onOpenCrafting: options.onOpenCrafting,
         onInspect: options.onInspect,
         onBeaconActivate: options.onBeaconActivate,
+        onVendorActivate: options.onVendorActivate,
         arrivalAnchor: options.arrivalAnchor,
       });
       if (cancelled) {

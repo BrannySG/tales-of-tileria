@@ -13,9 +13,17 @@ export interface PatchNote {
 }
 
 /** The build's current version (the newest entry below). */
-export const CURRENT_VERSION = '0.2.0';
+export const CURRENT_VERSION = '0.1.42';
 
 export const PATCH_NOTES: readonly PatchNote[] = [
+  {
+    version: '0.1.42',
+    date: 'Jun 2026',
+    notes: [
+      'Progress no longer auto-wipes on join — use Settings → Force wipe save when testing.',
+      'Removed the in-world entity lock button (Spacebar still toggles lock).',
+    ],
+  },
   {
     version: '0.2.0',
     date: 'Jun 2026',

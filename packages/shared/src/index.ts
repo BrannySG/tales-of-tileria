@@ -29,4 +29,5 @@ export * from './content/tools';
 export * from './content/cursorSkins';
 export * from './content/achievements';
 export * from './content/registry';
+export * from './content/economy';
 export * from './content/stats';
