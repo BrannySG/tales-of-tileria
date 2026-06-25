@@ -125,6 +125,12 @@ export interface SceneRendererOptions {
    * placement's destination and offers Travel (client-orchestrated, ADR-0023).
    */
   onBeaconActivate?: (instanceId: string) => void;
+  /**
+   * World point to centre the camera on at startup (see ADR-0026): an edge-to-
+   * edge Travel arrival lands looking at the matching edge. Omit to centre the
+   * whole world (the default).
+   */
+  arrivalAnchor?: { x: number; y: number };
 }
 
 export type { Updatable };
@@ -385,6 +391,10 @@ export class SceneRenderer {
       viewportHeight: VIRTUAL_HEIGHT,
     });
     this.camera.centerOnWorld();
+    // An edge-to-edge Travel arrival lands looking at the matching edge (ADR-0026).
+    if (this.opts.arrivalAnchor) {
+      this.camera.centerOnWorldPoint(this.opts.arrivalAnchor.x, this.opts.arrivalAnchor.y);
+    }
     this.updatables.add(this.camera);
     if (this.opts.interactive !== false) this.setupCameraInput(app);
 
@@ -617,6 +627,12 @@ export class SceneRenderer {
       // being the target of an armed Item (see CONTEXT.md: Item interaction).
       // Beacons are also props, but a plain tap offers Travel (see wireProp).
       if (this.opts.interactive !== false) this.wireProp(view, inst.instanceId, def);
+      // A Locked prop (e.g. the Travel signpost gated behind the Giant Stump,
+      // see ADR-0025) stays hidden until revealed per-player on the break.
+      if (inst.locked) {
+        view.setInteractive(false);
+        view.container.visible = false;
+      }
     } else if (this.opts.interactive !== false) {
       if (def.buildable) {
         // Buildables are inert; their only interaction is the Build Prompt,
@@ -942,6 +958,45 @@ export class SceneRenderer {
             this.remoteCursors?.hit(event.by);
           }
         }
+        break;
+      }
+      case 'entity.personalDamaged': {
+        // Per-player damage on a Personal Breakable (see ADR-0025). Always the
+        // local player (unicast to the owner), so it mirrors a self active hit.
+        const view = this.views.get(event.instanceId);
+        if (!view) break;
+        view.onDamaged(event.hp, event.maxHp, event.source);
+        const suppressNumber = this.smiteSuppressNumberFor.delete(event.instanceId);
+        if (this.networked && event.source === 'active') {
+          if (!suppressNumber) {
+            this.damageNumbers.spawn(
+              view.container.x,
+              view.container.y + view.hitOffsetY,
+              event.amount,
+              event.source,
+              event.crit,
+            );
+          }
+        } else {
+          this.spawnHitFx(event.instanceId, event.amount, event.source, false, suppressNumber, event.crit);
+        }
+        break;
+      }
+      case 'entity.brokenForPlayer': {
+        // A Personal Breakable broke for this player (see ADR-0025): swap to the
+        // broken remnant, burst FX, and reveal its per-player gateway entities
+        // (e.g. the Travel signpost north). The LandmarkBreakDirector layers the
+        // cinematic moment on top from its own subscription.
+        const view = this.views.get(event.instanceId);
+        const def = this.defs.get(event.instanceId);
+        if (view) {
+          if (def?.breakable) view.onBreak();
+          else view.onDepleted('depleted');
+        }
+        this.spawnHitFx(event.instanceId, 0, 'active', true);
+        this.opts.sound?.play('deplete');
+        this.fallingLeaves.setSourceActive(event.instanceId, false);
+        for (const id of event.revealedInstanceIds) this.revealEntity(id);
         break;
       }
       case 'presence.joined': {
@@ -1293,6 +1348,19 @@ export class SceneRenderer {
       },
       { ease: Easings.outQuad, onComplete: () => view.destroy() },
     );
+  }
+
+  /**
+   * Reveals a previously-hidden Locked entity (e.g. a per-player Travel signpost
+   * unlocked by breaking the Giant Stump, see ADR-0025): pop it into view, make
+   * it interactive, and sparkle.
+   */
+  private revealEntity(instanceId: string): void {
+    const view = this.views.get(instanceId);
+    if (!view) return;
+    view.container.visible = true;
+    view.setInteractive(true);
+    view.sparkle();
   }
 
   private spawnHitFx(
@@ -1658,6 +1726,16 @@ export class SceneRenderer {
 
   cameraReset(opts: { durationMs?: number } = {}): Promise<void> {
     return this.cinematic.cameraReset(opts);
+  }
+
+  /** Jitters the camera for a quick decaying shake (a landmark break, ADR-0026). */
+  cameraShake(durationMs = 420, intensity = 16): Promise<void> {
+    return this.cinematic.cameraShake(durationMs, intensity);
+  }
+
+  /** A quick full-screen colour flash above the world (presentation hook). */
+  flashScreen(color: number, alpha: number, ms: number): void {
+    this.cinematic.flashScreen(color, alpha, ms);
   }
 
   addWisps(opts?: WispOptions): WispSystem {

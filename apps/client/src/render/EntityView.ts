@@ -175,6 +175,9 @@ export class EntityView {
 
     if (this.state === 'unbuilt') this.applyUnbuiltArt();
     if (instance.extinguished) this.applyOutArt();
+    // A returning player whose Personal Breakable is already broken (see
+    // ADR-0025) hydrates as `depleted`: show the broken remnant, not nothing.
+    if (this.state === 'depleted' && this.brokenTexture) this.applyBrokenArt();
 
     this.redrawHp();
     this.updateUiVisibility();
@@ -429,7 +432,10 @@ export class EntityView {
   }
 
   private applyStateVisual(): void {
-    const visible = this.state === 'available' || this.state === 'unbuilt';
+    // A breakable that hydrates already broken (depleted) keeps its remnant
+    // visible in the world (see ADR-0025), unlike a respawning/depleted resource.
+    const broken = this.state === 'depleted' && !!this.brokenTexture;
+    const visible = this.state === 'available' || this.state === 'unbuilt' || broken;
     this.art.visible = visible;
     this.shadow.visible = visible;
     // NPCs and Buildables never participate in combat interactions (the Build
@@ -508,25 +514,30 @@ export class EntityView {
     this.speech.say(text, opts);
   }
 
+  /** Swaps the sprite/flash to the resolved 'broken' art (texture + transform). */
+  private applyBrokenArt(): void {
+    if (!this.brokenTexture) return;
+    const ax = this.sprite.anchor.x;
+    this.sprite.texture = this.brokenTexture;
+    this.flash.texture = this.brokenTexture;
+    this.sprite.anchor.set(ax, this.brokenAnchorY);
+    this.flash.anchor.set(ax, this.brokenAnchorY);
+    this.sprite.scale.set(this.brokenScale);
+    this.flash.scale.set(this.brokenScale);
+    this.sprite.rotation = 0;
+    this.flash.rotation = 0;
+    this.flash.alpha = 0;
+  }
+
   /**
    * One-time break: swap to the 'broken' art and stay in the world (inert)
-   * instead of vanishing. Used by the tutorial wood shack.
+   * instead of vanishing. Used by the tutorial wood shack and Personal
+   * Breakables (the Giant Stump, see ADR-0025).
    */
   onBreak(): void {
     this.state = 'depleted';
     this.hp = 0;
-    if (this.brokenTexture) {
-      const ax = this.sprite.anchor.x;
-      this.sprite.texture = this.brokenTexture;
-      this.flash.texture = this.brokenTexture;
-      this.sprite.anchor.set(ax, this.brokenAnchorY);
-      this.flash.anchor.set(ax, this.brokenAnchorY);
-      this.sprite.scale.set(this.brokenScale);
-      this.flash.scale.set(this.brokenScale);
-      this.sprite.rotation = 0;
-      this.flash.rotation = 0;
-      this.flash.alpha = 0;
-    }
+    this.applyBrokenArt();
     this.art.visible = true;
     this.art.alpha = 1;
     this.art.rotation = 0;

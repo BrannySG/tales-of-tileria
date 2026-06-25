@@ -438,6 +438,91 @@ export const ancientTree: EntityDefinition = {
 };
 
 /**
+ * The Giant Stump — the first Tier 4 woodcutting Landmark (see CONTEXT.md:
+ * Personal Breakable, Landmark; ADR-0025). A colossal mossy stump barring the
+ * north of the Clearing. Each Player breaks their OWN copy (very high HP — a
+ * sustained grind around Woodcutting 25); once broken it stays broken forever
+ * for them and reveals the Travel signpost north (`revealTag: 'northgate'`).
+ * Drops a fixed, one-time woodcutting haul. Placeholder art reuses the
+ * ancient-tree (intact) and rock (broken remnant) textures until dedicated
+ * sprites are generated via the Sprite Pipeline.
+ */
+export const giantStump: EntityDefinition = {
+  id: 'giant_stump',
+  displayName: 'Mossy Giant Stump',
+  description:
+    'A colossal, moss-cloaked stump barring the northern path — ancient, stubborn, and immense.',
+  kind: 'resource',
+  art: {
+    textureId: 'tree_ancient',
+    scale: 1.9,
+    anchorX: 0.5,
+    anchorY: 0.97,
+    hitParticleTextureId: 'fx_wood_chip',
+    driftParticleTextureId: 'fx_leaf',
+    hitTint: 0xcfe9c8,
+  },
+  damageable: { maxHp: 6000 },
+  breakable: { brokenTextureId: 'rock', brokenScale: 1.2, brokenAnchorY: 0.85 },
+  personalBreak: { revealTag: 'northgate' },
+  loot: { lootTableId: 'giant_stump' },
+  requirements: { skill: { skillId: 'woodcutting', level: 25 }, toolType: 'axe', tier: 4 },
+  xp: { rewards: { woodcutting: 2500 } },
+  interactionRule: 'personal',
+  tags: ['tree', 'choppable', 'landmark'],
+};
+
+/**
+ * Elder Pine — a Tier 3 woodcutting tree that populates the Deepwood beyond the
+ * Giant Stump. Renewable (respawns), reuses the oak collectible ladder; no new
+ * items. Placeholder art reuses the oak texture until dedicated art exists.
+ */
+export const elderPine: EntityDefinition = {
+  id: 'elder_pine',
+  displayName: 'Elder Pine',
+  description: 'A tall, resin-dark pine from the deep woods, tougher than any lowland oak.',
+  kind: 'resource',
+  art: {
+    textureId: 'tree_oak',
+    scale: 1.5,
+    anchorX: 0.5,
+    anchorY: 0.96,
+    hitParticleTextureId: 'fx_wood_chip',
+    driftParticleTextureId: 'fx_leaf',
+    hitTint: 0xdfeede,
+  },
+  damageable: { maxHp: 140 },
+  respawns: { respawnSeconds: 50 },
+  loot: { lootTableId: 'oak_basic' },
+  requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 3 },
+  xp: { rewards: { woodcutting: 9 } },
+  interactionRule: 'lastHit',
+  tags: ['tree', 'choppable', 'pine'],
+};
+
+/**
+ * A Travel signpost revealed at the north of the Clearing once a Player breaks
+ * the Giant Stump (tag 'northgate', see ADR-0025). Tagged 'beacon' so the client
+ * wires its tap to Travel (ADR-0023); each placement authors its destination via
+ * `travelTargetLevelId`. Authored Locked, revealed per-player on the break.
+ * Placeholder art reuses the beacon (portal) texture.
+ */
+export const signpost: EntityDefinition = {
+  id: 'signpost',
+  displayName: 'Worn Signpost',
+  description: 'A weathered signpost pointing north, marking a path only just cleared.',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_beacon',
+    scale: 0.85,
+    anchorX: 0.5,
+    anchorY: 0.92,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'beacon', 'northgate'],
+};
+
+/**
  * A Council of Clickers member: a celestial cursor-being. Non-damageable, non-
  * reactive; the CouncilDirector scripts its lines and names it in dialogue.
  * Placed locked so the cutscene can reveal the council on cue.
@@ -496,6 +581,9 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   veinedRock,
   magicStone,
   ancientTree,
+  giantStump,
+  elderPine,
+  signpost,
   mrSmith,
   woodShack,
   furnace,

@@ -88,6 +88,13 @@ interface PlayerSession {
   /** Consecutive active taps on `lastSmiteTargetId` (resets on target change). */
   smiteCount: number;
   /**
+   * Per-player HP for Personal Breakables in progress (see ADR-0025), keyed by
+   * instance id. The shared `EntityInstance.hp` is never touched for these;
+   * each player whittles down their own copy. Lazily initialised to `maxHp` on
+   * the first hit and deleted once the player breaks it.
+   */
+  personalHp: Map<string, number>;
+  /**
    * Idle Mode (see CONTEXT.md): true once the sim-driven cursor has reached its
    * current idle target, so passive gather may tick (no gather while travelling).
    */
@@ -290,6 +297,7 @@ export class World {
       cursor: { x: 0, y: 0, mode: 'free', equippedToolType: player.equippedToolType },
       passiveAccumulator: 0,
       smiteCount: 0,
+      personalHp: new Map(),
       idleArrived: false,
       idleMoveBroadcastAccumulator: 0,
     };
@@ -338,13 +346,50 @@ export class World {
   }
 
   getSnapshot(playerId: PlayerId = this.defaultPlayerId): ZoneSnapshot {
+    const session = this.sessions.get(playerId);
     return {
-      entities: this.getEntities(),
+      entities: session ? this.projectEntities(session) : this.getEntities(),
       cursor: this.getCursor(playerId),
       player: this.getPlayer(playerId),
       stats: this.getStats(playerId),
       cursorStats: this.getCursorStats(playerId),
     };
+  }
+
+  /**
+   * Projects the shared entity map into one player's view (see ADR-0025): a
+   * Personal Breakable they have broken reads as `depleted` (hp 0) so the client
+   * shows the broken look; one in progress shows their private remaining hp; and
+   * any Locked entity revealed by a break they own is unlocked. Other players'
+   * snapshots are unaffected — each sees their own copy.
+   */
+  private projectEntities(session: PlayerSession): EntityInstance[] {
+    const broken = session.player.brokenEntities;
+    // Reveal tags contributed by every Personal Breakable this player has broken.
+    const revealTags = new Set<string>();
+    for (const id of broken) {
+      const e = this.entities.get(id);
+      if (!e) continue;
+      const tag = requireEntityDefinition(e.definitionId).personalBreak?.revealTag;
+      if (tag) revealTags.add(tag);
+    }
+    return [...this.entities.values()].map((e) => {
+      const clone = { ...e };
+      const def = requireEntityDefinition(e.definitionId);
+      if (def.personalBreak) {
+        if (broken.includes(e.instanceId)) {
+          clone.state = 'depleted';
+          clone.hp = 0;
+        } else {
+          const hp = session.personalHp.get(e.instanceId);
+          if (hp !== undefined) clone.hp = hp;
+        }
+      }
+      if (clone.locked && revealTags.size > 0 && (def.tags ?? []).some((t) => revealTags.has(t))) {
+        clone.locked = false;
+      }
+      return clone;
+    });
   }
 
   /**
@@ -409,11 +454,17 @@ export class World {
       case 'entity.tap': {
         const entity = this.entities.get(cmd.instanceId);
         if (!entity || entity.state !== 'available' || entity.maxHp <= 0) return [];
+        // A Personal Breakable already broken by this player is inert for them
+        // (the shared instance stays `available` for everyone else, see ADR-0025).
+        if (this.isPersonalBreakable(entity) && session.player.brokenEntities.includes(entity.instanceId)) {
+          return [];
+        }
         const block = this.blockedReason(entity, session);
         if (block) {
           return [{ type: 'entity.blocked', instanceId: entity.instanceId, ...block }];
         }
         if (this.claimBlocked(entity, playerId)) return [];
+        if (this.isPersonalBreakable(entity)) return this.applyPersonalActiveTap(entity, session);
         return this.applyActiveTap(entity, session);
       }
 
@@ -978,13 +1029,35 @@ export class World {
    * divine power is unlocked. The per-target counter is transient and per player.
    */
   private applyActiveTap(entity: EntityInstance, session: PlayerSession): SimEvent[] {
+    return this.runActiveTap(entity, session, (amount, crit) =>
+      this.applyDamage(entity, amount, 'active', session, crit),
+    );
+  }
+
+  /** Active tap on a Personal Breakable: routes damage to per-player HP (ADR-0025). */
+  private applyPersonalActiveTap(entity: EntityInstance, session: PlayerSession): SimEvent[] {
+    return this.runActiveTap(entity, session, (amount, crit) =>
+      this.applyPersonalDamage(entity, amount, 'active', session, crit),
+    );
+  }
+
+  /**
+   * Resolves an active tap (base damage, crit, and the Smite cadence) and hands
+   * the final amount to `deal`, which applies it to shared or per-player HP. The
+   * Smite bookkeeping is identical for both; only the damage sink differs.
+   */
+  private runActiveTap(
+    entity: EntityInstance,
+    session: PlayerSession,
+    deal: (amount: number, crit: boolean) => SimEvent[],
+  ): SimEvent[] {
     const playerId = session.player.id;
     const { amount: base, crit } = this.resolveActiveDamage(entity, session);
     const smite = session.player.divinePowers.smite;
     if (!smite.unlocked || smite.everyNthClick <= 0) {
       session.smiteCount = 0;
       session.lastSmiteTargetId = entity.instanceId;
-      return this.applyDamage(entity, base, 'active', session, crit);
+      return deal(base, crit);
     }
 
     if (session.lastSmiteTargetId !== entity.instanceId) {
@@ -994,15 +1067,20 @@ export class World {
     session.smiteCount += 1;
 
     if (session.smiteCount % smite.everyNthClick !== 0) {
-      return this.applyDamage(entity, base, 'active', session, crit);
+      return deal(base, crit);
     }
 
     const amount = base * smite.damageMultiplier;
     const events: SimEvent[] = [
       { type: 'smiteTriggered', instanceId: entity.instanceId, x: entity.x, y: entity.y, amount, by: playerId },
     ];
-    events.push(...this.applyDamage(entity, amount, 'active', session, crit));
+    events.push(...deal(amount, crit));
     return events;
+  }
+
+  /** True when the entity type is a Personal Breakable (see ADR-0025). */
+  private isPersonalBreakable(entity: EntityInstance): boolean {
+    return requireEntityDefinition(entity.definitionId).personalBreak !== undefined;
   }
 
   /**
@@ -1403,10 +1481,16 @@ export class World {
     // Idle gather multiplies XP by the player's idle yield (see CONTEXT.md: Cursor stat).
     const xpMultiplier = mode === 'idle' ? deriveCursorStats(session.player).idleYieldMultiplier : 1;
 
+    // Personal Breakables (see ADR-0025) keep the shared instance `available`
+    // forever; "already broken" is per-player, so check the player's record.
+    const personal = !!target && this.isPersonalBreakable(target);
+    const personalBroken = personal && session.player.brokenEntities.includes(target!.instanceId);
+
     if (
       !ticking ||
       !target ||
       target.state !== 'available' ||
+      personalBroken ||
       target.maxHp <= 0 ||
       this.blockedReason(target, session) !== undefined ||
       this.claimBlocked(target, session.player.id) ||
@@ -1420,8 +1504,14 @@ export class World {
     session.passiveAccumulator += dt;
     while (session.passiveAccumulator >= tickSeconds) {
       session.passiveAccumulator -= tickSeconds;
-      if (target.state !== 'available') break;
-      events.push(...this.applyDamage(target, passiveDamage, 'passive', session, false, xpMultiplier));
+      if (personal) {
+        // Stop once this player has broken their own copy.
+        if (session.player.brokenEntities.includes(target.instanceId)) break;
+        events.push(...this.applyPersonalDamage(target, passiveDamage, 'passive', session, false, xpMultiplier));
+      } else {
+        if (target.state !== 'available') break;
+        events.push(...this.applyDamage(target, passiveDamage, 'passive', session, false, xpMultiplier));
+      }
     }
   }
 
@@ -1503,6 +1593,107 @@ export class World {
       },
     ];
     if (entity.hp <= 0) events.push(...this.deplete(entity, session, xpMultiplier));
+    return events;
+  }
+
+  /**
+   * Applies damage to a Personal Breakable on behalf of one player (see
+   * ADR-0025). Unlike {@link applyDamage} this never touches the shared
+   * `EntityInstance` or the contention map: it whittles down the player's own
+   * `personalHp` copy and emits the player-scoped `entity.personalDamaged`. When
+   * the player's copy reaches 0 it breaks for them via {@link personalBreak}.
+   */
+  private applyPersonalDamage(
+    entity: EntityInstance,
+    amount: number,
+    source: DamageSource,
+    session: PlayerSession,
+    crit = false,
+    xpMultiplier = 1,
+  ): SimEvent[] {
+    const playerId = session.player.id;
+    const before = session.personalHp.get(entity.instanceId) ?? entity.maxHp;
+    const hp = Math.max(0, before - amount);
+    session.personalHp.set(entity.instanceId, hp);
+    const events: SimEvent[] = [
+      {
+        type: 'entity.personalDamaged',
+        instanceId: entity.instanceId,
+        hp,
+        maxHp: entity.maxHp,
+        amount,
+        source,
+        by: playerId,
+        ...(crit ? { crit: true } : {}),
+      },
+    ];
+    if (hp <= 0) events.push(...this.personalBreak(entity, session, xpMultiplier));
+    return events;
+  }
+
+  /**
+   * Permanently breaks a Personal Breakable for one player (see ADR-0025):
+   * records the instance on the Player, awards loot/XP/quest credit to them, and
+   * reveals any Locked entities tagged by `personalBreak.revealTag` for that
+   * player only. The shared `EntityInstance` is left untouched, so other players
+   * still see (and can break) their own copy. Emits the player-scoped
+   * `entity.brokenForPlayer` carrying the revealed ids for the client.
+   */
+  private personalBreak(
+    entity: EntityInstance,
+    session: PlayerSession,
+    xpMultiplier = 1,
+  ): SimEvent[] {
+    const def = requireEntityDefinition(entity.definitionId);
+    if (!session.player.brokenEntities.includes(entity.instanceId)) {
+      session.player.brokenEntities.push(entity.instanceId);
+    }
+    session.personalHp.delete(entity.instanceId);
+
+    const revealTag = def.personalBreak?.revealTag;
+    const revealedInstanceIds: string[] = [];
+    if (revealTag) {
+      for (const other of this.entities.values()) {
+        const otherDef = requireEntityDefinition(other.definitionId);
+        if ((otherDef.tags ?? []).includes(revealTag)) revealedInstanceIds.push(other.instanceId);
+      }
+    }
+
+    const events: SimEvent[] = [
+      {
+        type: 'entity.brokenForPlayer',
+        instanceId: entity.instanceId,
+        definitionId: entity.definitionId,
+        x: entity.x,
+        y: entity.y,
+        revealedInstanceIds,
+      },
+    ];
+
+    if (def.xp) {
+      const rewards =
+        xpMultiplier === 1 ? def.xp.rewards : scaleXpRewards(def.xp.rewards, xpMultiplier);
+      events.push(...this.awardSkillXp(rewards, session));
+    }
+
+    if (entity.lootTableId) {
+      const table = getLootTable(entity.lootTableId);
+      if (table) {
+        const items = rollLoot(table, this.rng);
+        if (items.length > 0) {
+          events.push({ type: 'loot.rolled', instanceId: entity.instanceId, x: entity.x, y: entity.y, items });
+          events.push(...this.awardItems(items, session));
+        }
+      }
+    }
+
+    events.push(
+      ...this.advanceQuests(
+        { kind: 'entityDepleted', definitionId: entity.definitionId, tags: def.tags ?? [] },
+        session,
+      ),
+    );
+
     return events;
   }
 
@@ -1690,6 +1881,8 @@ function clonePlayer(player: Player): Player {
     quests: player.quests.map((q) => ({ ...q })),
     collections,
     skillTrees,
+    // Carried snapshots from before Personal Breakables existed may omit this.
+    brokenEntities: player.brokenEntities ? [...player.brokenEntities] : [],
     divinePowers,
     unlockedCursorSkins: unlocked,
     cursorSkinId: player.cursorSkinId ?? DEFAULT_CURSOR_SKIN_ID,

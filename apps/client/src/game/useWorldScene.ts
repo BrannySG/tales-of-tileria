@@ -66,6 +66,9 @@ export function snapshotPlayerForSave(transport: SimTransport): Player {
     craftingUnlocked: hud.craftingUnlocked,
     craftingJob,
     quests: hud.quests.map((q) => ({ ...q })),
+    // Personal Breakables broken this session (see ADR-0025); the HUD mirrors the
+    // sim, so this captures live breaks even in networked play (frozen base).
+    brokenEntities: [...hud.brokenEntities],
     divinePowers: base.divinePowers,
     unlockedCursorSkins: [...hud.unlockedCursorSkins],
     cursorSkinId: hud.cursorSkinId,
@@ -110,6 +113,8 @@ export function useWorldScene(
     onInspect?: (inspect: InspectInfo) => void;
     /** Invoked when a Beacon is tapped, to offer Travel (see ADR-0023). */
     onBeaconActivate?: (instanceId: string) => void;
+    /** World point to centre the camera on at startup (Travel arrival, ADR-0026). */
+    arrivalAnchor?: { x: number; y: number };
     /** Invoked once the session is live; return an optional cleanup. */
     onReady?: (session: WorldSession) => (() => void) | void;
   },
@@ -189,6 +194,7 @@ export function useWorldScene(
         onOpenCrafting: options.onOpenCrafting,
         onInspect: options.onInspect,
         onBeaconActivate: options.onBeaconActivate,
+        arrivalAnchor: options.arrivalAnchor,
       });
       if (cancelled) {
         renderer.destroy();

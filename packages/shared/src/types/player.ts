@@ -92,6 +92,14 @@ export interface Player {
    * appear. Skill/Clicker Points are derived from level, so they are not stored.
    */
   skillTrees: Partial<Record<TreeId, SkillTreeState>>;
+  /**
+   * Instance ids of Personal Breakables this player has permanently broken (see
+   * CONTEXT.md: Personal Breakable, ADR-0025). Each Player breaks their own copy
+   * in a shared world; the sim projects this into per-player snapshots so a
+   * broken Landmark stays broken (and its reveal stays revealed) forever.
+   * Portable across Levels like other Player state (see ADR-0011).
+   */
+  brokenEntities: string[];
   /** Removable divine powers (see CONTEXT.md: Divine power). Smite is the first. */
   divinePowers: DivinePowers;
   /**
@@ -124,6 +132,7 @@ export function createPlayer(id: string, displayName: string): Player {
     quests: [],
     collections: {},
     skillTrees: {},
+    brokenEntities: [],
     divinePowers: emptyDivinePowers(),
     unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     cursorSkinId: DEFAULT_CURSOR_SKIN_ID,

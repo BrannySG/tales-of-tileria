@@ -83,6 +83,24 @@ export const magicStoneLoot: LootTable = {
   ],
 };
 
+/**
+ * Giant Stump (the Tier 4 woodcutting Landmark, see ADR-0025): a one-time,
+ * fully fixed haul — no RNG. Every roll is guaranteed (chance 1) so the
+ * once-per-player break always pays out the same generous bundle, capped by a
+ * guaranteed Ancient Heartwood (legendary). Reuses the woodcutting item ladder;
+ * no special/new items.
+ */
+export const giantStumpLoot: LootTable = {
+  id: 'giant_stump',
+  rolls: [
+    { itemId: 'wood', minQuantity: 150, maxQuantity: 150, chance: 1 },
+    { itemId: 'tree_knotted_root', minQuantity: 10, maxQuantity: 10, chance: 1 },
+    { itemId: 'tree_bird_nest', minQuantity: 5, maxQuantity: 5, chance: 1 },
+    { itemId: 'tree_whispering_acorn', minQuantity: 3, maxQuantity: 3, chance: 1 },
+    { itemId: 'tree_ancient_heartwood', minQuantity: 1, maxQuantity: 1, chance: 1 },
+  ],
+};
+
 export const LOOT_TABLES: readonly LootTable[] = [
   rockBasic,
   treeBasic,
@@ -90,4 +108,5 @@ export const LOOT_TABLES: readonly LootTable[] = [
   boulderLoot,
   veinedRockLoot,
   magicStoneLoot,
+  giantStumpLoot,
 ];

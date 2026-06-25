@@ -29,6 +29,19 @@ export interface PlacedEntity {
    * ADR-0023). Omit on non-Beacon placements.
    */
   travelTargetLevelId?: string;
+  /**
+   * For Beacons: the name of the Arrival Anchor in the destination Level to
+   * arrive at (see CONTEXT.md: Arrival anchor, ADR-0026). Lets edge-to-edge
+   * Travel land at the matching edge (exit south -> arrive at the destination's
+   * "north" anchor). Omit to arrive at the cursor (legacy ADR-0023 behaviour).
+   */
+  travelArrivalAnchor?: string;
+}
+
+/** A named position a traveler arrives at in a Level (see ADR-0026). */
+export interface ArrivalAnchor {
+  x: number;
+  y: number;
 }
 
 /**
@@ -67,6 +80,13 @@ export interface LevelDefinition {
   width: number;
   height: number;
   entities: PlacedEntity[];
+  /**
+   * Named Arrival Anchors keyed by name (see CONTEXT.md: Arrival anchor,
+   * ADR-0026). A Beacon's `travelArrivalAnchor` selects one of these in the
+   * destination Level so edge-to-edge Travel lands at the matching edge. Omit
+   * for Levels with no authored arrival points (arrivals center on the default).
+   */
+  arrivalAnchors?: Record<string, ArrivalAnchor>;
   /**
    * Present = this Level is a networked, shared multiplayer space; absent =
    * single-player (see {@link MultiplayerConfig} and ADR-0016).

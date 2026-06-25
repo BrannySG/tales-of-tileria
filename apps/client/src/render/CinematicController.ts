@@ -168,6 +168,37 @@ export class CinematicController {
     });
   }
 
+  /**
+   * Jitters the camera around its current position with a decaying amplitude,
+   * then restores it — a quick impact shake (e.g. the Giant Stump break, see
+   * ADR-0026). Pure presentation; it restores the exact pre-shake transform.
+   */
+  cameraShake(durationMs = 420, intensity = 16): Promise<void> {
+    if (!CINEMATIC_CAMERA) return Promise.resolve();
+    return new Promise((resolve) => {
+      const { worldCamera } = this.deps;
+      const baseX = worldCamera.position.x;
+      const baseY = worldCamera.position.y;
+      this.deps.animator.add(
+        Math.max(0.0001, durationMs / 1000),
+        (v) => {
+          const decay = 1 - v;
+          const amp = intensity * decay;
+          worldCamera.position.set(
+            baseX + (Math.random() * 2 - 1) * amp,
+            baseY + (Math.random() * 2 - 1) * amp,
+          );
+        },
+        {
+          onComplete: () => {
+            worldCamera.position.set(baseX, baseY);
+            resolve();
+          },
+        },
+      );
+    });
+  }
+
   /** Tweens the camera scale + position together on the shared clock. */
   private tweenCamera(toScale: number, toX: number, toY: number, durationMs: number): Promise<void> {
     return new Promise((resolve) => {

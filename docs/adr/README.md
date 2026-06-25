@@ -36,6 +36,8 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0022](0022-skill-trees-replace-flat-upgrades.md) | Per-Skill Skill Trees replace flat upgrades; the tree gates Tier, tools gate type | Accepted — supersedes 0020, retires 0008 tier/wield gating |
 | [0023](0023-runtime-level-travel-via-beacons.md) | Runtime Level Travel is client-orchestrated via Beacons; destinations are placement data | Accepted — extends 0011's carry mechanism, builds on 0016 |
 | [0024](0024-idle-mode-and-clicker-meta-track.md) | Idle Mode is a sim-driven auto-gather loop, gated by a Clicker meta-track | Accepted — evolves 0015 (sim writes cursor coords), broadens 0022's tree machinery |
+| [0025](0025-per-player-permanent-entity-state.md) | Per-player permanent entity state via a Player overlay + snapshot projection (Personal Breakables / Landmarks) | Accepted — builds on 0006/0014, persists per 0011/0016 |
+| [0026](0026-edge-traversal-with-arrival-anchors.md) | Edge-to-edge Level Travel via Arrival Anchors | Accepted — extends 0023 |
 
 ## Supersession map
 
@@ -58,6 +60,13 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   coordinates while idle — the Cursor is authoritative and spatial in Idle Mode)
   and broadened **0022**'s Skill Tree machinery to a non-Skill tree (the Clicker
   meta-track, keyed `'clicker'` via `TreeId`).
+- **0025** builds on **0006**/**0014** (the multi-tenant `World` owns Player +
+  shared entity state) by adding a per-Player break overlay + per-player snapshot
+  projection, rather than per-player entity instancing; the broken state persists
+  per **0011**/**0016** (client-side for now).
+- **0026** extends **0023**'s placement-data Travel with named Arrival Anchors so
+  edge-to-edge Travel lands at the matching edge, replacing 0023's "arrive at the
+  cursor" default when an anchor is named.
 
 ## Adding an ADR
 

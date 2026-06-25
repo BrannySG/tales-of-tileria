@@ -111,6 +111,12 @@ language in the design docs, this file wins and the docs should be reconciled.
   (for multiplayer Levels) reconnects to a new instance density-first. Triggered
   in-world by a Beacon (see ADR-0011, ADR-0023). The fade is informally called a
   "teleport"; the canonical verb is Travel.
+- **Arrival anchor** — A named world point in a Level where a traveler arrives, so
+  edge-to-edge Travel lands at the matching edge (a Beacon's `travelArrivalAnchor`
+  selects one in the destination; exit south → arrive at the destination's "north"
+  anchor). It only frames the destination camera — presentation, not sim state.
+  A Beacon with no anchor keeps the legacy "arrive centred on the world" behaviour
+  (see ADR-0026).
 - **Shared zone** — The canonical networked open world (`bigworld_01`, "The Open
   World"), the active destination right after first-run onboarding and the default
   destination for returning players in Game mode. The player's first time
@@ -174,6 +180,16 @@ language in the design docs, this file wins and the docs should be reconciled.
   Entity), so the same Beacon definition can link different Levels in different
   places. The prompt and the fade are presentation; the Travel itself is a client
   reconnect, not an authoritative sim action (see ADR-0023).
+- **Personal Breakable** — A damageable Entity whose broken state is tracked **per
+  Player** and persists forever: each Player whittles down and breaks their **own**
+  copy (per-player HP in the sim), while others still see (and can break) theirs in
+  the same shared world. The shared entity is never depleted; the sim projects the
+  broken/intact state into each Player's snapshot and records broken ids on the
+  Player (`brokenEntities`). Marked by a `personalBreak` component (see ADR-0025).
+- **Landmark** — A one-time Personal Breakable that gates progression: breaking it
+  reveals other Entities for that Player only (via `personalBreak.revealTag`),
+  typically a Travel signpost to a new Level. The Mossy Giant Stump (the first
+  Tier 4 Woodcutting Landmark) is the seed example (see ADR-0025).
 
 ## Economy
 

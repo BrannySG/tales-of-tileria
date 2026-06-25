@@ -128,6 +128,16 @@ export class CameraController implements Updatable {
     this.setPosition((this.viewportWidth - this.worldWidth) / 2, (this.viewportHeight - this.worldHeight) / 2);
   }
 
+  /**
+   * Centres the view on a world point (clamped to the World bounds), recording
+   * it as the resting position. Used for edge-to-edge Travel arrivals so the
+   * player lands looking at the matching edge of the destination (see ADR-0026).
+   */
+  centerOnWorldPoint(worldX: number, worldY: number): void {
+    const scale = this.camera.scale.x || 1;
+    this.setPosition(this.viewportWidth / 2 - worldX * scale, this.viewportHeight / 2 - worldY * scale);
+  }
+
   /** The last clamped resting transform (for a cinematic reset hand-back). */
   restingPosition(): { x: number; y: number; scale: number } {
     return { x: this.restingX, y: this.restingY, scale: this.restingScale };

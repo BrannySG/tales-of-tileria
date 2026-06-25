@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "level": {
+    "id": "deepwood_01",
+    "displayName": "The Deepwood",
+    "backgroundTextureId": "bg_area01",
+    "width": 3840,
+    "height": 2160,
+    "entities": [
+      {
+        "instanceId": "dw_portal_south",
+        "definitionId": "beacon",
+        "x": 1920,
+        "y": 1980,
+        "travelTargetLevelId": "bigworld_01",
+        "travelArrivalAnchor": "north"
+      },
+      {
+        "instanceId": "dw_pine_1",
+        "definitionId": "elder_pine",
+        "x": 980,
+        "y": 1180
+      },
+      {
+        "instanceId": "dw_pine_2",
+        "definitionId": "elder_pine",
+        "x": 1480,
+        "y": 860
+      },
+      {
+        "instanceId": "dw_pine_3",
+        "definitionId": "elder_pine",
+        "x": 2320,
+        "y": 760
+      },
+      {
+        "instanceId": "dw_pine_4",
+        "definitionId": "elder_pine",
+        "x": 2980,
+        "y": 1120
+      },
+      {
+        "instanceId": "dw_pine_5",
+        "definitionId": "elder_pine",
+        "x": 2560,
+        "y": 1480
+      },
+      {
+        "instanceId": "dw_oak_1",
+        "definitionId": "oak_tree",
+        "x": 1180,
+        "y": 1560
+      },
+      {
+        "instanceId": "dw_oak_2",
+        "definitionId": "oak_tree",
+        "x": 3180,
+        "y": 1620
+      },
+      {
+        "instanceId": "dw_ancient_1",
+        "definitionId": "ancient_tree",
+        "x": 1920,
+        "y": 540
+      }
+    ],
+    "arrivalAnchors": {
+      "south": { "x": 1920, "y": 1760 }
+    },
+    "multiplayer": {
+      "maxPlayers": 6,
+      "interactionDefault": "lastHit"
+    }
+  }
+}

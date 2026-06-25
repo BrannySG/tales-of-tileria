@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getBundledLevel, type LevelDefinition, type Player } from '@tot/shared';
 import { WorldScene } from '../game/WorldScene';
 import { snapshotPlayerForSave, type WorldSession } from '../game/useWorldScene';
+import { LandmarkBreakDirector } from '../game/LandmarkBreakDirector';
 import { listLevels, loadLevel, type LevelSummary } from '../game/levelApi';
 import { getPlayerName } from '../onboarding';
 import { loadPlayerSave, wipeProgressionSave, WIPE_PROGRESSION_ON_JOIN } from '../persistence/playerSave';
@@ -66,7 +67,12 @@ export function GameMode() {
   // teardown + reconnect; the prompt offers the Travel after a Beacon tap.
   const [carried, setCarried] = useState<Player | null>(null);
   const [fadeBlack, setFadeBlack] = useState(false);
-  const [pendingTravel, setPendingTravel] = useState<LevelDefinition | null>(null);
+  const [pendingTravel, setPendingTravel] = useState<{
+    dest: LevelDefinition;
+    anchor?: { x: number; y: number };
+  } | null>(null);
+  // World point to centre the destination camera on after a Travel (see ADR-0026).
+  const [arrivalAnchor, setArrivalAnchor] = useState<{ x: number; y: number } | undefined>(undefined);
   const sessionRef = useRef<WorldSession | null>(null);
 
   useEffect(() => {
@@ -89,6 +95,7 @@ export function GameMode() {
       // A manual dev pick is a fresh start in that Level, not a Travel: drop any
       // carried snapshot so the returning-player seed applies.
       setCarried(null);
+      setArrivalAnchor(undefined);
       setLevel(await loadLevel(id));
     } catch (err) {
       setError(String(err));
@@ -99,7 +106,11 @@ export function GameMode() {
     sessionRef.current = session;
     // Lift the arrival fade once the (possibly networked) world is actually live.
     window.setTimeout(() => setFadeBlack(false), 600);
+    // Drive the cinematic "moment" when a Landmark (the Giant Stump) is first
+    // broken for this player (see ADR-0025); disposed on scene teardown.
+    const disposeLandmark = new LandmarkBreakDirector(session).start();
     return () => {
+      disposeLandmark();
       sessionRef.current = null;
     };
   };
@@ -116,13 +127,17 @@ export function GameMode() {
       setError(`Unknown travel destination: ${targetId}`);
       return;
     }
-    setPendingTravel(dest);
+    // Edge-to-edge Travel lands at the destination's matching Arrival Anchor
+    // (see ADR-0026); a Beacon with no anchor arrives at the cursor (ADR-0023).
+    const anchorName = placement?.travelArrivalAnchor;
+    const anchor = anchorName ? dest.arrivalAnchors?.[anchorName] : undefined;
+    setPendingTravel({ dest, anchor });
   };
 
   const confirmTravel = () => {
-    const dest = pendingTravel;
+    const pending = pendingTravel;
     setPendingTravel(null);
-    if (!dest) return;
+    if (!pending) return;
     // Snapshot live progress from the HUD projection (the networked transport's
     // own snapshot is frozen at join, see useWorldScene). Fade, then swap: the
     // `key={level.id}` change tears down the session/transport and builds the new
@@ -131,7 +146,8 @@ export function GameMode() {
     setCarried(snapshot);
     setShowWelcome(false);
     setFadeBlack(true);
-    setLevel(dest);
+    setArrivalAnchor(pending.anchor);
+    setLevel(pending.dest);
   };
 
   return (
@@ -181,6 +197,7 @@ export function GameMode() {
             music={level.id in LEVEL_MUSIC ? LEVEL_MUSIC[level.id] : undefined}
             persistPlayer
             onBeaconActivate={onBeaconActivate}
+            arrivalAnchor={arrivalAnchor}
             onReady={onSceneReady}
           />
         ) : (
@@ -193,6 +210,7 @@ export function GameMode() {
             variant="game"
             music={level.id in LEVEL_MUSIC ? LEVEL_MUSIC[level.id] : undefined}
             onBeaconActivate={onBeaconActivate}
+            arrivalAnchor={arrivalAnchor}
             onReady={onSceneReady}
           />
         )
@@ -211,7 +229,7 @@ export function GameMode() {
       <div className={`arc-fade ${fadeBlack ? 'on' : ''}`} aria-hidden={!fadeBlack} />
       {pendingTravel && (
         <TravelPrompt
-          destinationName={pendingTravel.displayName}
+          destinationName={pendingTravel.dest.displayName}
           onConfirm={confirmTravel}
           onCancel={() => setPendingTravel(null)}
         />

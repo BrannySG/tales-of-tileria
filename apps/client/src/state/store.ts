@@ -163,6 +163,8 @@ interface HudState {
   skills: Record<SkillId, SkillState>;
   /** Collection Entry progress keyed by entry id (mirrors `Player.collections`). */
   collections: Record<string, CollectionEntryProgress>;
+  /** Instance ids of Personal Breakables broken by this player (mirrors `Player.brokenEntities`, ADR-0025). */
+  brokenEntities: string[];
   /** Tree allocations keyed by tree id incl. `'clicker'` (mirrors `Player.skillTrees`). */
   skillTrees: Partial<Record<TreeId, SkillTreeState>>;
   /** Sim-derived per-skill Stat blocks (mirrors the snapshot `stats`). */
@@ -226,6 +228,8 @@ interface HudState {
   setSkills: (skills: Record<SkillId, SkillState>) => void;
   setCollections: (collections: Record<string, CollectionEntryProgress>) => void;
   setCollectionProgress: (entryId: string, progress: CollectionEntryProgress) => void;
+  setBrokenEntities: (ids: string[]) => void;
+  addBrokenEntity: (instanceId: string) => void;
   setSkillTrees: (skillTrees: Partial<Record<TreeId, SkillTreeState>>) => void;
   setSkillTreeAllocated: (treeId: TreeId, allocated: Record<string, number>) => void;
   setStats: (stats: Partial<Record<SkillId, SkillStats>>) => void;
@@ -294,6 +298,7 @@ export const useHud = create<HudState>((set) => ({
   equippedTool: undefined,
   skills: emptySkills(),
   collections: {},
+  brokenEntities: [],
   skillTrees: {},
   stats: {},
   cursorStats: { ...DEFAULT_CURSOR_STATS },
@@ -349,6 +354,13 @@ export const useHud = create<HudState>((set) => ({
   setSkill: (skillId, skill) => set((state) => ({ skills: { ...state.skills, [skillId]: skill } })),
   setSkills: (skills) => set({ skills: { ...skills } }),
   setCollections: (collections) => set({ collections: { ...collections } }),
+  setBrokenEntities: (ids) => set({ brokenEntities: [...ids] }),
+  addBrokenEntity: (instanceId) =>
+    set((state) =>
+      state.brokenEntities.includes(instanceId)
+        ? state
+        : { brokenEntities: [...state.brokenEntities, instanceId] },
+    ),
   setCollectionProgress: (entryId, progress) =>
     set((state) => ({ collections: { ...state.collections, [entryId]: progress } })),
   setSkillTrees: (skillTrees) => set({ skillTrees: { ...skillTrees } }),
@@ -455,6 +467,7 @@ export const useHud = create<HudState>((set) => ({
       equippedTool: undefined,
       skills: emptySkills(),
       collections: {},
+      brokenEntities: [],
       skillTrees: {},
       stats: {},
       cursorStats: { ...DEFAULT_CURSOR_STATS },
@@ -500,6 +513,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setEquippedTool(snapshot.player.equippedToolType);
   hud.setSkills(snapshot.player.skills);
   hud.setCollections(snapshot.player.collections ?? {});
+  hud.setBrokenEntities(snapshot.player.brokenEntities ?? []);
   hud.setSkillTrees(snapshot.player.skillTrees ?? {});
   hud.setStats(snapshot.stats ?? {});
   if (snapshot.cursorStats) hud.setCursorStats(snapshot.cursorStats);
@@ -531,12 +545,22 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   return transport.subscribe((event) => {
     switch (event.type) {
       case 'entity.damaged':
+      case 'entity.personalDamaged':
       case 'entity.respawned': {
         hp.set(event.instanceId, { hp: event.hp, maxHp: event.maxHp });
         if (event.instanceId === currentTarget) refreshTarget();
         break;
       }
       case 'entity.depleted': {
+        const entry = hp.get(event.instanceId);
+        if (entry) entry.hp = 0;
+        if (event.instanceId === currentTarget) refreshTarget();
+        break;
+      }
+      case 'entity.brokenForPlayer': {
+        // Track the per-player break so persistence captures it (the networked
+        // base snapshot is frozen at join, see ADR-0025 / playerSave.ts).
+        useHud.getState().addBrokenEntity(event.instanceId);
         const entry = hp.get(event.instanceId);
         if (entry) entry.hp = 0;
         if (event.instanceId === currentTarget) refreshTarget();

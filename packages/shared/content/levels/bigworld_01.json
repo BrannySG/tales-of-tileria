@@ -520,8 +520,26 @@
         "definitionId": "small_rock",
         "x": 3887,
         "y": 2678
+      },
+      {
+        "instanceId": "bw_giant_stump_north",
+        "definitionId": "giant_stump",
+        "x": 2880,
+        "y": 300
+      },
+      {
+        "instanceId": "bw_signpost_north",
+        "definitionId": "signpost",
+        "x": 3140,
+        "y": 250,
+        "locked": true,
+        "travelTargetLevelId": "deepwood_01",
+        "travelArrivalAnchor": "south"
       }
     ],
+    "arrivalAnchors": {
+      "north": { "x": 2880, "y": 620 }
+    },
     "multiplayer": {
       "maxPlayers": 6,
       "interactionDefault": "lastHit"

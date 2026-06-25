@@ -43,6 +43,8 @@ export interface WorldSceneProps {
   persistPlayer?: boolean;
   /** Invoked when a Beacon is tapped, to offer Travel to its destination (ADR-0023). */
   onBeaconActivate?: (instanceId: string) => void;
+  /** World point to centre the camera on at startup (Travel arrival, see ADR-0026). */
+  arrivalAnchor?: { x: number; y: number };
   /** Invoked once the session is live (e.g. to start the onboarding Director). */
   onReady?: (session: WorldSession) => (() => void) | void;
 }
@@ -80,6 +82,7 @@ export function WorldScene({
   hudVisible = true,
   persistPlayer,
   onBeaconActivate,
+  arrivalAnchor,
   onReady,
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
@@ -98,6 +101,7 @@ export function WorldScene({
     onOpenCrafting: () => setCraftingOpen(true),
     onInspect: (inspect) => useHud.getState().openInspect(inspect),
     onBeaconActivate,
+    arrivalAnchor,
     onReady,
   });
   const stage = useStageScale(hostRef);

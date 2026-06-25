@@ -1,5 +1,6 @@
 import type { LevelDefinition, LevelFile } from '../types/level';
 import bigworld01 from '../../content/levels/bigworld_01.json';
+import deepwood01 from '../../content/levels/deepwood_01.json';
 import tutorial01 from '../../content/levels/tutorial_01.json';
 import council01 from '../../content/levels/council_01.json';
 import blackmarket01 from '../../content/levels/blackmarket_01.json';
@@ -14,6 +15,7 @@ import blackmarket01 from '../../content/levels/blackmarket_01.json';
  */
 const BUNDLED_FILES: Record<string, LevelFile> = {
   bigworld_01: bigworld01 as LevelFile,
+  deepwood_01: deepwood01 as LevelFile,
   tutorial_01: tutorial01 as LevelFile,
   council_01: council01 as LevelFile,
   blackmarket_01: blackmarket01 as LevelFile,

@@ -68,6 +68,8 @@ export function loadPlayerSave(): Player | null {
       quests: [...(saved.quests ?? [])],
       // Collections added later: default for pre-collection saves.
       collections: { ...(saved.collections ?? base.collections) },
+      // Personal Breakables (see ADR-0025): default for pre-feature saves.
+      brokenEntities: [...(saved.brokenEntities ?? base.brokenEntities)],
       // Skill Tree allocations persist across sessions (schema v2). Older saves
       // with the pre-ADR-0022 `string[]` shape never reach here — they fail the
       // SCHEMA_VERSION check above and load as a fresh player instead.

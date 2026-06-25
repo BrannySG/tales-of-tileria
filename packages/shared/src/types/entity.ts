@@ -47,6 +47,21 @@ export interface BreakableComponent {
   brokenAnchorY?: number;
 }
 
+/**
+ * Marks an Entity as a Personal Breakable (see CONTEXT.md: Personal Breakable,
+ * ADR-0025). Its broken state is tracked per Player and persists forever: each
+ * Player damages and breaks their own copy in a shared world, and the sim
+ * projects per-player state into snapshots so one player can see it broken while
+ * another still sees it intact. Pair with `damageable` (it needs HP) and usually
+ * `breakable` (the broken look that stays in the world). When `revealTag` is set,
+ * breaking it reveals every Locked Entity carrying that tag for that Player only
+ * (a per-player gateway, e.g. a Travel signpost).
+ */
+export interface PersonalBreakComponent {
+  /** Tag whose Locked entities this break reveals for the breaking player only. */
+  revealTag?: string;
+}
+
 /** Entity rolls a loot table when depleted. */
 export interface LootComponent {
   lootTableId: string;
@@ -158,6 +173,8 @@ export interface EntityDefinition {
   damageable?: DamageableComponent;
   respawns?: RespawnComponent;
   breakable?: BreakableComponent;
+  /** Per-player permanent break + optional per-player reveal (see ADR-0025). */
+  personalBreak?: PersonalBreakComponent;
   buildable?: BuildableComponent;
   loot?: LootComponent;
   requirements?: RequirementsComponent;

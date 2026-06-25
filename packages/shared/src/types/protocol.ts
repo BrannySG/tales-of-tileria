@@ -162,6 +162,37 @@ export type SimEvent =
       y: number;
     }
   | { type: 'entity.respawned'; instanceId: string; hp: number; maxHp: number }
+  | {
+      /**
+       * Per-player damage on a Personal Breakable (see CONTEXT.md: Personal
+       * Breakable, ADR-0025). Carries the acting player's OWN remaining hp for
+       * this instance, not the shared entity hp — so it is player-scoped and the
+       * HP bar reflects each player's private progress. `entity.damaged` stays
+       * world-scoped for shared entities; this is its per-player counterpart.
+       */
+      type: 'entity.personalDamaged';
+      instanceId: string;
+      hp: number;
+      maxHp: number;
+      amount: number;
+      source: DamageSource;
+      by?: PlayerId;
+      crit?: boolean;
+    }
+  | {
+      /**
+       * A Personal Breakable was permanently broken for one player (see
+       * CONTEXT.md: Personal Breakable, ADR-0025). Player-scoped: only the
+       * breaking player sees their copy break. `revealedInstanceIds` lists the
+       * Locked entities this break reveals for them (the per-player gateway).
+       */
+      type: 'entity.brokenForPlayer';
+      instanceId: string;
+      definitionId: string;
+      x: number;
+      y: number;
+      revealedInstanceIds: string[];
+    }
   | { type: 'entity.spawned'; entity: EntityInstance }
   | { type: 'entity.built'; instanceId: string }
   | { type: 'entity.enabled'; instanceId: string }
@@ -378,6 +409,9 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   'entity.depleted': 'world',
   'entity.respawned': 'world',
   'entity.spawned': 'world',
+  // Personal Breakables (see ADR-0025): per-player damage + break are private.
+  'entity.personalDamaged': 'player',
+  'entity.brokenForPlayer': 'player',
   'entity.built': 'world',
   'entity.enabled': 'world',
   // A fire being put out / relighting is shared world state every player sees.
