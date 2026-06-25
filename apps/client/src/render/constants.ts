@@ -21,9 +21,9 @@ export const CINEMATIC_CAMERA = true;
  */
 export const PLAYER_ZOOM = true;
 
-/** Touch hold duration before a press is treated as Inspect. */
-export const INSPECT_LONG_PRESS_MS = 420;
-/** Touch travel tolerance before cancelling long-press Inspect (screen pixels). */
-export const INSPECT_LONG_PRESS_MOVE_PX = 14;
-/** Vertical lift (in host pixels) from the entity anchor to the Inspect panel anchor. */
-export const INSPECT_ANCHOR_OFFSET_Y = 18;
+/**
+ * How long the sticky Hover Preview Bar (ADR-0028) lingers after the pointer
+ * leaves an Entity before it retires. Long enough that the fast click loop never
+ * makes it flicker, short enough that it clears once the player walks away.
+ */
+export const PREVIEW_IDLE_HIDE_MS = 4500;

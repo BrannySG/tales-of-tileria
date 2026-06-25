@@ -1,0 +1,52 @@
+---
+description: Layer boundaries and decoupling — sim, shared content, client presentation
+alwaysApply: true
+---
+
+# Architecture — stay system-driven and decoupled
+
+Tweak-friendly code keeps **authority**, **content**, and **presentation** in
+separate lanes. When in doubt, read `AGENTS.md` load-bearing invariants.
+
+## Layers (do not cross-pollinate)
+
+| Layer | Package / area | Owns | Must NOT |
+|-------|----------------|------|----------|
+| **Content** | `packages/shared/src/content` | Definitions, loot tables, quests, levels | Runtime state, DOM, rendering, I/O |
+| **Sim** | `packages/sim` | `World`, systems, command → event rules | Browser APIs, timers, Pixi, React, one-off tutorial logic |
+| **Presentation** | `apps/client` | Camera, HUD, juice, directors, transport binding | Mutating authoritative game state directly |
+| **Server** | `apps/server` | Same sim in a DO; network fan-out | Client-only presentation |
+
+## Commands in, events out
+
+- Reach game state **only** through `SimTransport.send(SimCommand)`.
+- React to `SimEvent`s and snapshots — never write HP, inventory, or skills from UI code.
+- Client directors (onboarding, Council, landmark breaks) use the **same public commands** as player input.
+
+## Content is data-driven
+
+- New entities, items, recipes, quests → edit `packages/shared/src/content`, not system logic.
+- Presentation reads definitions via shared lookups (`requireEntityDefinition`, `buildInspectModel`, etc.).
+- If a tweak requires a sim code change, ask whether it belongs in **content** instead.
+
+## Presentation stays dumb
+
+- Loot bursts, cursor skins, inspect preview, remote cursors: **project** events; removing them must not change outcomes.
+- Derive display models in one place (e.g. `inspectModel.ts`, `deriveStats`) — don't duplicate content rules in JSX or Pixi.
+
+## No "gross" coupling smells
+
+Reject or refactor when you see:
+
+- Sim importing from `apps/client` or anything DOM/Pixi-related.
+- UI components calling `transport` for anything other than sending commands or reading bound store state.
+- Hardcoded entity/quest IDs in sim systems (use tags, content refs, or generic handlers).
+- Copy-pasted requirement / drop / tier logic — extend the shared builder instead.
+- Feature flags scattered in three layers — one flag, one owner, document in creative doc or ADR.
+
+## Before merging
+
+1. Can this be a **content-only** change?
+2. Does every new behavior have a **command + event** (or pure presentation)?
+3. Is there a **single choke point** for derived stats / inspect / unlock checks?
+4. If you bent a boundary, is there an **ADR** or a note in `creative/`?

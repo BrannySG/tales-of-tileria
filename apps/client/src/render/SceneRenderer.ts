@@ -29,14 +29,7 @@ import {
   type ToolId,
   type ToolType,
 } from '@tot/shared';
-import {
-  INSPECT_ANCHOR_OFFSET_Y,
-  INSPECT_LONG_PRESS_MOVE_PX,
-  INSPECT_LONG_PRESS_MS,
-  PLAYER_ZOOM,
-  VIRTUAL_HEIGHT,
-  VIRTUAL_WIDTH,
-} from './constants';
+import { PLAYER_ZOOM, PREVIEW_IDLE_HIDE_MS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
 import { EntityView } from './EntityView';
 import { CursorView } from './CursorView';
 import { RemoteCursorManager } from './RemoteCursorManager';
@@ -57,7 +50,8 @@ import { TOOL_ICON } from '../assets/manifest';
 import type { TextureMap } from './assets';
 import type { SoundSystem } from '../audio/SoundSystem';
 import type { SoundName } from '../audio/synth';
-import { useHud, type InspectInfo } from '../state/store';
+import { useHud, type HoverPreviewInfo } from '../state/store';
+import { REGISTER_SLOT_POP_MS } from '../ui/collectionJuice';
 import { skillIconTextureId, skillLabel } from '../ui/skillPresentation';
 import { getVendorProfile } from '../content/vendorDialogue';
 
@@ -119,8 +113,6 @@ export interface SceneRendererOptions {
   localPlayerId?: string;
   /** Players already present on join, to spawn their remote cursors immediately. */
   initialPresence?: PresenceInfo[];
-  /** Invoked when an entity should open the Inspect panel. */
-  onInspect?: (inspect: InspectInfo) => void;
   /**
    * Invoked when a Beacon is tapped (no armed item). The mode resolves the
    * placement's destination and offers Travel (client-orchestrated, ADR-0023).
@@ -234,13 +226,16 @@ export class SceneRenderer {
   private lastPointerId = 1;
   private lastPointerType = 'mouse';
   private pointerInsideCanvas = false;
-  /** Pointer ids whose tap should be swallowed after an Inspect gesture. */
-  private readonly suppressTapPointerIds = new Set<number>();
-  /** Cover scale used to map world points into host CSS pixels. */
-  private coverScale = 1;
-  /** Canvas top-left in host pixels (negative on cropped axes). */
-  private canvasOffsetX = 0;
-  private canvasOffsetY = 0;
+  /**
+   * The Entity currently backing the Hover Preview Bar (ADR-0028). Tracked so the
+   * per-frame sync keeps its live HP/state fresh while it remains the last-seen
+   * preview, and so a long idle with no hover can retire it.
+   */
+  private previewInstanceId?: string;
+  /** True while the pointer is over a previewable Entity (gates the idle retire). */
+  private previewHovering = false;
+  /** performance.now() when the pointer last left a previewable Entity. */
+  private previewIdleSince = 0;
   private readonly onContextMenu = (e: MouseEvent) => e.preventDefault();
 
   private constructor(private readonly opts: SceneRendererOptions) {}
@@ -317,9 +312,6 @@ export class SceneRenderer {
       bg.width = this.worldWidth;
       bg.height = this.worldHeight;
       bg.eventMode = 'static';
-      bg.on('pointerdown', (e: FederatedPointerEvent) => {
-        if (this.inspectGesture(e, undefined)) e.stopPropagation();
-      });
       bg.on('pointertap', () => {
         if (this.opts.interactive === false) return;
         // Clicking empty ground disarms a held Item first (see CONTEXT.md: Armed
@@ -726,131 +718,72 @@ export class SceneRenderer {
   }
 
   /**
-   * Handles mouse/pen inspect gestures and opens/closes inspect as needed.
-   * Returns true when the caller should swallow the normal tap path.
+   * Sets (or swaps) the Entity backing the Hover Preview Bar (ADR-0028). Called
+   * on hover; the bar is sticky, so this is the only thing that changes which
+   * Entity is shown. Seeds the live values from the view + snapshot runtime; the
+   * per-frame `syncHoverPreview` keeps them fresh afterwards.
    */
-  private inspectGesture(e: FederatedPointerEvent, instanceId: string | undefined): boolean {
-    const rightClick = e.button === 2;
-    const ctrlPrimary = e.button === 0 && (e.ctrlKey || e.metaKey);
-    if (!rightClick && !ctrlPrimary) return false;
-    this.suppressTapPointerIds.add(e.pointerId);
-    if (instanceId) this.openInspect(instanceId);
-    else useHud.getState().closeInspect();
-    return true;
-  }
-
-  /** Opens Inspect for one entity with host-pixel anchor + live runtime values. */
-  private openInspect(instanceId: string): void {
+  private setHoverPreview(instanceId: string): void {
     const view = this.views.get(instanceId);
     const def = this.defs.get(instanceId);
     if (!view || !def) return;
-    const anchor = this.worldToHostPixel(view.container.x, view.container.y + view.hitOffsetY);
-    const runtime = this.opts.transport.getSnapshot().entities.find((entity) => entity.instanceId === instanceId);
-    const inspect: InspectInfo = {
+    const runtime = this.opts.transport
+      .getSnapshot()
+      .entities.find((entity) => entity.instanceId === instanceId);
+    const preview: HoverPreviewInfo = {
       instanceId,
       definitionId: def.id,
-      anchorX: anchor.x,
-      anchorY: anchor.y - INSPECT_ANCHOR_OFFSET_Y,
       hp: view.hp,
       maxHp: view.maxHp,
       state: view.state,
       respawnRemaining: runtime?.respawnRemaining ?? 0,
     };
-    if (this.opts.onInspect) this.opts.onInspect(inspect);
-    else useHud.getState().openInspect(inspect);
+    this.previewInstanceId = instanceId;
+    this.previewHovering = true;
+    useHud.getState().setHoverPreview(preview);
   }
 
   /**
-   * Adds a touch long-press Inspect gesture while preserving normal tap behavior.
-   * Mouse inspect is handled immediately via `inspectGesture`.
+   * Keeps the previewed Entity's live HP/state/respawn fresh each frame, and
+   * retires the (sticky) preview after a long pause with no hover so it doesn't
+   * linger forever once the player walks away (see `PREVIEW_IDLE_HIDE_MS`).
    */
-  private wireInspectGesture(target: Sprite, instanceId: string): void {
-    let timer: number | undefined;
-    let startX = 0;
-    let startY = 0;
-    let activeTouchId: number | undefined;
-
-    const clearTimer = () => {
-      if (timer !== undefined) window.clearTimeout(timer);
-      timer = undefined;
-      activeTouchId = undefined;
-    };
-
-    target.on('pointerdown', (e: FederatedPointerEvent) => {
-      if (this.inspectGesture(e, instanceId)) {
-        e.stopPropagation();
-        return;
-      }
-      if (e.pointerType !== 'touch') return;
-      clearTimer();
-      startX = e.global.x;
-      startY = e.global.y;
-      activeTouchId = e.pointerId;
-      timer = window.setTimeout(() => {
-        this.suppressTapPointerIds.add(e.pointerId);
-        this.openInspect(instanceId);
-        clearTimer();
-      }, INSPECT_LONG_PRESS_MS);
-    });
-
-    target.on('pointermove', (e: FederatedPointerEvent) => {
-      if (e.pointerType !== 'touch' || activeTouchId !== e.pointerId || timer === undefined) return;
-      const moved = Math.hypot(e.global.x - startX, e.global.y - startY);
-      if (moved > INSPECT_LONG_PRESS_MOVE_PX) clearTimer();
-    });
-    target.on('pointerup', clearTimer);
-    target.on('pointerupoutside', clearTimer);
-    target.on('pointerout', clearTimer);
-  }
-
-  /** Tracks and refreshes the currently opened Inspect panel's live projection. */
-  private syncInspectProjection(): void {
-    const inspect = useHud.getState().inspect;
-    if (!inspect) return;
-    const view = this.views.get(inspect.instanceId);
-    if (!view) {
-      useHud.getState().closeInspect();
+  private syncHoverPreview(): void {
+    if (!this.previewInstanceId) return;
+    if (!this.previewHovering && performance.now() - this.previewIdleSince > PREVIEW_IDLE_HIDE_MS) {
+      this.previewInstanceId = undefined;
+      useHud.getState().clearHoverPreview();
       return;
     }
+    const view = this.views.get(this.previewInstanceId);
+    if (!view) return;
     const runtime = this.opts.transport
       .getSnapshot()
-      .entities.find((entity) => entity.instanceId === inspect.instanceId);
-    const anchor = this.worldToHostPixel(view.container.x, view.container.y + view.hitOffsetY);
-    useHud.getState().updateInspect({
-      anchorX: anchor.x,
-      anchorY: anchor.y - INSPECT_ANCHOR_OFFSET_Y,
+      .entities.find((entity) => entity.instanceId === this.previewInstanceId);
+    useHud.getState().updateHoverPreview({
       hp: view.hp,
       maxHp: view.maxHp,
       state: view.state,
       respawnRemaining: runtime?.respawnRemaining ?? 0,
     });
-  }
-
-  /** Converts a world-space point to host CSS pixels using cover sizing. */
-  private worldToHostPixel(worldX: number, worldY: number): { x: number; y: number } {
-    const gx = this.worldCamera.position.x + worldX * this.worldCamera.scale.x;
-    const gy = this.worldCamera.position.y + worldY * this.worldCamera.scale.y;
-    return {
-      x: this.canvasOffsetX + gx * this.coverScale,
-      y: this.canvasOffsetY + gy * this.coverScale,
-    };
   }
 
   private wireEntity(view: EntityView, instanceId: string, def: EntityDefinition): void {
     const target = view.hitTarget;
-    this.wireInspectGesture(target, instanceId);
     const isPickup = def.kind === 'pickup';
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
+      this.setHoverPreview(instanceId);
       if (!isPickup) this.opts.transport.send({ type: 'entity.hoverStart', instanceId });
     });
     target.on('pointerout', () => {
       this.cursorView?.setTargeting(false);
+      this.previewHovering = false;
+      this.previewIdleSince = performance.now();
       if (!isPickup) this.opts.transport.send({ type: 'entity.hoverEnd', instanceId });
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
-      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
       // An armed Item intercepts the tap: use it on this entity instead of the
       // normal collect/attack (see CONTEXT.md: Armed item).
       if (this.tryUseArmedItemOn(instanceId)) return;
@@ -876,7 +809,6 @@ export class SceneRenderer {
   private wireProp(view: EntityView, instanceId: string, def: EntityDefinition): void {
     const target = view.hitTarget;
     const isBeacon = def.tags?.includes('beacon') ?? false;
-    this.wireInspectGesture(target, instanceId);
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
       view.setTargeted(true);
@@ -887,7 +819,6 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
-      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
       // An armed Item still takes precedence on any prop.
       if (this.tryUseArmedItemOn(instanceId)) return;
       if (isBeacon) this.opts.onBeaconActivate?.(instanceId);
@@ -913,7 +844,6 @@ export class SceneRenderer {
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
-      if (this.suppressTapPointerIds.delete(e.pointerId)) return;
       if (this.tryUseArmedItemOn(instanceId)) return;
       this.opts.onVendorActivate?.(instanceId);
     });
@@ -1246,9 +1176,9 @@ export class SceneRenderer {
         break;
       }
       case 'collection.entryCompleted': {
-        // The celebration card + XP gain are DOM (HUD store); here we just play
-        // the positive chime.
-        this.opts.sound?.play('respawn');
+        // The celebration card + XP gain are DOM (HUD store); here we play the
+        // positive chime after the slot pop so audio matches the visual beat.
+        window.setTimeout(() => this.opts.sound?.play('respawn'), REGISTER_SLOT_POP_MS);
         break;
       }
       case 'skill.nodeAllocated': {
@@ -1607,7 +1537,7 @@ export class SceneRenderer {
       this.idleCursorView?.update(dt);
     }
     this.refreshHoverAfterCameraPan();
-    this.syncInspectProjection();
+    this.syncHoverPreview();
   }
 
   /** Places the roaming idle cursor at the screen point for its authoritative world pos. */
@@ -1685,11 +1615,8 @@ export class SceneRenderer {
     const { clientWidth: w, clientHeight: h } = this.opts.host;
     if (!w || !h) return;
     const scale = Math.max(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
-    this.coverScale = scale;
     this.app.canvas.style.width = `${Math.round(VIRTUAL_WIDTH * scale)}px`;
     this.app.canvas.style.height = `${Math.round(VIRTUAL_HEIGHT * scale)}px`;
-    this.canvasOffsetX = (w - VIRTUAL_WIDTH * scale) / 2;
-    this.canvasOffsetY = (h - VIRTUAL_HEIGHT * scale) / 2;
     const visW = Math.min(VIRTUAL_WIDTH, w / scale);
     const visH = Math.min(VIRTUAL_HEIGHT, h / scale);
     const insetX = (VIRTUAL_WIDTH - visW) / 2;

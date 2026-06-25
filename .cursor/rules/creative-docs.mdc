@@ -1,0 +1,100 @@
+# Creative Docs — Priority Review Protocol
+
+Applies whenever any file inside `creative/` is read, created, or edited.
+
+## Obligation: re-review on every update
+
+Any time a `creative/` doc is added to or modified — even a small addition — the
+agent **must** do the following before finishing:
+
+1. Re-read the entire doc.
+2. Re-rate every idea using the **Priority Scale** below. Ratings can change as
+   the game evolves — that is the point.
+3. Update (or add) each idea's **Review block** (Pros / Cons-Risks / Notes).
+4. Check whether the **Current Game Loop Snapshot** below needs updating. If the
+   loop has materially changed (new system shipped, major mechanic changed), update
+   it here and note the change.
+5. If a previously "Long-term" idea has become actionable, escalate its rating
+   and explain why in its Notes.
+
+## Priority scale
+
+| Rating | Meaning |
+|--------|---------|
+| **HIGH** | Directly strengthens the active game loop. High player-facing impact. Low-to-moderate implementation cost relative to return. Build soon. |
+| **MEDIUM** | Valuable but not urgent. Complements the loop without being a gap. Can wait for a sprint gap or natural sequencing. |
+| **LOW** | Polish, housekeeping, or timing-dependent. Do eventually, not now. |
+| **LONG-TERM** | Depends on systems or content that don't exist yet. Document and design now; build later. |
+| **DECISION FIRST** | Good idea but requires a design/product decision before any implementation. Flag the question to answer. |
+
+## Current Game Loop Snapshot
+
+*Update this section whenever a new system ships or a major mechanic changes.*
+
+**Last updated: 2026-06-25**
+
+### Layer 1 — Moment-to-moment (the click loop)
+- Cursor over entity → tap (active/tap damage) or hover/lock (passive/hover damage)
+- Hovering an entity reveals a sticky bottom-right hover preview bar (name, HP, reqs, XP, respawn, drops + drop %); replaces the old right-click Inspect popover (shipped v0.1.44, ADR-0028)
+- Entity depletes → loot burst (items auto-awarded to Inventory) + Skill XP
+- Entity respawns → repeat
+- Loot presented as burst particles; no per-item queue or fanfare yet
+
+### Layer 2 — Session progression
+- Skill XP → Skill level (1–99, exponential curve) → one Skill Point per level
+- Spend Skill Points in the Skill Tree → unlock Stat nodes (Tap Damage, Hover Damage, Hover Rate, Crit Chance, Crit Damage) and Tier unlock nodes
+- Higher Tier entities require the matching Skill Tree to have unlocked that Tier
+- Stats resolved at one choke point (`deriveStats`) — clean seam for future **Artifacts** (supersedes "Gear" framing; see `creative/design-ideas.md`)
+
+### Layer 3 — Crafting, collection, and trade
+- Gather resources → build Furnace → craft tools (tick-based, one job at a time) → claim from Shrine Offering
+- Register gathered items into Collection Book Entries → Skill XP reward (more efficient than discarding but requires holding drops); registration now has rarity-tiered juice (slot slam + rarity flash, Rare+ panel shake) and an icon-first detail layout (shipped v0.1.44, see `creative/ux-housekeeping.md`)
+- Black Market Vendor (General): tap to open a Shop scene and **Sell** surplus Items for Gold OR source-Skill XP (player's choice via a toggle); rarity-derived values; Epic/Legendary confirm (see ADR-0027)
+- Gold now has a real source (sell-for-Gold) and a decision layer (Gold now vs XP now vs hold for a Collection); buying is a "coming soon" tab pending the **Artifacts** system
+- No stack caps on gatherables; no drag-to-saw refinement loop yet
+
+### Layer 4 — Idle / meta loop
+- Broad Skill levelling auto-derives Clicker level (`floor(Σ skill levels / 10)`)
+- Clicker Tree nodes → unlock general Idle Mode capability + per-Skill idle nodes
+- Idle Mode: cursor detaches from pointer, auto-roams Level, gathers chosen Skill(s) hands-off
+- Server-side (multiplayer tab stays gathering when backgrounded)
+
+### Layer 5 — Social
+- Shared multiplayer world (`bigworld_01`), other cursors visible with nametags
+- Leaderboards: Woodcutting level, Mining level, Total level (global SQLite DO)
+- Cursor skins as cosmetics, unlocked by Achievements
+
+### What is parked / not yet built
+- **HUD UI scale slider** (Settings — readability/accessibility, persisted preference) — see `creative/ux-housekeeping.md`
+- Full onboarding arc (tutorial quest chain, Council of Clickers, Banishment) — behind `ONBOARDING_VARIANT: 'arc'` flag
+- **Artifacts system** (Cursor equipment — proc/AoE effects, Clicker-tree slot unlocks, chase items) — supersedes Gear; own ADR sprint — see `creative/design-ideas.md`
+- **Timed rare spawns** (long variable respawn, contested drops, level-wide announcement) — see `creative/design-ideas.md`
+- Buying from Vendors — visible "coming soon" tab; waits on **Artifacts**
+- Loot drop carousel UI — not built (sequenced as its own follow-up sprint)
+- Boot screen "Wake up" cinematic — not built
+- Boss fights (Council members) — no combat system for them yet
+- Rebirth / Eternal Skills / Reawaken tree — not designed yet
+- Jim's Gym vendor — deferred; selling first lands at the Black Market (see ADR-0027); pairs with hatch-gated Shop access idea
+- Shop unlock via hatch / breakable gate — see `creative/design-ideas.md`
+- Stack limits (experiment: 20) + wood refinement at the saw — see `creative/design-ideas.md`
+- Custom scrollbar — not built
+
+### Recently shipped
+- Hover preview bar (sticky bottom-right; surfaces drop %, replaces right-click Inspect; old popover + anchor math deleted) — v0.1.44, ADR-0028
+- Collection Book registration juice (rarity-tiered slot slam + flash, Rare+ panel shake) + icon-first detail layout — v0.1.44
+- Black Market Vendor + Sell economy (Gold/XP toggle, source-Skill XP routing, rarity-derived values) — see ADR-0027
+
+## How priority decisions are made
+
+When rating, consider:
+
+1. **Does it fill a felt gap in the existing loop?** (missing feedback, missing
+   economy hook, missing sense of progress)
+2. **Does it require other unbuilt systems to function?** (if yes, lower the
+   rating or mark LONG-TERM)
+3. **How many players does it affect per session?** (every-session touches > rare
+   event touches)
+4. **Is there a design question that must be answered first?** (if yes, mark
+   DECISION FIRST and name the question explicitly)
+5. **What is the implementation cost relative to the return?** (high-ROI polish
+   can outrank medium-effort features)

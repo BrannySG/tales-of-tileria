@@ -22,7 +22,7 @@ import { wipeProgressionSave } from '../persistence/playerSave';
 import { CollectionBookModal } from '../ui/CollectionBookModal';
 import { SkillTreeModal } from '../ui/SkillTreeModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
-import { InspectPanel } from '../ui/InspectPanel';
+import { HoverPreviewBar } from '../ui/HoverPreviewBar';
 import { VendorScene } from '../ui/VendorScene';
 import { getVendorProfile } from '../content/vendorDialogue';
 
@@ -103,7 +103,6 @@ export function WorldScene({
     music,
     persistPlayer,
     onOpenCrafting: () => setCraftingOpen(true),
-    onInspect: (inspect) => useHud.getState().openInspect(inspect),
     onBeaconActivate,
     onVendorActivate: (instanceId) => setVendorInstanceId(instanceId),
     arrivalAnchor,
@@ -278,7 +277,7 @@ export function WorldScene({
                 onClose={() => setVendorInstanceId(undefined)}
               />
             )}
-            <InspectPanel />
+            <HoverPreviewBar />
           </div>
         </div>
       </div>

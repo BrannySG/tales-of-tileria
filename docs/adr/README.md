@@ -39,6 +39,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0025](0025-per-player-permanent-entity-state.md) | Per-player permanent entity state via a Player overlay + snapshot projection (Personal Breakables / Landmarks) | Accepted — builds on 0006/0014, persists per 0011/0016 |
 | [0026](0026-edge-traversal-with-arrival-anchors.md) | Edge-to-edge Level Travel via Arrival Anchors | Accepted — extends 0023 |
 | [0027](0027-sell-economy-via-vendor-trade-command.md) | Sell economy via a sim-authoritative Vendor trade command (Black Market) | Accepted — builds on 0006/0016, gives Gold its first sink/source |
+| [0028](0028-hover-preview-bar-replaces-modal-inspect.md) | Hover preview bar supersedes the modal Inspect popover | Accepted — presentation-only; reuses 0007-style projection boundary |
 
 ## Supersession map
 
@@ -73,6 +74,12 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   `shop.sold` event, giving the **0008**-era Gold currency its first sink/source.
   It defers buying to a future Gear ADR and supersedes the "Jim's Gym first"
   framing in `creative/design-ideas.md` (selling lands at the Black Market first).
+- **0028** is presentation-only (no sim change): it replaces the world-anchored
+  modal Inspect popover with a sticky, fixed-position hover preview bar and
+  deletes the old gesture + anchor machinery. It keeps the **0007**-style
+  projection boundary (the bar projects `buildInspectModel` + authoritative HP;
+  removing it changes no sim state) and leaves `entity.hoverStart/End` and the
+  lock mechanic untouched.
 
 ## Adding an ADR
 

@@ -4,12 +4,14 @@ import {
   DEFAULT_COMBAT_CONFIG,
   DEFAULT_CURSOR_SKIN_ID,
   emptySkills,
+  getItemDefinition,
   getToolDefinition,
   type CursorStats,
   type EntityRuntimeState,
   type CollectionEntryProgress,
   type CombatConfig,
   type QuestState,
+  type Rarity,
   type SimTransport,
   type SkillId,
   type SkillState,
@@ -24,6 +26,7 @@ import {
   isCollectibleItem,
   markDiscovered,
 } from '../ui/discoveredCollectibles';
+import { REGISTER_SLOT_POP_MS } from '../ui/collectionJuice';
 
 let toastIdSeq = 0;
 const nextToastId = (): number => ++toastIdSeq;
@@ -34,12 +37,14 @@ export interface TargetInfo {
   maxHp: number;
 }
 
-/** Live inspect projection for a world entity (presentation-only). */
-export interface InspectInfo {
+/**
+ * Live preview projection for the last-hovered world entity (presentation-only,
+ * see ADR-0028). Drives the persistent bottom-right Hover Preview Bar; sticky by
+ * design (kept until a different entity is hovered), so no anchor math is needed.
+ */
+export interface HoverPreviewInfo {
   instanceId: string;
   definitionId: string;
-  anchorX: number;
-  anchorY: number;
   hp: number;
   maxHp: number;
   state: EntityRuntimeState;
@@ -50,6 +55,21 @@ export interface InspectInfo {
 export interface DiscoveryToastItem {
   id: number;
   itemId: string;
+}
+
+/**
+ * A one-shot signal that a Collection registration just happened, used to drive
+ * client-only registration juice (slot slam + rarity flash + Rare+ modal shake).
+ * Derived by diffing `collection.registered` against the prior counts; carries
+ * the item whose count jumped most (the tapped slot, or the biggest jump on a
+ * register-all) plus its rarity. Presentation-only (see ADR-0028 sibling work).
+ */
+export interface RegisterFeedback {
+  key: number;
+  entryId: string;
+  itemId: string;
+  delta: number;
+  rarity: Rarity;
 }
 
 /** The active Collection completion celebration, if any (presentation). */
@@ -187,7 +207,8 @@ interface HudState {
   offerings: Record<string, ToolId>;
   displayName: string;
   target: TargetInfo | undefined;
-  inspect: InspectInfo | undefined;
+  /** Last-hovered Entity preview for the Hover Preview Bar (ADR-0028). */
+  hoverPreview: HoverPreviewInfo | undefined;
   locked: boolean;
   /**
    * The Bag item the player has "armed" to use on the world (see CONTEXT.md:
@@ -212,6 +233,8 @@ interface HudState {
   discoveryToasts: DiscoveryToastItem[];
   /** The active Collection completion celebration, if any. */
   completion: CompletionInfo | undefined;
+  /** One-shot signal for the most recent Collection registration (juice). */
+  lastRegister: RegisterFeedback | undefined;
   soundEnabled: boolean;
   /** Music channel volume (0–1), persisted across sessions. */
   musicVolume: number;
@@ -248,9 +271,12 @@ interface HudState {
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
   setDisplayName: (name: string) => void;
   setTarget: (target: TargetInfo | undefined) => void;
-  openInspect: (inspect: InspectInfo) => void;
-  updateInspect: (partial: Partial<InspectInfo>) => void;
-  closeInspect: () => void;
+  /** Sets the previewed Entity (on hover); replaces any prior preview. */
+  setHoverPreview: (preview: HoverPreviewInfo) => void;
+  /** Patches the current preview's live values (HP/state/respawn each frame). */
+  updateHoverPreview: (partial: Partial<HoverPreviewInfo>) => void;
+  /** Clears the preview (e.g. after a long idle with no hover). */
+  clearHoverPreview: () => void;
   setLocked: (locked: boolean) => void;
   /** Arms (or with `undefined`, disarms) a Bag item for use-on-world. */
   setArmedItem: (itemId: string | undefined) => void;
@@ -271,6 +297,8 @@ interface HudState {
   dismissDiscoveryToast: (id: number) => void;
   /** Sets (or clears with undefined) the active completion celebration. */
   setCompletion: (info: CompletionInfo | undefined) => void;
+  /** Sets (or clears) the one-shot registration feedback signal. */
+  setLastRegister: (info: RegisterFeedback | undefined) => void;
   setSoundEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
@@ -312,7 +340,7 @@ export const useHud = create<HudState>((set) => ({
   offerings: {},
   displayName: '',
   target: undefined,
-  inspect: undefined,
+  hoverPreview: undefined,
   locked: false,
   armedItemId: undefined,
   combat: { ...DEFAULT_COMBAT_CONFIG },
@@ -324,6 +352,7 @@ export const useHud = create<HudState>((set) => ({
   newCollectibles: false,
   discoveryToasts: [],
   completion: undefined,
+  lastRegister: undefined,
   soundEnabled: initialAudio.soundEnabled,
   musicVolume: initialAudio.musicVolume,
   sfxVolume: initialAudio.sfxVolume,
@@ -403,10 +432,10 @@ export const useHud = create<HudState>((set) => ({
     }),
   setDisplayName: (displayName) => set({ displayName }),
   setTarget: (target) => set({ target }),
-  openInspect: (inspect) => set({ inspect }),
-  updateInspect: (partial) =>
-    set((state) => (state.inspect ? { inspect: { ...state.inspect, ...partial } } : state)),
-  closeInspect: () => set({ inspect: undefined }),
+  setHoverPreview: (hoverPreview) => set({ hoverPreview }),
+  updateHoverPreview: (partial) =>
+    set((state) => (state.hoverPreview ? { hoverPreview: { ...state.hoverPreview, ...partial } } : state)),
+  clearHoverPreview: () => set({ hoverPreview: undefined }),
   setLocked: (locked) => set({ locked }),
   setArmedItem: (armedItemId) => set({ armedItemId }),
   setCombat: (partial) => set((state) => ({ combat: { ...state.combat, ...partial } })),
@@ -439,6 +468,7 @@ export const useHud = create<HudState>((set) => ({
   dismissDiscoveryToast: (id) =>
     set((state) => ({ discoveryToasts: state.discoveryToasts.filter((t) => t.id !== id) })),
   setCompletion: (completion) => set({ completion }),
+  setLastRegister: (lastRegister) => set({ lastRegister }),
   setSoundEnabled: (soundEnabled) =>
     set((state) => {
       persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: state.sfxVolume, soundEnabled });
@@ -481,11 +511,12 @@ export const useHud = create<HudState>((set) => ({
       offerings: {},
       displayName: '',
       target: undefined,
-      inspect: undefined,
+      hoverPreview: undefined,
       locked: false,
       armedItemId: undefined,
       discoveryToasts: [],
       completion: undefined,
+      lastRegister: undefined,
       cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
       unlockedCursorSkins: [DEFAULT_CURSOR_SKIN_ID],
     }),
@@ -646,25 +677,55 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         break;
       }
       case 'collection.registered': {
-        const prev = useHud.getState().collections[event.entryId];
-        useHud.getState().setCollectionProgress(event.entryId, {
+        const state = useHud.getState();
+        const prev = state.collections[event.entryId];
+        const prevReg = prev?.registered ?? {};
+        // The event carries per-item totals, not a delta. Diff against the prior
+        // counts to find the item whose registered total jumped most — the tapped
+        // slot, or the biggest jump on a register-all — to drive the slot juice.
+        let bestItemId: string | undefined;
+        let bestDelta = 0;
+        for (const [itemId, count] of Object.entries(event.registered)) {
+          const delta = count - (prevReg[itemId] ?? 0);
+          if (delta > bestDelta) {
+            bestDelta = delta;
+            bestItemId = itemId;
+          }
+        }
+        state.setCollectionProgress(event.entryId, {
           registered: { ...event.registered },
           completed: prev?.completed ?? false,
         });
+        if (bestItemId) {
+          state.setLastRegister({
+            key: nextToastId(),
+            entryId: event.entryId,
+            itemId: bestItemId,
+            delta: bestDelta,
+            rarity: getItemDefinition(bestItemId)?.rarity ?? 'common',
+          });
+        }
         break;
       }
       case 'collection.entryCompleted': {
         const prev = useHud.getState().collections[event.entryId];
-        useHud.getState().setCollectionProgress(event.entryId, {
-          registered: { ...(prev?.registered ?? {}) },
-          completed: true,
-        });
-        useHud.getState().setCompletion({
+        const entryId = event.entryId;
+        const completion = {
           key: nextToastId(),
-          entryId: event.entryId,
+          entryId,
           skillId: event.skillId,
           xpAwarded: event.xpAwarded,
-        });
+        };
+        // Hold the completed flag (and celebration toast) so the registering slot
+        // can slam/pop before the entry vanishes from the default list filter.
+        window.setTimeout(() => {
+          const current = useHud.getState().collections[entryId];
+          useHud.getState().setCollectionProgress(entryId, {
+            registered: { ...(current?.registered ?? prev?.registered ?? {}) },
+            completed: true,
+          });
+          useHud.getState().setCompletion(completion);
+        }, REGISTER_SLOT_POP_MS);
         break;
       }
       case 'skill.nodeAllocated': {

@@ -6,7 +6,7 @@ import { WebSocketTransport } from '../net/WebSocketTransport';
 import { getOrCreatePlayerId, getServerWsUrl } from '../net/identity';
 import { loadTextures } from '../render/assets';
 import { SoundSystem, type MusicTrack } from '../audio/SoundSystem';
-import { bindHud, useHud, type InspectInfo } from '../state/store';
+import { bindHud, useHud } from '../state/store';
 import { buildNameLookup } from './levels';
 import { loadGameFonts } from '../assets/fonts';
 import { loadEntityArtOverlay } from '../content/entityArt';
@@ -109,8 +109,6 @@ export function useWorldScene(
     persistPlayer?: boolean;
     /** Invoked when the player taps the craft prompt over Mr Smith. */
     onOpenCrafting?: () => void;
-    /** Invoked when an entity inspect gesture opens Inspect. */
-    onInspect?: (inspect: InspectInfo) => void;
     /** Invoked when a Beacon is tapped, to offer Travel (see ADR-0023). */
     onBeaconActivate?: (instanceId: string) => void;
     /** Invoked when a Vendor is tapped, to open the Shop scene (see ADR-0027). */
@@ -194,7 +192,6 @@ export function useWorldScene(
         localPlayerId: networked ? wsTransport!.playerId : transport.getSnapshot().player.id,
         initialPresence: wsTransport?.getPresence(),
         onOpenCrafting: options.onOpenCrafting,
-        onInspect: options.onInspect,
         onBeaconActivate: options.onBeaconActivate,
         onVendorActivate: options.onVendorActivate,
         arrivalAnchor: options.arrivalAnchor,

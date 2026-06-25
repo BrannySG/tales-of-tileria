@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import {
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';import {
   collectionEntries,
   getItemDefinition,
   listCollections,
@@ -15,6 +14,7 @@ import { ItemIcon } from './ItemIcon';
 import { RARITY_COLOR } from './rarityColor';
 import { SkillIcon } from './SkillIcon';
 import { skillLabel } from './skillPresentation';
+import { useRegisterSlotBurst } from './collectionJuice';
 
 /** Register a whole entry (no itemId) or a single requirement (with itemId). */
 export type RegisterFn = (entryId: string, itemId?: string) => void;
@@ -35,6 +35,11 @@ const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary
 
 function rarityRank(r: Rarity): number {
   return RARITY_ORDER.indexOf(r);
+}
+
+/** Rare and above earn the louder juice (bigger flash + modal shake). */
+function isHypeRarity(r: Rarity): boolean {
+  return rarityRank(r) >= rarityRank('rare');
 }
 
 function capitalize(s: string): string {
@@ -184,22 +189,12 @@ function RequirementSlot({
   const def = getItemDefinition(req.itemId);
   const rarity = def?.rarity ?? 'common';
   const color = RARITY_COLOR[rarity];
+  const hype = isHypeRarity(rarity);
   const { reg, remaining, met, canRegister } = reqState(req, registered, owned);
   const name = def?.displayName ?? req.itemId;
   const src = sourceLine(req.itemId);
 
-  // Pulse the slot when its registered count goes up.
-  const [pulse, setPulse] = useState(false);
-  const prevReg = useRef(reg);
-  useEffect(() => {
-    if (reg > prevReg.current) {
-      setPulse(true);
-      const t = window.setTimeout(() => setPulse(false), 360);
-      prevReg.current = reg;
-      return () => window.clearTimeout(t);
-    }
-    prevReg.current = reg;
-  }, [reg]);
+  const burst = useRegisterSlotBurst(reg);
 
   const title = [
     `${name} (${capitalize(rarity)})`,
@@ -215,7 +210,9 @@ function RequirementSlot({
   return (
     <button
       type="button"
-      className={`prog-slot ${met ? 'met' : ''} ${canRegister ? 'ready' : ''} ${pulse ? 'pulse' : ''}`}
+      className={`prog-slot ${met ? 'met' : ''} ${canRegister ? 'ready' : ''} ${
+        burst !== null ? 'slam' : ''
+      } ${burst !== null && hype ? 'hype' : ''}`}
       style={{ borderColor: met ? 'var(--accent-2, #5cc861)' : color }}
       aria-disabled={!canRegister}
       aria-label={`${name}: ${reg} of ${req.quantity} registered`}
@@ -226,6 +223,7 @@ function RequirementSlot({
         onRegister(entryId, req.itemId);
       }}
     >
+      {burst !== null && <span key={burst} className="prog-slot-flash" style={{ color }} aria-hidden />}
       <ItemIcon itemId={req.itemId} size={34} />
       <span className="prog-slot-count">
         {met ? <span aria-label="met">{'\u2713'}</span> : `${reg} / ${req.quantity}`}
@@ -301,33 +299,67 @@ function RequirementRow({
   const color = RARITY_COLOR[rarity];
   const { reg, remaining, met, canRegister } = reqState(req, registered, owned);
   const src = sourceLine(req.itemId);
-  const title = [def?.description, canRegister ? `Tap to register ${Math.min(owned, remaining)}` : undefined]
+  const name = def?.displayName ?? req.itemId;
+  const hype = isHypeRarity(rarity);
+  const burst = useRegisterSlotBurst(reg);
+  // Icon-first: the row leads with the rarity-bordered icon, the name, and a
+  // single compact status line ("Need N more"). The spreadsheet-y detail (rarity
+  // label, registered/owned counts, source) is collapsed and revealed on
+  // hover/focus, so the panel reads as a trophy wall, not a table.
+  const status = met
+    ? 'Registered'
+    : canRegister
+      ? `Register ${Math.min(owned, remaining)}`
+      : `Need ${remaining} more`;
+  const title = [
+    `${name} (${capitalize(rarity)})`,
+    def?.description,
+    `Registered: ${reg}/${req.quantity}`,
+    `Owned: ${owned}`,
+    src,
+    canRegister ? `Tap to register ${Math.min(owned, remaining)}` : undefined,
+  ]
     .filter(Boolean)
     .join('\n');
 
   return (
     <button
       type="button"
-      className={`prog-req ${met ? 'met' : ''} ${canRegister ? 'ready' : ''}`}
+      className={`prog-req ${met ? 'met' : ''} ${canRegister ? 'ready' : ''} ${
+        burst !== null ? 'slam' : ''
+      } ${burst !== null && hype ? 'hype' : ''}`}
       aria-disabled={!canRegister}
       disabled={!canRegister}
+      aria-label={`${name}: ${reg} of ${req.quantity} registered, ${owned} owned`}
       onClick={() => onRegister(entryId, req.itemId)}
-      title={title || undefined}
+      title={title}
     >
-      <ItemIcon itemId={req.itemId} size={40} />
-      <span className="prog-req-text">
-        <span className="prog-req-name">{def?.displayName ?? req.itemId}</span>
-        <span className="prog-req-rarity" style={{ color }}>
-          {capitalize(rarity)}
-        </span>
-        {src && <span className="prog-req-source">{src}</span>}
+      {burst !== null && <span key={burst} className="prog-slot-flash" style={{ color }} aria-hidden />}
+      <span
+        className="prog-req-icon"
+        style={{ borderColor: met ? 'var(--accent-2, #5cc861)' : color }}
+      >
+        <ItemIcon itemId={req.itemId} size={40} />
       </span>
-      <span className="prog-req-count">
-        <span className={`prog-req-registered ${met ? 'met' : ''}`}>
-          Registered: {reg} / {req.quantity}
-          {met && <span className="prog-req-check" aria-label="met"> {'\u2713'}</span>}
+      <span className="prog-req-text">
+        <span className="prog-req-name">{name}</span>
+        <span className={`prog-req-need ${met ? 'met' : ''}`}>
+          {met && (
+            <span className="prog-req-check" aria-hidden>
+              {'\u2713'}{' '}
+            </span>
+          )}
+          {status}
         </span>
-        <span className="prog-req-owned">Owned: {owned}</span>
+        <span className="prog-req-extra">
+          <span className="prog-req-rarity" style={{ color }}>
+            {capitalize(rarity)}
+          </span>
+          <span className="prog-req-owned">
+            Registered {reg}/{req.quantity} · Owned {owned}
+          </span>
+          {src && <span className="prog-req-source">{src}</span>}
+        </span>
       </span>
     </button>
   );
@@ -360,6 +392,9 @@ function EntryDetail({
       const owned = inventory[req.itemId] ?? 0;
       return have < req.quantity && owned > 0;
     });
+  const allMet = entry.requirements.every(
+    (req) => (registered[req.itemId] ?? 0) >= req.quantity,
+  );
 
   return (
     <div className="prog-detail-inner">
@@ -407,6 +442,10 @@ function EntryDetail({
 
       {completed ? (
         <div className="prog-detail-done">{'\u2713'} Entry complete</div>
+      ) : allMet ? (
+        <button className="prog-primary-button" disabled>
+          Registered!
+        </button>
       ) : (
         <button
           className="prog-primary-button"
@@ -443,6 +482,21 @@ export function CollectionBookModal({ onRegister, onClose }: ProgressionSurfaceP
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const progressMap = useHud((s) => s.collections);
   const inventory = useHud((s) => s.inventory);
+
+  // Punch the whole panel on a Rare+ registration (the loudest reward tier).
+  // Common/Uncommon stay on the per-slot slam + flash only, so frequent gather
+  // registrations don't shake the screen constantly.
+  const lastRegister = useHud((s) => s.lastRegister);
+  const [shake, setShake] = useState(false);
+  const shakeKey = useRef(0);
+  useEffect(() => {
+    if (!lastRegister || lastRegister.key === shakeKey.current) return;
+    shakeKey.current = lastRegister.key;
+    if (!isHypeRarity(lastRegister.rarity)) return;
+    setShake(true);
+    const t = window.setTimeout(() => setShake(false), 380);
+    return () => window.clearTimeout(t);
+  }, [lastRegister]);
 
   // Entries for the selected skill (flattened across its collections, in order).
   const skillEntries = useMemo(() => {
@@ -571,7 +625,7 @@ export function CollectionBookModal({ onRegister, onClose }: ProgressionSurfaceP
   return (
     <div className="prog-overlay" onClick={onClose}>
       <div
-        className="prog-panel"
+        className={`prog-panel ${shake ? 'shake' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label="Progression"
