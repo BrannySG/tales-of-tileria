@@ -37,7 +37,16 @@ the headless simulation core. Pixi owns only the world canvas; all other UI
   of Pixi sprites rather than adopting `@pixi/particle-emitter` (which predates
   Pixi v8's renderer rewrite and carries compatibility friction). This keeps the
   feel layer self-contained and version-stable.
-- A fixed virtual resolution (1280×720) is scaled-to-fit; world authoring and
-  hit-testing happen in virtual coordinates, independent of the display size.
+- A fixed virtual resolution (1280×720 at the time of this ADR; **the canonical
+  Viewport is now 1920×1080** — see ADR-0003/0015) is scaled-to-fit; world
+  authoring and hit-testing happen in virtual coordinates, independent of the
+  display size.
 - If we ever need built-in physics/tilemaps, we revisit; for this game's needs
   Pixi is the lighter, better-separated choice.
+
+## Update (2026-06-25)
+
+The fixed virtual resolution settled at **1920×1080** (ADR-0003 letterboxed world
+frame; ADR-0015 separates the fixed **Viewport** from data-driven **World bounds**
+so Levels can be larger than the Viewport and pan). PixiJS-as-renderer-only is
+otherwise unchanged.

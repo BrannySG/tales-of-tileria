@@ -115,6 +115,7 @@ export function WorldScene({
     return getVendorProfile(placed?.overrides?.skinId);
   }, [vendorInstanceId, level]);
   const stage = useStageScale(hostRef);
+  const uiScale = useHud((s) => s.uiScale);
 
   const onCraft = (recipeId: string) => {
     sessionRef.current?.transport.send({ type: 'craft.start', recipeId });
@@ -193,6 +194,9 @@ export function WorldScene({
     sessionRef.current?.sound.setSfxVolume(volume);
     useHud.getState().setSfxVolume(volume);
   };
+  const onUiScaleChange = (scale: number) => {
+    useHud.getState().setUiScale(scale);
+  };
   const onTestLootBurst = (rarity: Rarity) => {
     sessionRef.current?.renderer.testLootBurst(rarity);
   };
@@ -226,7 +230,7 @@ export function WorldScene({
       <div className="stage-host" ref={hostRef} />
       <div className="world-frame-host" style={{ display: hudVisible ? undefined : 'none' }}>
         <div className="world-frame">
-          <div className="hud-layer" style={{ '--hud-scale': stage.scale } as CSSProperties}>
+          <div className="hud-layer" style={{ '--hud-scale': stage.scale * uiScale } as CSSProperties}>
             <Hud
               variant={variant}
               locationName={locationName}
@@ -251,6 +255,7 @@ export function WorldScene({
               <SettingsMenu
                 onMusicVolumeChange={onMusicVolumeChange}
                 onSfxVolumeChange={onSfxVolumeChange}
+                onUiScaleChange={onUiScaleChange}
                 onToggleSound={onToggleSound}
                 onForceWipe={onForceWipe}
                 onClose={() => setSettingsOpen(false)}

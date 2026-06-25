@@ -339,8 +339,8 @@ button {
   transform-origin: top left;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 18px 12px 12px;
+  gap: 10px;
+  padding: 8px 12px 8px 8px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
@@ -350,8 +350,8 @@ button {
 
 .hud-profile-avatar {
   flex: none;
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   padding: 0;
   display: grid;
   place-items: center;
@@ -372,8 +372,8 @@ button {
 }
 
 .hud-profile-avatar img {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
@@ -382,12 +382,12 @@ button {
 .hud-profile-details {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   line-height: 1.1;
 }
 
 .hud-profile-name {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.5px;
   color: var(--text);
@@ -395,7 +395,7 @@ button {
 }
 
 .hud-profile-level {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -405,18 +405,18 @@ button {
 .hud-profile-gold {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 2px;
+  gap: 5px;
+  margin-top: 0;
 }
 
 .hud-profile-gold img {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
 .hud-profile-gold span {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 800;
   letter-spacing: 0.5px;
   color: #fff;
@@ -1572,7 +1572,7 @@ button.bag-slot:hover {
 
 .settings-row {
   display: grid;
-  grid-template-columns: 88px 1fr 44px;
+  grid-template-columns: 88px 1fr 56px auto;
   align-items: center;
   gap: 14px;
   padding: 8px 0;
@@ -1603,6 +1603,25 @@ button.bag-slot:hover {
   font-weight: 700;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+.settings-inline-btn {
+  justify-self: end;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.32);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.settings-inline-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Pill toggle for the master sound switch. */

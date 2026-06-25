@@ -443,9 +443,7 @@ export const ancientTree: EntityDefinition = {
  * north of the Clearing. Each Player breaks their OWN copy (very high HP — a
  * sustained grind around Woodcutting 25); once broken it stays broken forever
  * for them and reveals the Travel signpost north (`revealTag: 'northgate'`).
- * Drops a fixed, one-time woodcutting haul. Placeholder art reuses the
- * ancient-tree (intact) and rock (broken remnant) textures until dedicated
- * sprites are generated via the Sprite Pipeline.
+ * Drops a fixed, one-time woodcutting haul.
  */
 export const giantStump: EntityDefinition = {
   id: 'giant_stump',
@@ -454,16 +452,16 @@ export const giantStump: EntityDefinition = {
     'A colossal, moss-cloaked stump barring the northern path — ancient, stubborn, and immense.',
   kind: 'resource',
   art: {
-    textureId: 'tree_ancient',
-    scale: 1.9,
+    textureId: 'entity_giant_stump',
+    scale: 1.2,
     anchorX: 0.5,
-    anchorY: 0.97,
+    anchorY: 0.9,
     hitParticleTextureId: 'fx_wood_chip',
     driftParticleTextureId: 'fx_leaf',
     hitTint: 0xcfe9c8,
   },
   damageable: { maxHp: 6000 },
-  breakable: { brokenTextureId: 'rock', brokenScale: 1.2, brokenAnchorY: 0.85 },
+  breakable: { brokenTextureId: 'entity_giant_stump_broken', brokenScale: 1.05, brokenAnchorY: 0.9 },
   personalBreak: { revealTag: 'northgate' },
   loot: { lootTableId: 'giant_stump' },
   requirements: { skill: { skillId: 'woodcutting', level: 25 }, toolType: 'axe', tier: 4 },
@@ -475,7 +473,7 @@ export const giantStump: EntityDefinition = {
 /**
  * Elder Pine — a Tier 3 woodcutting tree that populates the Deepwood beyond the
  * Giant Stump. Renewable (respawns), reuses the oak collectible ladder; no new
- * items. Placeholder art reuses the oak texture until dedicated art exists.
+ * items.
  */
 export const elderPine: EntityDefinition = {
   id: 'elder_pine',
@@ -483,7 +481,7 @@ export const elderPine: EntityDefinition = {
   description: 'A tall, resin-dark pine from the deep woods, tougher than any lowland oak.',
   kind: 'resource',
   art: {
-    textureId: 'tree_oak',
+    textureId: 'entity_elder_pine',
     scale: 1.5,
     anchorX: 0.5,
     anchorY: 0.96,
@@ -505,7 +503,6 @@ export const elderPine: EntityDefinition = {
  * the Giant Stump (tag 'northgate', see ADR-0025). Tagged 'beacon' so the client
  * wires its tap to Travel (ADR-0023); each placement authors its destination via
  * `travelTargetLevelId`. Authored Locked, revealed per-player on the break.
- * Placeholder art reuses the beacon (portal) texture.
  */
 export const signpost: EntityDefinition = {
   id: 'signpost',
@@ -513,7 +510,7 @@ export const signpost: EntityDefinition = {
   description: 'A weathered signpost pointing north, marking a path only just cleared.',
   kind: 'prop',
   art: {
-    textureId: 'entity_beacon',
+    textureId: 'entity_signpost',
     scale: 0.85,
     anchorX: 0.5,
     anchorY: 0.92,

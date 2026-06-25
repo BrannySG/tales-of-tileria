@@ -18,6 +18,14 @@ manual "equip the right one" step adds clicks without decisions.
 
 ## Decision
 
+> **Partially retired by ADR-0022.** Tools remain *identified content* (id +
+> `toolType` + tier + name + icon) and still **auto-equip** the best one for the
+> target. But the **tier/wield gating** below — `minTier`, `wieldRequirement`, and
+> the `toolTierTooLow` / `toolWieldLevel` blocks — is no longer the access gate:
+> the per-Skill Skill Tree gates harvest **Tier**, and tools gate **type only**
+> (owning the right `toolType` to harvest at all). Read the rest of this Decision
+> as the original tool model; see ADR-0022 for current gating.
+
 Make tools **identified content**. A `ToolDefinition` has an `id`, a `toolType`,
 a numeric `tier`, a display name, an icon, and an optional `wieldRequirement` (a
 Skill + level needed to *use* it). The Player owns a **set of tool ids**
@@ -52,3 +60,11 @@ passive tick damage.
 - Migrating off `ToolType`-only ownership touched the Player shape, pickups,
   quests, and the client store; the payoff is one consistent identified-item model
   that Recipes (ADR-0010) also grant into.
+
+## Update (2026-06-25)
+
+ADR-0022 retired the tier/wield **gating** introduced here. Harvest access is now
+gated by the per-Skill Skill Tree's unlocked **Tier**; tools gate **type** only,
+and the `minTier` / `wieldRequirement` checks (and the `toolTierTooLow` /
+`toolWieldLevel` blocks) are dropped from the gate. The identified-tool model,
+auto-equip, and `bestUsableTool` selection are kept.

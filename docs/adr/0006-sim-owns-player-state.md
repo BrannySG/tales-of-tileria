@@ -49,8 +49,11 @@ equipped tool, inventory, and quest progress. Concretely:
 - Tool gating and quests are unit-testable headlessly alongside damage/respawn.
 - The client store shrinks to a view-model. Removing client-side auto-equip means
   tools must be earned, which is the intended fantasy.
-- The prototype `World` currently models a single local `Player`. Multiplayer will
-  need per-player state and command attribution; this ADR deliberately scopes to
-  one authoritative player for now, matching the single-cursor prototype.
+- The prototype `World` modelled a single local `Player`. *(Superseded by
+  ADR-0014/0016: the `World` is now multi-tenant — per-player state lives in a
+  `PlayerSession` map keyed by `PlayerId`, while entities/respawn/loot stay
+  world-owned. The single-authority principle below is unchanged; only the
+  one-player scoping was lifted.)* Multiplayer needed per-player state and command
+  attribution, which ADR-0014 designed and ADR-0016 implemented.
 - Snapshot/serialization grows to include `Player`, keeping the "whole world is
   snapshottable" property from ADR-0002.

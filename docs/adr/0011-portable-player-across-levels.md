@@ -28,9 +28,10 @@ Zone 1 session seeded with that snapshot — so name/tools/skills/inventory/ques
 survive intact (the `better_wood` oak quest is carried and finished in Zone 1).
 
 Make the **divine name sim-authoritative**: a `player.setName` command trims/caps
-the input, sets `Player.displayName`, sets `craftingUnlocked = true` (crafting
-unlocks at the shrine Dedication, not at furnace build), and emits
-`player.nameChanged`. The client persists the name to `localStorage`
+the input, sets `Player.displayName`, and emits `player.nameChanged`. *(Originally
+`setName` also set `craftingUnlocked = true` for the shrine Dedication beat;
+**superseded by ADR-0021** — crafting unlock is now the separate
+`player.setCraftingUnlocked`, see the Update below.)* The client persists the name to `localStorage`
 (`tot.playerName`) and rehydrates it via the existing `playerName` WorldOption on
 return.
 
@@ -44,9 +45,12 @@ return.
   unlock-crafting side effect lives with it, keeping the Dedication beat in the sim
   rather than as a quest reward (see ADR-0009's noted exception).
 - **Known limitation:** sim state is not persisted to a backend. A returning,
-  already-onboarded player loads Zone 1 directly with their persisted name and a
-  sensible default kit (owns `axe_basic` + `pickaxe_stone`, crafting unlocked,
-  skills at L1) so the world stays playable. Real save/load is a future pass.
+  already-onboarded player loads directly into the shared open world with their
+  persisted name and a sensible default kit (crafting unlocked, skills at L1) so
+  the world stays playable. *(The exact starter kit is authored in
+  `starterPlayer.ts` — currently `axe_rusty` + `pickaxe_rusty`, not the
+  `axe_basic` / `pickaxe_stone` ids named when this ADR was written.)* Real
+  save/load is a future pass.
 
 ## Update (2026-06-23)
 

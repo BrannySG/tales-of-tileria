@@ -31,8 +31,10 @@ opening cinematic and grants only the first quest (`pickup_axe`). The rest of th
 chain self-propagates in the sim; the Director and other client code now only
 *react* to `quest.updated` / `entity.enabled` for dialogue and presentation. (One
 deliberate exception stays client-side per ADR-0011: crafting unlocks at the
-shrine Dedication via `player.setName`, not as a quest reward, because naming is a
-scripted client beat.)
+shrine Dedication, not as a quest reward, because naming is a scripted client beat.
+*Originally the `player.setName` command set `craftingUnlocked = true` as a side
+effect; ADR-0021 decoupled this — `player.setCraftingUnlocked` is now separate, and
+the minimal onboarding flow seeds crafting unlocked directly.*)
 
 ## Consequences
 

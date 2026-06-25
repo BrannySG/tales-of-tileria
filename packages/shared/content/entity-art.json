@@ -89,6 +89,24 @@
     "anchorX": 0.54,
     "anchorY": 0.87
   },
+  "giant_stump": {
+    "scale": 1.12,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.9
+  },
+  "elder_pine": {
+    "scale": 1.46,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.9
+  },
+  "signpost": {
+    "scale": 0.9,
+    "rotation": 0,
+    "anchorX": 0.5,
+    "anchorY": 0.92
+  },
   "blackmarket_stall_general": {
     "scale": 1.18,
     "rotation": 0,

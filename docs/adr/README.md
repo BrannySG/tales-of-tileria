@@ -1,9 +1,12 @@
 # Architecture Decision Records
 
 Point-in-time records of *why* the architecture is the way it is. Each ADR keeps a
-Context / Decision / Consequences shape. ADRs are not edited to change their
-reasoning after the fact — when a decision is revised, a newer ADR supersedes it
-(and the older one notes it), or an "Update" section is appended.
+Context / Decision / Consequences shape. The reasoning is not rewritten after the
+fact — when a decision is revised, a newer ADR supersedes it (and the older one
+notes it), or an "Update" section is appended. During a deliberate docs pass, a
+stale present-tense claim in an older body may be marked inline
+(`[superseded/parked by ADR-XXXX]`) so a reader is not misled mid-body; the
+original rationale stays intact.
 
 For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 [`AGENTS.md`](../../AGENTS.md).

@@ -97,8 +97,14 @@ single-player modes (Zoo, Editor, tutorial/Council) need only `pnpm dev`.
 - **Use the canonical vocabulary** from `CONTEXT.md`. If a term drifts, fix the docs
   to match `CONTEXT.md`, not the other way around.
 - **Record meaningful decisions as an ADR** in `docs/adr/` (next number; keep the
-  Context / Decision / Consequences shape; note supersessions). Don't rewrite old
-  ADRs' reasoning — they are point-in-time records; add an update section instead.
+  Context / Decision / Consequences shape; note supersessions). ADRs are
+  point-in-time records: prefer adding an **Update** section over editing the
+  original reasoning. When a body makes a present-tense claim that is now false
+  (e.g. a number, a flow, or a system that was later replaced), you may reconcile
+  it during a deliberate documentation pass — mark the stale claim inline with a
+  `[superseded/parked by ADR-XXXX]` note rather than silently deleting it, and
+  preserve the original rationale so the record still reads as "why we decided
+  this then".
 - **Generate art via the Sprite Pipeline**, never by hand. See
   `.cursor/rules/sprite-generation.mdc`.
 - **Trust model:** client-seeded snapshots are spoofable today (friends prototype),

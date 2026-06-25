@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(Artifacts direction, rare spawns, Collection juice)*
+> Last reviewed: 2026-06-25 *(Artifacts direction, rare spawns, Collection juice, portal travel direction)*
 
 ---
 
@@ -358,6 +358,68 @@ Notes:
   bursts (ADR-0007).
 - Escalate to **HIGH** priority once Artifacts system is specced — rare spawns are
   the best multiplayer showcase for chase drops.
+
+---
+
+## Region travel via repaired portals *(supersedes "grounded teleporter" framing)*
+
+> **Priority: MEDIUM (HIGH once multiple regions are live)**
+> Impact: Strengthens world identity and gives region transitions a clear
+> progression beat instead of a utilitarian warp.
+
+Travel between major regions should use **blue arcane portals**, not grounded
+signpost-style teleporters. The fiction stays diegetic ("ancient transit gates"),
+while the deeper truth is that Cursors are effectively moving between authored
+simulation regions.
+
+Core beat per region:
+
+1. Player enters and farms local entities/resources.
+2. They collect a region-linked repair component.
+3. They repair or power the portal in that region.
+4. Portal activates and unlocks travel to the next region node.
+
+Presentation direction:
+
+- Portals should feel "special": animated, luminous blue energy, readable from
+  distance, strong activation moment.
+- Inactive vs active state must be visually obvious at a glance.
+- Activation should feel earned (short flourish / pulse / audio cue) but remain
+  presentation-only around an authoritative unlock state.
+
+**Review**
+
+Pros:
+- Gives the world map a stronger signature than generic teleports; "portal
+  network" is a memorable pillar players can describe.
+- Creates a clean micro-progression loop inside each region (farm local content
+  -> repair gate -> unlock travel), which pairs naturally with existing gather
+  gameplay.
+- Supports future pacing: portals can gate region order without bespoke one-off
+  scripts in sim systems.
+- The "simulation regions" lore thread gains a subtle delivery channel without
+  exposing the meta premise directly.
+
+Cons / risks:
+- Needs careful friction tuning: if repair requirements are too grindy, travel
+  feels blocked rather than motivating.
+- Requires strong readability in busy scenes so portals do not get lost among
+  entities and props.
+- Region unlock sequencing must avoid soft-lock feelings for players who switch
+  Skills and farm atypical routes.
+- If this lands before multiple destination regions exist, players may perceive
+  it as cosmetic ceremony with no payoff.
+
+Notes:
+- This direction **supersedes** signpost-as-teleporter framing for inter-region
+  travel; signposts can remain local flavor/wayfinding props.
+- Keep unlock requirements data-driven (region/tag/content tables), not one-off
+  scripted conditions.
+- Candidate requirement pattern: one "regional core" item assembled from local
+  farming drops, then consumed to activate that region's gate.
+- **Escalation rule:** raise to **HIGH** when there are at least two destination
+  regions ready to chain through portals.
+- Current Game Loop Snapshot unchanged (concept only; not shipped).
 
 ---
 

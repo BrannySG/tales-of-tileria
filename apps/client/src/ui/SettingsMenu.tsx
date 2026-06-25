@@ -25,6 +25,38 @@ function VolumeRow({ label, value, disabled, onChange }: VolumeRowProps) {
   );
 }
 
+interface PercentRowProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  onReset?: () => void;
+}
+
+function PercentRow({ label, value, min, max, step, onChange, onReset }: PercentRowProps) {
+  return (
+    <div className="settings-row">
+      <label>{label}</label>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      <span className="settings-val">{Math.round(value * 100)}%</span>
+      {onReset && (
+        <button className="settings-inline-btn" onClick={onReset} type="button">
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
 /**
  * The settings menu: a modal exposing the player's audio preferences (master
  * mute, music volume, SFX volume). Changes are applied live to the running
@@ -33,12 +65,14 @@ function VolumeRow({ label, value, disabled, onChange }: VolumeRowProps) {
 export function SettingsMenu({
   onMusicVolumeChange,
   onSfxVolumeChange,
+  onUiScaleChange,
   onToggleSound,
   onForceWipe,
   onClose,
 }: {
   onMusicVolumeChange: (volume: number) => void;
   onSfxVolumeChange: (volume: number) => void;
+  onUiScaleChange: (scale: number) => void;
   onToggleSound: (enabled: boolean) => void;
   /** Wipe the saved progression (keeps name + cosmetics) and reload the game. */
   onForceWipe: () => void;
@@ -47,6 +81,7 @@ export function SettingsMenu({
   const soundEnabled = useHud((s) => s.soundEnabled);
   const musicVolume = useHud((s) => s.musicVolume);
   const sfxVolume = useHud((s) => s.sfxVolume);
+  const uiScale = useHud((s) => s.uiScale);
 
   return (
     <div className="settings-overlay" onClick={onClose}>
@@ -84,6 +119,17 @@ export function SettingsMenu({
           value={sfxVolume}
           disabled={!soundEnabled}
           onChange={onSfxVolumeChange}
+        />
+
+        <h4 className="settings-section">Display</h4>
+        <PercentRow
+          label="UI Scale"
+          value={uiScale}
+          min={0.75}
+          max={1.75}
+          step={0.05}
+          onChange={onUiScaleChange}
+          onReset={() => onUiScaleChange(1)}
         />
 
         <h4 className="settings-section">Save</h4>

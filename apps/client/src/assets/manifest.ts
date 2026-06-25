@@ -16,6 +16,10 @@ import veinedRock from '@assets/Entities/T_Entity_VeinedRock.png';
 import tree from '@assets/Entities/T_Entity_Tree01.png';
 import treeAncient from '@assets/Entities/T_Entity_AncientTree.png';
 import treeOak from '@assets/Entities/T_Entity_OakTree.png';
+import giantStump from '@assets/Entities/T_Entity_GiantStump.png';
+import giantStumpBroken from '@assets/Entities/T_Entity_GiantStumpBroken.png';
+import elderPine from '@assets/Entities/T_Entity_ElderPine.png';
+import signpost from '@assets/Entities/T_Entity_Signpost.png';
 import npcSmith from '@assets/Entities/T_Entity_Char_MrSmith_Black.png';
 import shack from '@assets/Entities/T_Entity_WoodShack_Built.png';
 import shackBroken from '@assets/Entities/T_Entity_WoodShack_Destroyed.png';
@@ -95,6 +99,10 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   tree,
   tree_ancient: treeAncient,
   tree_oak: treeOak,
+  entity_giant_stump: giantStump,
+  entity_giant_stump_broken: giantStumpBroken,
+  entity_elder_pine: elderPine,
+  entity_signpost: signpost,
   npc_smith: npcSmith,
   shack,
   shack_broken: shackBroken,

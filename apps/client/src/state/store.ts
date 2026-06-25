@@ -94,12 +94,15 @@ export interface AudioSettings {
   musicVolume: number;
   sfxVolume: number;
   soundEnabled: boolean;
+  /** HUD-only UI scale multiplier (1 = 100%). */
+  uiScale: number;
 }
 
 const AUDIO_SETTINGS_KEY = 'tot.audioSettings';
-const DEFAULT_AUDIO_SETTINGS: AudioSettings = { musicVolume: 0.5, sfxVolume: 1, soundEnabled: true };
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = { musicVolume: 0.5, sfxVolume: 1, soundEnabled: true, uiScale: 1 };
 
 const clamp01 = (n: number): number => Math.max(0, Math.min(1, n));
+const clampUiScale = (n: number): number => Math.max(0.75, Math.min(1.75, n));
 
 /** Cursor/Idle stats before the first snapshot hydrates (see CONTEXT.md: Cursor stat). */
 const DEFAULT_CURSOR_STATS: CursorStats = {
@@ -127,6 +130,7 @@ function loadAudioSettings(): AudioSettings {
       musicVolume: clamp01(parsed.musicVolume ?? DEFAULT_AUDIO_SETTINGS.musicVolume),
       sfxVolume: clamp01(parsed.sfxVolume ?? DEFAULT_AUDIO_SETTINGS.sfxVolume),
       soundEnabled: parsed.soundEnabled ?? DEFAULT_AUDIO_SETTINGS.soundEnabled,
+      uiScale: clampUiScale(parsed.uiScale ?? DEFAULT_AUDIO_SETTINGS.uiScale),
     };
   } catch {
     return { ...DEFAULT_AUDIO_SETTINGS };
@@ -240,6 +244,8 @@ interface HudState {
   musicVolume: number;
   /** One-shot SFX volume (0–1), persisted across sessions. */
   sfxVolume: number;
+  /** HUD-only UI scale multiplier, persisted across sessions. */
+  uiScale: number;
   setInventory: (inventory: Record<string, number>) => void;
   upsertQuest: (quest: QuestState) => void;
   setOwnedToolIds: (ids: ToolId[]) => void;
@@ -302,6 +308,7 @@ interface HudState {
   setSoundEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
+  setUiScale: (scale: number) => void;
   reset: () => void;
 }
 
@@ -356,6 +363,7 @@ export const useHud = create<HudState>((set) => ({
   soundEnabled: initialAudio.soundEnabled,
   musicVolume: initialAudio.musicVolume,
   sfxVolume: initialAudio.sfxVolume,
+  uiScale: initialAudio.uiScale,
   setInventory: (inventory) => set({ inventory: { ...inventory } }),
   upsertQuest: (quest) =>
     set((state) => {
@@ -471,20 +479,46 @@ export const useHud = create<HudState>((set) => ({
   setLastRegister: (lastRegister) => set({ lastRegister }),
   setSoundEnabled: (soundEnabled) =>
     set((state) => {
-      persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: state.sfxVolume, soundEnabled });
+      persistAudioSettings({
+        musicVolume: state.musicVolume,
+        sfxVolume: state.sfxVolume,
+        soundEnabled,
+        uiScale: state.uiScale,
+      });
       return { soundEnabled };
     }),
   setMusicVolume: (musicVolume) =>
     set((state) => {
       const next = clamp01(musicVolume);
-      persistAudioSettings({ musicVolume: next, sfxVolume: state.sfxVolume, soundEnabled: state.soundEnabled });
+      persistAudioSettings({
+        musicVolume: next,
+        sfxVolume: state.sfxVolume,
+        soundEnabled: state.soundEnabled,
+        uiScale: state.uiScale,
+      });
       return { musicVolume: next };
     }),
   setSfxVolume: (sfxVolume) =>
     set((state) => {
       const next = clamp01(sfxVolume);
-      persistAudioSettings({ musicVolume: state.musicVolume, sfxVolume: next, soundEnabled: state.soundEnabled });
+      persistAudioSettings({
+        musicVolume: state.musicVolume,
+        sfxVolume: next,
+        soundEnabled: state.soundEnabled,
+        uiScale: state.uiScale,
+      });
       return { sfxVolume: next };
+    }),
+  setUiScale: (scale) =>
+    set((state) => {
+      const next = clampUiScale(scale);
+      persistAudioSettings({
+        musicVolume: state.musicVolume,
+        sfxVolume: state.sfxVolume,
+        soundEnabled: state.soundEnabled,
+        uiScale: next,
+      });
+      return { uiScale: next };
     }),
   reset: () =>
     // Note: seen* read-receipts are intentionally NOT reset — they are a
