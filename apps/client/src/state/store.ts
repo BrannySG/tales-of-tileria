@@ -31,6 +31,53 @@ import { REGISTER_SLOT_POP_MS } from '../ui/collectionJuice';
 let toastIdSeq = 0;
 const nextToastId = (): number => ++toastIdSeq;
 
+/** Loot Reel tuning: identical gains within this window merge into one tile. */
+const LOOT_FEED_COALESCE_MS = 900;
+/** Max queued+visible entries retained for reel playback bursts. */
+const LOOT_FEED_MAX = 8;
+/**
+ * How long a tile lingers as the hero when there is NO backlog — a calm,
+ * readable dwell so a single drop gets the time it deserves. Rarer = longer.
+ */
+const LOOT_HOLD_BASE_MS: Record<Rarity, number> = {
+  common: 2200,
+  uncommon: 2500,
+  rare: 3000,
+  epic: 3500,
+  legendary: 4200,
+};
+/**
+ * The floor a tile compresses toward during a heavy burst — fast rapid-fire so
+ * a flood of drops cycles quickly without ever feeling instant. Rarer = longer.
+ */
+const LOOT_HOLD_MIN_MS: Record<Rarity, number> = {
+  common: 240,
+  uncommon: 280,
+  rare: 340,
+  epic: 380,
+  legendary: 460,
+};
+/** Each queued (waiting) item shortens the active tile's hold by this much. */
+const LOOT_BACKLOG_FALLOFF_MS = 520;
+const LOOT_RARITY_ORDER: Record<Rarity, number> = {
+  common: 0,
+  uncommon: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
+};
+
+/**
+ * Adaptive hold: a lone drop lingers for its full rarity dwell; the more loot is
+ * backed up behind it, the sooner it retires so bursts rapid-fire. This is the
+ * "your power is growing" speed-up signal (see creative/design-ideas.md).
+ */
+export function lootHoldMs(rarity: Rarity, backlog: number): number {
+  const base = LOOT_HOLD_BASE_MS[rarity];
+  const min = LOOT_HOLD_MIN_MS[rarity];
+  return Math.max(min, base - Math.max(0, backlog) * LOOT_BACKLOG_FALLOFF_MS);
+}
+
 export interface TargetInfo {
   name: string;
   hp: number;
@@ -55,6 +102,33 @@ export interface HoverPreviewInfo {
 export interface DiscoveryToastItem {
   id: number;
   itemId: string;
+}
+
+export type LootFeedStage = 'entering' | 'active' | 'exiting';
+
+/** One active/animating entry in the Loot Reel feed. */
+export interface LootFeedEntry {
+  id: number;
+  itemId: string;
+  rarity: Rarity;
+  /** Coalesced count: rapid identical gains merge into one rising tile. */
+  quantity: number;
+  /** Current animation/playback stage for this tile. */
+  stage: LootFeedStage;
+  /** performance.now() when the current stage began. */
+  stageTs: number;
+  /** performance.now() of the latest coalesced gain (merge window anchor). */
+  ts: number;
+}
+
+/** Pending Loot Reel entry waiting to be promoted into the animated feed. */
+export interface LootQueuedEntry {
+  id: number;
+  itemId: string;
+  rarity: Rarity;
+  quantity: number;
+  /** performance.now() of the latest coalesced gain (merge window anchor). */
+  ts: number;
 }
 
 /**
@@ -235,6 +309,10 @@ interface HudState {
   newCollectibles: boolean;
   /** Queue of discovery toasts for first-acquired collectibles. */
   discoveryToasts: DiscoveryToastItem[];
+  /** Newest-first feed of active/animating Loot Reel entries. */
+  lootFeed: LootFeedEntry[];
+  /** Pending loot entries waiting for reel playback (burst queue). */
+  lootQueue: LootQueuedEntry[];
   /** The active Collection completion celebration, if any. */
   completion: CompletionInfo | undefined;
   /** One-shot signal for the most recent Collection registration (juice). */
@@ -301,6 +379,14 @@ interface HudState {
   pushDiscoveryToast: (itemId: string) => void;
   /** Removes a discovery toast by id (after its timeout). */
   dismissDiscoveryToast: (id: number) => void;
+  /** Pushes positive inventory deltas into the Loot Reel queue/feed (coalescing). */
+  pushLootGains: (deltas: Record<string, number>) => void;
+  /** Promotes the next queued entry into the feed as an entering tile. */
+  promoteLootEntry: () => void;
+  /** Moves a feed entry through entering -> active -> exiting. */
+  setLootEntryStage: (id: number, stage: LootFeedStage) => void;
+  /** Removes a Loot Reel entry by id (after exit animation completes). */
+  removeLootEntry: (id: number) => void;
   /** Sets (or clears with undefined) the active completion celebration. */
   setCompletion: (info: CompletionInfo | undefined) => void;
   /** Sets (or clears) the one-shot registration feedback signal. */
@@ -358,6 +444,8 @@ export const useHud = create<HudState>((set) => ({
   seenAchievements: initialSeen.achievements,
   newCollectibles: false,
   discoveryToasts: [],
+  lootFeed: [],
+  lootQueue: [],
   completion: undefined,
   lastRegister: undefined,
   soundEnabled: initialAudio.soundEnabled,
@@ -475,6 +563,84 @@ export const useHud = create<HudState>((set) => ({
     })),
   dismissDiscoveryToast: (id) =>
     set((state) => ({ discoveryToasts: state.discoveryToasts.filter((t) => t.id !== id) })),
+  pushLootGains: (deltas) =>
+    set((state) => {
+      const now = performance.now();
+      const feed = state.lootFeed.slice();
+      const queue = state.lootQueue.slice();
+      let changed = false;
+      const burst = Object.entries(deltas)
+        .filter(([, qty]) => qty > 0)
+        .map(([itemId, qty]) => {
+          const rarity = getItemDefinition(itemId)?.rarity ?? 'common';
+          return { itemId, qty, rarity };
+        })
+        .sort(
+          (a, b) =>
+            LOOT_RARITY_ORDER[a.rarity] - LOOT_RARITY_ORDER[b.rarity] || a.itemId.localeCompare(b.itemId),
+        );
+      for (const { itemId, qty, rarity } of burst) {
+        if (qty <= 0) continue;
+        changed = true;
+        // Coalesce into a still-living tile (not one already exiting) so repeated
+        // gathering keeps a single rising ×N tile and re-lingers it if it's the hero.
+        const feedHit = feed.find(
+          (entry) => entry.itemId === itemId && entry.stage !== 'exiting' && now - entry.ts <= LOOT_FEED_COALESCE_MS,
+        );
+        if (feedHit) {
+          feedHit.quantity += qty;
+          feedHit.ts = now;
+          // Refresh the dwell on an active hero so a steady drip stays on screen.
+          if (feedHit.stage === 'active') feedHit.stageTs = now;
+          continue;
+        }
+        let queueHit: LootQueuedEntry | undefined;
+        for (let i = queue.length - 1; i >= 0; i--) {
+          const candidate = queue[i];
+          if (!candidate) continue;
+          if (candidate.itemId === itemId && now - candidate.ts <= LOOT_FEED_COALESCE_MS) {
+            queueHit = candidate;
+            break;
+          }
+        }
+        if (queueHit) {
+          queueHit.quantity += qty;
+          queueHit.ts = now;
+          continue;
+        }
+        queue.push({ id: nextToastId(), itemId, rarity, quantity: qty, ts: now });
+      }
+      if (!changed) return state;
+      const queueCap = Math.max(0, LOOT_FEED_MAX - feed.length);
+      return {
+        lootFeed: feed,
+        // Keep the earliest queued entries to preserve playback order.
+        lootQueue: queue.slice(0, queueCap),
+      };
+    }),
+  promoteLootEntry: () =>
+    set((state) => {
+      const next = state.lootQueue[0];
+      if (!next) return state;
+      const now = performance.now();
+      const nextFeed: LootFeedEntry[] = [
+        { ...next, stage: 'entering', stageTs: now },
+        ...state.lootFeed,
+      ];
+      return { lootFeed: nextFeed.slice(0, LOOT_FEED_MAX), lootQueue: state.lootQueue.slice(1) };
+    }),
+  setLootEntryStage: (id, stage) =>
+    set((state) => {
+      const idx = state.lootFeed.findIndex((entry) => entry.id === id);
+      const current = state.lootFeed[idx];
+      if (!current) return state;
+      if (current.stage === stage) return state;
+      const feed = state.lootFeed.slice();
+      feed[idx] = { ...current, stage, stageTs: performance.now() };
+      return { lootFeed: feed };
+    }),
+  removeLootEntry: (id) =>
+    set((state) => ({ lootFeed: state.lootFeed.filter((entry) => entry.id !== id) })),
   setCompletion: (completion) => set({ completion }),
   setLastRegister: (lastRegister) => set({ lastRegister }),
   setSoundEnabled: (soundEnabled) =>
@@ -549,6 +715,8 @@ export const useHud = create<HudState>((set) => ({
       locked: false,
       armedItemId: undefined,
       discoveryToasts: [],
+      lootFeed: [],
+      lootQueue: [],
       completion: undefined,
       lastRegister: undefined,
       cursorSkinId: DEFAULT_CURSOR_SKIN_ID,
@@ -647,16 +815,19 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
             state.setNewCollectibles(true);
           }
         }
-        // While idle, attribute positive inventory deltas to the session loot tally
-        // (player-scoped, so this is genuinely the local player's idle gains).
-        if (state.idleActive) {
-          const prev = state.inventory;
-          const deltas: Record<string, number> = {};
-          for (const [itemId, count] of Object.entries(event.inventory)) {
-            const gained = count - (prev[itemId] ?? 0);
-            if (gained > 0) deltas[itemId] = gained;
-          }
-          if (Object.keys(deltas).length > 0) state.addIdleLoot(deltas);
+        // Positive inventory deltas are the local player's genuine gains
+        // (player-scoped event; initial inventory is hydrated via setInventory
+        // before we subscribe, so this never floods on load). They feed the Loot
+        // Reel in both modes, and the idle-session tally while idling.
+        const prev = state.inventory;
+        const deltas: Record<string, number> = {};
+        for (const [itemId, count] of Object.entries(event.inventory)) {
+          const gained = count - (prev[itemId] ?? 0);
+          if (gained > 0) deltas[itemId] = gained;
+        }
+        if (Object.keys(deltas).length > 0) {
+          state.pushLootGains(deltas);
+          if (state.idleActive) state.addIdleLoot(deltas);
         }
         state.setInventory(event.inventory);
         break;

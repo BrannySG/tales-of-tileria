@@ -51,6 +51,9 @@ export function App() {
   const [showLiveResetNotice, setShowLiveResetNotice] = useState(false);
   const cursorSkinId = useHud((s) => s.cursorSkinId);
   const [appCursor, setAppCursor] = useState(`url(${cursorUrl}) 2 2, auto`);
+  // A glowing variant of the equipped skin, shown on hover of interactable HUD
+  // controls (the DOM half of the glow-only affordance; see ux-housekeeping.md).
+  const [appCursorGlow, setAppCursorGlow] = useState(`url(${cursorUrl}) 2 2, pointer`);
 
   useEffect(() => {
     const onHashChange = () => setMode(readMode());
@@ -79,12 +82,34 @@ export function App() {
       ctx.clearRect(0, 0, 32, 32);
       ctx.drawImage(img, 0, 0, 32, 32);
       setAppCursor(`url(${canvas.toDataURL('image/png')}) 2 2, auto`);
+
+      // Glow variant: same art on a padded canvas with a soft halo. The tip
+      // (hotspot) shifts by the padding so it still lands on the true pointer.
+      const pad = 6;
+      const glowCanvas = document.createElement('canvas');
+      glowCanvas.width = 32 + pad * 2;
+      glowCanvas.height = 32 + pad * 2;
+      const gctx = glowCanvas.getContext('2d');
+      if (gctx) {
+        gctx.imageSmoothingEnabled = false;
+        gctx.shadowColor = 'rgba(159, 216, 255, 0.95)';
+        gctx.shadowBlur = 6;
+        gctx.drawImage(img, pad, pad, 32, 32);
+        gctx.drawImage(img, pad, pad, 32, 32);
+        setAppCursorGlow(`url(${glowCanvas.toDataURL('image/png')}) ${pad + 2} ${pad + 2}, pointer`);
+      }
     };
-    img.onerror = () => setAppCursor(`url(${cursorUrl}) 2 2, auto`);
+    img.onerror = () => {
+      setAppCursor(`url(${cursorUrl}) 2 2, auto`);
+      setAppCursorGlow(`url(${cursorUrl}) 2 2, pointer`);
+    };
     img.src = source;
   }, [cursorSkinId]);
 
-  const appStyle = { '--app-cursor': appCursor } as CSSProperties;
+  const appStyle = {
+    '--app-cursor': appCursor,
+    '--app-cursor-glow': appCursorGlow,
+  } as CSSProperties;
 
   const navigate = (next: Mode) => {
     window.location.hash = `/${next}`;

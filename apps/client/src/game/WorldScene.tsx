@@ -23,6 +23,7 @@ import { CollectionBookModal } from '../ui/CollectionBookModal';
 import { SkillTreeModal } from '../ui/SkillTreeModal';
 import { acknowledgeDiscoveries } from '../ui/discoveredCollectibles';
 import { HoverPreviewBar } from '../ui/HoverPreviewBar';
+import { LootReel } from '../ui/LootReel';
 import { VendorScene } from '../ui/VendorScene';
 import { getVendorProfile } from '../content/vendorDialogue';
 
@@ -283,6 +284,7 @@ export function WorldScene({
               />
             )}
             <HoverPreviewBar />
+            <LootReel />
           </div>
         </div>
       </div>

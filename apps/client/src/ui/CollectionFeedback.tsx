@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { getCollectionEntry } from '@tot/shared';
 import { useHud } from '../state/store';
-import { ItemIcon } from './ItemIcon';
+import { ItemCard } from './ItemCard';
 import { SkillIcon } from './SkillIcon';
-import { RARITY_COLOR } from './rarityColor';
 import { itemLabel } from './discoveredCollectibles';
 import { skillLabel } from './skillPresentation';
 
@@ -11,26 +10,18 @@ const DISCOVERY_MS = 3600;
 const COMPLETION_MS = 2600;
 
 function DiscoveryToast({ id, itemId }: { id: number; itemId: string }) {
-  const { name, rarity } = itemLabel(itemId);
-  const color = RARITY_COLOR[rarity as keyof typeof RARITY_COLOR] ?? RARITY_COLOR.common;
+  const { rarity } = itemLabel(itemId);
 
   useEffect(() => {
     const t = window.setTimeout(() => useHud.getState().dismissDiscoveryToast(id), DISCOVERY_MS);
     return () => window.clearTimeout(t);
   }, [id]);
 
+  // Reuse the shared Item Card language for the "new item" reveal so first
+  // acquisitions speak the same visual language as the loot reel + hover rail.
   return (
-    <div className="discovery-toast" style={{ color }}>
-      <ItemIcon itemId={itemId} size={40} />
-      <div className="discovery-toast-text">
-        <span className="discovery-toast-title">New Collection Item!</span>
-        <span className="discovery-toast-name" style={{ color: 'var(--text)' }}>
-          {name}
-        </span>
-        <span className="discovery-toast-rarity" style={{ color }}>
-          {rarity}
-        </span>
-      </div>
+    <div className="discovery-toast-card">
+      <ItemCard itemId={itemId} variant="tile" kicker={`New · ${rarity}`} />
     </div>
   );
 }

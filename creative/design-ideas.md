@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(loot reel locked from mockup — form/overflow/fanfare/both-modes decided; introduces the cross-cutting **Item Card** visual language, specced in ux-housekeeping.md)*
+> Last reviewed: 2026-06-25 *(added a high-priority lightweight onboarding quest spine with a DECISION-FIRST gate model question; loot reel remains locked from mockup and introduces the cross-cutting **Item Card** visual language, specced in ux-housekeeping.md)*
 
 ---
 
@@ -19,6 +19,69 @@
 I want this to be my masterpiece. The game that represents everything I enjoy
 about games. Designed in a way that feels social, enjoyable and addicting — with
 a great grind of course.
+
+---
+
+## Lightweight onboarding quest spine (first-session direction)
+
+> **Priority: HIGH (with one DECISION FIRST gate)**
+> Impact: Fixes the biggest early-session gap: "I loaded in, now what do I do?"
+
+Players currently enter with too little direction. Add a simple, low-friction
+onboarding quest spine that introduces the core loop through small, readable
+"to-do" beats before free play fully opens.
+
+### Target first-session flow
+
+1. **Gather basics** from nearby entities (teaches tap/hover gather loop).
+2. **Register/sell a small amount** (teaches progression/economy decision points).
+3. **Complete one key quest** that unlocks continuation into the next zone.
+
+The tone should be lightweight and actionable, not a long tutorial wall. The
+goal is momentum: always one obvious next step.
+
+### Key quest gate model
+
+The zone-advance gate needs a product call before implementation:
+
+- **Option A:** break a visible world obstacle (strong diegetic moment).
+- **Option B:** present a specific item requirement (clearer checklist framing).
+- **Option C:** hybrid (item required, then use item to break/open obstacle).
+
+This determines content authoring and UX framing for the "main quest" beat.
+
+### Boundaries
+
+- Keep this data-driven via Quest/content patterns (ADR-0009 direction), not
+  bespoke one-off sim logic.
+- Keep it as a lightweight ramp distinct from the full narrative onboarding arc
+  currently parked behind `ONBOARDING_VARIANT: 'arc'`.
+
+**Review**
+
+Pros:
+- Directly solves the current "no objective on load" friction and should improve
+  first-session retention immediately.
+- Reinforces existing systems already in the loop (gather -> progression/economy
+  -> world unlock) instead of adding disconnected tutorial mechanics.
+- A clear key quest creates a memorable short-term goal and a natural handoff into
+  the ongoing grind loop.
+
+Cons / risks:
+- If steps are too prescriptive, onboarding can feel like chores instead of
+  momentum; needs concise copy and fast completion.
+- Gate tuning risk: too easy and it feels fake; too hard and players stall before
+  the game "opens."
+- Split direction between this lightweight flow and the future full arc could
+  create duplicated onboarding work if not explicitly scoped.
+
+Notes:
+- **DECISION FIRST:** choose gate model (A obstacle break, B item requirement,
+  C hybrid) before building quest content.
+- This **reinforces** the existing "Shop unlock via hatch / breakable gate" idea:
+  both rely on diegetic world progression beats and item-on-entity style framing.
+- This **upgrades** "onboarding is parked" from a distant backlog item to an
+  immediate loop-priority task focused on first-session clarity.
 
 ---
 
@@ -37,9 +100,9 @@ session + reference mockup: [`mockups/item-card-loot.png`](mockups/item-card-loo
   corner (hover preview bar + Skill Tracker).
 - **Hero + aging trail.** The newest tile is the **hero** — full size, full
   saturation. As new loot arrives, older tiles **shrink, desaturate, and fade** while
-  moving down, then retire. **~3 tiles** visible (hero + 2 fading), matching the
-  mockup. This gives the "constantly cycling" motion with a clear focal point instead
-  of a noisy marquee.
+  moving down, then retire. The reel can show **up to ~5 tiles** in burst moments
+  (hero + short trail) so players can read rapid loot spikes without the stack
+  feeling dumped all at once.
 
 ### Tile = the Item Card
 Each tile is the **Item Card** visual language (defined in
@@ -49,13 +112,22 @@ left, a small uppercase rarity label above a big white **outlined display-font**
 and a large white-outlined **quantity badge (`×N`) overhanging the top-right corner**.
 
 ### Overflow & speed-scaling
-- **Adaptive speed:** the reel cycles faster as backlog grows — the "your power is
-  growing" progression signal the doc always wanted.
+- **Adaptive dwell (per tile):** a lone drop lingers for its full rarity dwell
+  (calm, readable — common ~2.2s up to legendary ~4.2s); the more loot is backed
+  up behind it, the sooner it retires, compressing toward a fast burst floor
+  (~0.24–0.46s). This is the "your power is growing" speed-up, and it means a few
+  drops each get the time they deserve instead of all flashing past.
+- **Burst queue (cap 8):** loot gains enqueue and cascade into a hero + aging
+  trail one tile at a time, so multi-drop moments rapid-fire in sequence instead
+  of popping several cards in at once. The hold is recomputed live, so a burst
+  arriving mid-linger shortens the current hero too.
+- **Rarity ordering inside a burst:** lower rarities play first, while Rare+
+  settle later and stay on the hero longer.
 - **Coalescing:** identical items arriving close together merge into one tile with a
   rising `×N` count (the big badge is built for exactly this) instead of spamming
-  tiles.
-- **Hard visible cap (~3):** excess folds into counts rather than backing the queue
-  up — kills the "anxiety backlog" risk.
+  tiles; a steady drip re-lingers the active hero.
+- **Visible cap (~5):** enough trail to stay legible during bursts while still
+  avoiding an anxiety backlog.
 
 ### Fanfare (rarity peaks without noise)
 - **Rare+ only get audio:** escalating chimes + a visual flourish on the hero tile
@@ -83,8 +155,8 @@ Pros:
   the reel is client-side). High ROI — no sim changes.
 - Rarity fanfare creates emotional peaks that don't exist today (rare drops currently
   feel identical to commons).
-- Adaptive speed makes progression *felt* without a number; coalescing + hard cap
-  defuse the backlog-anxiety risk the original idea flagged.
+- Adaptive speed makes progression *felt* without a number; queue + coalescing +
+  bounded visibility keep bursts readable without turning into backlog anxiety.
 - Establishes the **Item Card** language (see ux-housekeeping.md), which then
   propagates to the hover rail, "new item" toasts, and later Bag/Vendor.
 

@@ -15,6 +15,7 @@ export class CursorView {
   private readonly ringGroup = new Container();
   private readonly ring = new Graphics();
   private readonly lockRing = new Graphics();
+  private readonly glow = new Graphics();
   private readonly toolIcon: Sprite;
   private readonly carriedItem: Sprite;
   private readonly arrow: Sprite;
@@ -22,10 +23,12 @@ export class CursorView {
   private readonly moon = new Graphics();
 
   private hovering = false;
+  private interactable = false;
   private locked = false;
   private idle = false;
   private pulse = 0;
   private ringAlpha = 0;
+  private glowAlpha = 0;
   private moonBob = 0;
 
   constructor(
@@ -35,6 +38,14 @@ export class CursorView {
   ) {
     this.container.eventMode = 'none';
     this.container.zIndex = 1000;
+
+    // Soft "you can act here" affordance halo (glow-only; see
+    // creative/ux-housekeeping.md). Drawn behind everything and faded in on hover
+    // over an interactable, suppressed under locked/armed (precedence). Built from
+    // stacked translucent discs to fake a soft radial glow without a filter.
+    this.drawGlow();
+    this.glow.position.set(16, 18);
+    this.glow.visible = false;
 
     this.lockRing.zIndex = 0;
     this.drawRing(this.ring, 0xffffff, 0.5);
@@ -89,7 +100,14 @@ export class CursorView {
     this.moon.y = -34;
     this.moon.visible = false;
 
-    this.container.addChild(this.ringGroup, this.arrowShadow, this.arrow, this.carriedItem, this.moon);
+    this.container.addChild(
+      this.glow,
+      this.ringGroup,
+      this.arrowShadow,
+      this.arrow,
+      this.carriedItem,
+      this.moon,
+    );
   }
 
   /** Shows/hides the Idle Mode moon indicator above the cursor. */
@@ -141,6 +159,17 @@ export class CursorView {
     this.hovering = active;
   }
 
+  /**
+   * Toggle the interactable affordance glow (see CONTEXT.md: Cursor). Hovering an
+   * actionable world target already calls `setTargeting`, which also raises this
+   * glow; this method lets callers drive it explicitly. Precedence is enforced in
+   * `update()`: locked > armed > interactable, so the glow never competes with a
+   * committed state.
+   */
+  setInteractable(active: boolean): void {
+    this.interactable = active;
+  }
+
   setLocked(locked: boolean): void {
     this.locked = locked;
     this.drawRing(this.ring, locked ? 0xffd24a : 0xffffff, locked ? 0.85 : 0.5);
@@ -153,6 +182,14 @@ export class CursorView {
     this.ringAlpha += (target - this.ringAlpha) * Math.min(1, dt * 12);
     this.ringGroup.alpha = this.ringAlpha;
     this.ringGroup.visible = this.ringAlpha > 0.01;
+
+    // Affordance glow precedence: locked > armed > interactable. The carried Item
+    // (armed) is the only "armed" tell the cursor owns, so check its visibility.
+    const armed = this.carriedItem.visible;
+    const showGlow = (this.hovering || this.interactable) && !this.locked && !armed;
+    this.glowAlpha += ((showGlow ? 1 : 0) - this.glowAlpha) * Math.min(1, dt * 12);
+    this.glow.alpha = this.glowAlpha;
+    this.glow.visible = this.glowAlpha > 0.01;
 
     if (this.locked) {
       this.pulse = (this.pulse + dt) % 1;
@@ -173,5 +210,13 @@ export class CursorView {
     g.circle(0, 0, RING_RADIUS)
       .fill({ color: 0x000000, alpha: 0.1 })
       .stroke({ color, width: 2, alpha });
+  }
+
+  private drawGlow(): void {
+    const color = 0x9fd8ff;
+    this.glow.clear();
+    this.glow.circle(0, 0, 30).fill({ color, alpha: 0.1 });
+    this.glow.circle(0, 0, 22).fill({ color, alpha: 0.14 });
+    this.glow.circle(0, 0, 14).fill({ color, alpha: 0.18 });
   }
 }

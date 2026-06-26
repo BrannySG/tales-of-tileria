@@ -1,13 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useHud } from '../state/store';
 import { buildInspectModel } from './inspectModel';
 import { isDiscovered } from './discoveredCollectibles';
-import { ItemIcon } from './ItemIcon';
-import { RARITY_COLOR } from './rarityColor';
+import { ItemCard } from './ItemCard';
 import { SkillIcon } from './SkillIcon';
-
-/** Rarities that earn the extra "exciting" aura on their drop chips. */
-const HYPE_RARITIES = new Set(['rare', 'epic', 'legendary']);
 
 /**
  * A persistent, last-seen entity preview docked bottom-right (above the Skill
@@ -34,6 +30,31 @@ export function HoverPreviewBar() {
       isDiscovered,
     });
   }, [preview, ownedToolIds, skills, stats]);
+
+  // The drops rail is a horizontal Item Card chip rail. The bar stays
+  // pointer-events:none (so the Pixi cursor never freezes over it — ADR-0028),
+  // so wheel-scroll is a guarded global listener that only acts when the pointer
+  // is over an *overflowing* rail, and only then preventDefaults (leaving camera
+  // wheel-zoom untouched everywhere else). A `has-overflow` class drives the
+  // fade-edge/peek affordance.
+  const railRef = useRef<HTMLDivElement>(null);
+  const dropCount = model?.drops.length ?? 0;
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    rail.classList.toggle('has-overflow', rail.scrollWidth > rail.clientWidth + 1);
+    const onWheel = (e: WheelEvent) => {
+      if (rail.scrollWidth <= rail.clientWidth) return;
+      const r = rail.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
+        return;
+      }
+      rail.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [dropCount]);
 
   if (!preview || !model) return null;
 
@@ -98,27 +119,18 @@ export function HoverPreviewBar() {
       </div>
 
       {model.drops.length > 0 && (
-        <div className="hover-preview-drops" aria-label="Possible drops">
-          {model.drops.map((drop) => {
-            const color = RARITY_COLOR[drop.rarity];
-            const hype = !drop.hidden && HYPE_RARITIES.has(drop.rarity);
-            return (
-              <div
-                key={drop.itemId}
-                className={`hover-preview-drop ${drop.hidden ? 'hidden' : ''} ${hype ? 'hype' : ''}`}
-                style={{ color }}
-                title={drop.hidden ? 'Undiscovered drop' : drop.label}
-              >
-                <span className="hover-preview-drop-icon" style={{ borderColor: color }}>
-                  {drop.hidden ? <span aria-hidden>?</span> : <ItemIcon itemId={drop.itemId} size={30} />}
-                </span>
-                <span className="hover-preview-drop-meta">
-                  <span className="hover-preview-drop-chance">{drop.hidden ? '???' : drop.chanceText}</span>
-                  {!drop.hidden && <span className="hover-preview-drop-qty">×{drop.quantityText}</span>}
-                </span>
-              </div>
-            );
-          })}
+        <div className="hover-preview-drops" aria-label="Possible drops" ref={railRef}>
+          {model.drops.map((drop) => (
+            <ItemCard
+              key={drop.itemId}
+              itemId={drop.itemId}
+              variant="chip"
+              hidden={drop.hidden}
+              chanceText={drop.chanceText}
+              quantityText={drop.hidden ? undefined : drop.quantityText}
+              title={drop.hidden ? 'Undiscovered drop' : drop.label}
+            />
+          ))}
         </div>
       )}
     </aside>

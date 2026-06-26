@@ -9,14 +9,132 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(added the **Item Card** visual language from the loot mockup — shared component + token set, with a now-vs-deferred surface-adoption plan; grilled + locked the hover-rail interactivity model (passive + wheel + fade/peek) and the cursor-affordance DECISION-FIRST gate (glow-only, `locked > armed > interactable`); current build v0.1.47)*
+> Last reviewed: 2026-06-25 *(added a HIGH housekeeping task to temporarily remove Mr Smith crafting affordances while equipment is being redesigned; item-card language + hover-rail/cursor decisions remain locked; save-state regression remains top severity; current build v0.1.47)*
 
 ---
 
 ## Active backlog
 
-Live UX/polish items not yet shipped. (Shipped items are collapsed to pointers near
-the bottom of this doc.)
+### Temporarily remove Mr Smith crafting path (equipment rethink)
+
+> **Priority: HIGH (now)**
+> Impact: Reduces onboarding confusion by removing a dead-end/unstable path while
+> the equipment layer is being redesigned.
+
+Crafting via Mr Smith should be temporarily disabled and de-emphasized in UX
+until the equipment system direction is decided. New players should not be shown
+or nudged toward a flow that is about to change.
+
+#### Scope (temporary hide/remove pass)
+
+- Remove or hide Mr Smith crafting prompts, CTA copy, and any quest/task text that
+  points players to that path.
+- Ensure first-session objective guidance points to the active loop instead
+  (gather/progress/key quest) rather than a parked crafting branch.
+- Keep this as a reversible presentation/content pass, not a deep system rewrite.
+
+#### Re-enable condition
+
+Restore/rework Mr Smith crafting guidance only after the new equipment direction
+is decided and documented (likely aligned with the Artifacts/equipment redesign).
+
+**Review**
+
+Pros:
+- Stops sending players into a known unstable system seam during onboarding.
+- Improves clarity by collapsing competing early-game objectives into one primary
+  progression path.
+- Low-risk temporary UX/content cleanup with immediate player-facing benefit.
+
+Cons / risks:
+- Existing players may notice a removed feature path; needs clear temporary framing
+  if any residual UI remains.
+- If references are missed (tooltips, NPC text, quest copy), confusion can worsen
+  due to inconsistent messaging.
+- If the replacement onboarding tasks are not visible enough, removing this path
+  alone will not fully fix early-session aimlessness.
+
+Notes:
+- This **reinforces** the new onboarding quest-spine idea in `design-ideas.md`:
+  one clear objective chain beats multiple half-supported directions.
+- Treat as housekeeping-first: hide/de-scope now, redesign later.
+
+---
+
+### Save-state regression — collection book resets + level rollback on tab-out/re-focus
+
+> **Priority: HIGH — data loss; breaks progression trust**
+> Impact: Any player who tabs away for 5+ minutes loses collection registrations and
+> can see their level drop on return. Directly undermines the "stop auto-wiping"
+> fix shipped in v0.1.42.
+
+#### Observed symptoms (reported 2026-06-25)
+
+1. **Collection Book progress resets** after 5–10 minutes away from the tab —
+   entries that were registered appear unregistered on return.
+2. **Overall level rolls back** on re-focus — the player's level is lower than it
+   was before tabbing away, as if an older snapshot was loaded over the current one.
+
+#### Likely root causes to investigate
+
+- **Tab-out triggers a page unload / visibility-change event that doesn't flush the
+  save before the document is paused** — the in-flight state is lost; on return the
+  older persisted snapshot is the only thing to restore from.
+- **Save interval is too long or not triggered by tab-blur** — if the game only
+  saves on a periodic tick and the tab goes to background, that tick may stop firing
+  (browsers throttle timers on hidden tabs); data between the last save and tab-out
+  is silently discarded.
+- **Multiplayer reload issue** — if the server-side DO snapshot and the local save
+  diverge, the client may reload from the DO's last flush rather than the client's
+  latest state, producing a visible rollback.
+- **`loadPlayerSave()` being called on re-focus** — if reconnection triggers a fresh
+  load from the last persisted snapshot (rather than the live sim state), and the
+  snapshot lags behind, the result looks like a rollback.
+
+#### **DECISION FIRST — before investigating**
+
+Which path do we take?
+
+- **A — Flush on `visibilitychange` / `pagehide`:** add an explicit save call when
+  the tab goes hidden or the page is about to unload. Cheap and covers most cases.
+- **B — More frequent background saves:** reduce the save interval so the maximum
+  rollback is bounded to a few seconds regardless of tab state.
+- **C — Don't reload from snapshot on reconnect:** if the sim is still live (local
+  transport), skip `loadPlayerSave()` on re-focus; only reload after a true
+  disconnect/restart.
+- **D — All three** as belt-and-suspenders (probably correct).
+
+The answer determines whether this is a pure client-side fix (A/B) or touches
+the reconnect handshake (C).
+
+**Review**
+
+Pros:
+- Fixing this restores full player trust in progression; any data-loss bug this
+  visible will drive players away.
+- Option A is very low-risk and likely 90% of the fix.
+- Option C ensures re-focus doesn't regress a still-live session.
+
+Cons / risks:
+- Flushing on `pagehide` is best-effort in some browsers (mobile kills the tab
+  before the handler completes); `localStorage` writes are sync so they are
+  usually fine, but async DO writes are not guaranteed.
+- Overlapping save + load on reconnect could cause a race; needs careful ordering.
+- If the real root cause is multiplayer DO divergence, A+B won't fully fix it —
+  need to trace whether the level rollback happens in local-only play too.
+
+Notes:
+- Reproduce in **local-only mode first** (no `dev:server`) to isolate client vs
+  server root cause. If the collection book resets in local mode, the bug is
+  purely in the client persistence path. If it only happens in multiplayer, the DO
+  snapshot/reconnect path is suspect.
+- Check `visibilitychange` and `pagehide` handler coverage in the client transport
+  layer — if nothing hooks those events, option A is the first fix.
+- Related shipped entry: **Stop auto-wiping progression on join** (v0.1.42) —
+  that fix assumes `loadPlayerSave()` is safe on join; this bug suggests the saved
+  data may be stale when loaded.
+
+---
 
 ### Item Card visual language (how an Item looks, everywhere)
 
@@ -94,6 +212,12 @@ Cons / risks:
 Notes:
 - Build the component while building the loot reel; the reel proves the language, then
   the rail and toast adopt it in the same sprint.
+- Loot reel fluidity pass (2026-06-25): queue burst playback (cap 8) with
+  **adaptive per-tile dwell** (a lone drop lingers for its full rarity time,
+  ~2.2–4.2s; bursts compress toward a ~0.24–0.46s floor), rarity-ordered bursts,
+  smooth fade/slide exits, and a right-edge tile opacity falloff to ~40% (drawn on
+  a backing layer so the icon/name/×N badge stay crisp). The reel also sits pulled
+  inward (~20% toward centre) rather than flush against the screen edge.
 - **ADR candidate (not yet):** once the language is proven on reel + rail, a short ADR
   ("Items render through one shared Item Card") may be worth it to lock the choke
   point — defer until it's real.
