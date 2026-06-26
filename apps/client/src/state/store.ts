@@ -155,6 +155,17 @@ export interface CompletionInfo {
   xpAwarded: number;
 }
 
+/** Client-side view of the player's in-flight refine run (see CONTEXT.md: Refine job). */
+export interface RefineJobView {
+  recipeId: string;
+  stationInstanceId: string;
+  totalSeconds: number;
+  outputItemId: string;
+  outputQuantity: number;
+  /** performance.now() when the run started, for animating progress. */
+  startedAt: number;
+}
+
 /** Client-side view of the player's in-flight craft (for menu progress). */
 export interface CraftingJobView {
   recipeId: string;
@@ -281,6 +292,8 @@ interface HudState {
   idleSessionStartedAt: number | undefined;
   craftingUnlocked: boolean;
   craftingJob: CraftingJobView | undefined;
+  /** The player's in-flight refine run, if any (see CONTEXT.md: Refine job). */
+  refineJob: RefineJobView | undefined;
   /** Pending shrine offerings keyed by shrine instanceId -> granted tool id. */
   offerings: Record<string, ToolId>;
   displayName: string;
@@ -352,6 +365,7 @@ interface HudState {
   addIdleLoot: (deltas: Record<string, number>) => void;
   setCraftingUnlocked: (unlocked: boolean) => void;
   setCraftingJob: (job: CraftingJobView | undefined) => void;
+  setRefineJob: (job: RefineJobView | undefined) => void;
   setOffering: (instanceId: string, toolId: ToolId | undefined) => void;
   setDisplayName: (name: string) => void;
   setTarget: (target: TargetInfo | undefined) => void;
@@ -430,6 +444,7 @@ export const useHud = create<HudState>((set) => ({
   idleSessionStartedAt: undefined,
   craftingUnlocked: false,
   craftingJob: undefined,
+  refineJob: undefined,
   offerings: {},
   displayName: '',
   target: undefined,
@@ -519,6 +534,7 @@ export const useHud = create<HudState>((set) => ({
     }),
   setCraftingUnlocked: (craftingUnlocked) => set({ craftingUnlocked }),
   setCraftingJob: (craftingJob) => set({ craftingJob }),
+  setRefineJob: (refineJob) => set({ refineJob }),
   setOffering: (instanceId, toolId) =>
     set((state) => {
       const offerings = { ...state.offerings };
@@ -708,6 +724,7 @@ export const useHud = create<HudState>((set) => ({
       idleSessionStartedAt: undefined,
       craftingUnlocked: false,
       craftingJob: undefined,
+      refineJob: undefined,
       offerings: {},
       displayName: '',
       target: undefined,
@@ -751,6 +768,18 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   hud.setStats(snapshot.stats ?? {});
   if (snapshot.cursorStats) hud.setCursorStats(snapshot.cursorStats);
   hud.setCraftingUnlocked(snapshot.player.craftingUnlocked);
+  if (snapshot.player.refineJob) {
+    const rj = snapshot.player.refineJob;
+    hud.setRefineJob({
+      recipeId: rj.recipeId,
+      stationInstanceId: rj.stationInstanceId,
+      totalSeconds: rj.totalSeconds,
+      outputItemId: rj.outputItemId,
+      outputQuantity: rj.outputQuantity,
+      // Anchor progress so a mid-run reload shows the remaining time, not the full bar.
+      startedAt: performance.now() - (rj.totalSeconds - rj.remainingSeconds) * 1000,
+    });
+  }
   // Seed already-owned collectibles as discovered (silently, no toast flood),
   // then surface the New badge if any discovery is still unacknowledged.
   for (const [itemId, count] of Object.entries(snapshot.player.inventory)) {
@@ -858,6 +887,21 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       }
       case 'craftingJobCompleted': {
         useHud.getState().setCraftingJob(undefined);
+        break;
+      }
+      case 'refineJobStarted': {
+        useHud.getState().setRefineJob({
+          recipeId: event.recipeId,
+          stationInstanceId: event.stationInstanceId,
+          totalSeconds: event.totalSeconds,
+          outputItemId: event.outputItemId,
+          outputQuantity: event.outputQuantity,
+          startedAt: performance.now(),
+        });
+        break;
+      }
+      case 'refineJobCompleted': {
+        useHud.getState().setRefineJob(undefined);
         break;
       }
       case 'craftedItemPlacedAtShrine': {

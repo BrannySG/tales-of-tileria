@@ -27,13 +27,28 @@ export const treeBasic: LootTable = {
   ],
 };
 
-// Oak Tree (tier-2 axe): a heftier guaranteed wood yield than the Basic Tree,
-// plus its own collectible ladder feeding The Oak Codex (same Bernoulli shape
-// as tree_basic / rock_basic).
+// Oak Tree (Tier 2): a heftier guaranteed yield of its own raw Oak Wood (the
+// Tier-2 refine input), plus the oak collectible ladder feeding The Oak Codex
+// (same Bernoulli shape as tree_basic / rock_basic).
 export const oakBasic: LootTable = {
   id: 'oak_basic',
   rolls: [
-    { itemId: 'wood', minQuantity: 8, maxQuantity: 8, chance: 1 },
+    { itemId: 'oak_wood', minQuantity: 8, maxQuantity: 8, chance: 1 },
+    { itemId: 'oak_bark_strip', minQuantity: 1, maxQuantity: 1, chance: 0.4 },
+    { itemId: 'oak_gall', minQuantity: 1, maxQuantity: 1, chance: 0.08 },
+    { itemId: 'oak_mistletoe_sprig', minQuantity: 1, maxQuantity: 1, chance: 0.02 },
+    { itemId: 'oak_golden_acorn', minQuantity: 1, maxQuantity: 1, chance: 0.003 },
+  ],
+};
+
+// Elder Pine (Tier 3): its own raw Pine Wood (the Tier-3 refine input). Reuses
+// the oak collectible ladder for now (no new pine collectibles this pass), so it
+// still feeds The Oak Codex's collectible entries while supplying Pine Wood for
+// refining and the Pinewright Ledger.
+export const pineBasic: LootTable = {
+  id: 'pine_basic',
+  rolls: [
+    { itemId: 'pine_wood', minQuantity: 8, maxQuantity: 8, chance: 1 },
     { itemId: 'oak_bark_strip', minQuantity: 1, maxQuantity: 1, chance: 0.4 },
     { itemId: 'oak_gall', minQuantity: 1, maxQuantity: 1, chance: 0.08 },
     { itemId: 'oak_mistletoe_sprig', minQuantity: 1, maxQuantity: 1, chance: 0.02 },
@@ -105,6 +120,7 @@ export const LOOT_TABLES: readonly LootTable[] = [
   rockBasic,
   treeBasic,
   oakBasic,
+  pineBasic,
   boulderLoot,
   veinedRockLoot,
   magicStoneLoot,

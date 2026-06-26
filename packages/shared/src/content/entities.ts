@@ -350,6 +350,30 @@ export const beacon: EntityDefinition = {
   tags: ['prop', 'beacon'],
 };
 
+/**
+ * The Sawmill — the woodcutting Refinery (see CONTEXT.md: Refinery, Sawmill). A
+ * non-damageable station prop: the player arms a raw-wood stack and taps it to
+ * start a timed refine run (see ADR-0029). Tagged `sawmill` so a Refine recipe
+ * (refineRecipes.ts) and the armed-item affordance match it generically; future
+ * mills (e.g. a Stone Mill) reuse the same pattern with their own station tag.
+ */
+export const sawmill: EntityDefinition = {
+  id: 'sawmill',
+  displayName: 'Sawmill',
+  description: 'A milling station. Arm a stack of raw wood and tap to refine it into planks.',
+  kind: 'prop',
+  art: {
+    textureId: 'entity_sawmill',
+    scale: 0.8,
+    anchorX: 0.5,
+    anchorY: 0.9,
+    hitParticleTextureId: 'fx_wood_chip',
+    hitTint: 0xffffff,
+  },
+  interactionRule: 'personal',
+  tags: ['prop', 'sawmill', 'refinery'],
+};
+
 export const blackmarketStallGeneral: EntityDefinition = {
   id: 'blackmarket_stall_general',
   displayName: 'General Stall',
@@ -472,8 +496,9 @@ export const giantStump: EntityDefinition = {
 
 /**
  * Elder Pine — a Tier 3 woodcutting tree that populates the Deepwood beyond the
- * Giant Stump. Renewable (respawns), reuses the oak collectible ladder; no new
- * items.
+ * Giant Stump. Renewable (respawns). Drops its own raw Pine Wood (the Tier-3
+ * refine input) and reuses the oak collectible ladder for now (no new pine
+ * collectibles yet).
  */
 export const elderPine: EntityDefinition = {
   id: 'elder_pine',
@@ -491,7 +516,7 @@ export const elderPine: EntityDefinition = {
   },
   damageable: { maxHp: 140 },
   respawns: { respawnSeconds: 50 },
-  loot: { lootTableId: 'oak_basic' },
+  loot: { lootTableId: 'pine_basic' },
   requirements: { skill: { skillId: 'woodcutting', level: 1 }, toolType: 'axe', tier: 3 },
   xp: { rewards: { woodcutting: 9 } },
   interactionRule: 'lastHit',
@@ -590,6 +615,7 @@ export const ENTITY_DEFINITIONS: readonly EntityDefinition[] = [
   waterSource,
   campfire,
   beacon,
+  sawmill,
   blackmarketStallGeneral,
   blackmarketStallEquipment,
   blackmarketStallGeneric,

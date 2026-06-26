@@ -50,6 +50,19 @@ export type SimCommand =
     }
   | { type: 'craft.start'; recipeId: string }
   | { type: 'craft.claim'; instanceId: string }
+  | {
+      /**
+       * Start a Refining run at a Refinery Entity (see CONTEXT.md: Refining). The
+       * sim finds the Refine recipe matching the held `itemId` and the target's
+       * station tag, consumes up to the (Skill-Tree-modified) batch of raw input,
+       * and begins a `RefineJob`; on completion the refined Item is granted
+       * directly to the Bag. The client "arms" the item as presentation; only this
+       * command crosses the boundary. A no-match / empty input is a silent no-op.
+       */
+      type: 'refine.start';
+      itemId: string;
+      targetInstanceId: string;
+    }
   | { type: 'player.setName'; name: string }
   | { type: 'player.setCraftingUnlocked'; unlocked: boolean }
   | { type: 'player.setDivinePower'; power: DivinePowerId; unlocked: boolean }
@@ -278,6 +291,27 @@ export type SimEvent =
   | { type: 'skill.leveledUp'; skillId: SkillId; level: number }
   | { type: 'craftingJobStarted'; recipeId: string; totalSeconds: number }
   | { type: 'craftingJobCompleted'; recipeId: string }
+  | {
+      /** A Refining run began (see CONTEXT.md: Refine job). Drives the progress UX. */
+      type: 'refineJobStarted';
+      recipeId: string;
+      stationInstanceId: string;
+      outputItemId: string;
+      outputQuantity: number;
+      totalSeconds: number;
+    }
+  | {
+      /**
+       * A Refining run completed: the refined output was granted directly to the
+       * Bag (the grant rides a companion `inventory.changed`; XP rides
+       * `skill.xpGained`). Presentation hook for the finish flourish.
+       */
+      type: 'refineJobCompleted';
+      recipeId: string;
+      stationInstanceId: string;
+      outputItemId: string;
+      outputQuantity: number;
+    }
   | { type: 'craftedItemPlacedAtShrine'; instanceId: string; grantsToolId: ToolId }
   | {
       type: 'craftedItemClaimed';
@@ -465,6 +499,8 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   'skill.leveledUp': 'player',
   craftingJobStarted: 'player',
   craftingJobCompleted: 'player',
+  refineJobStarted: 'player',
+  refineJobCompleted: 'player',
   craftedItemPlacedAtShrine: 'player',
   craftedItemClaimed: 'player',
   'player.nameChanged': 'player',

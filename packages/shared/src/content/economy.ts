@@ -35,7 +35,15 @@ export const SELL_VALUE_BY_RARITY: Record<Rarity, SellValue> = {
  * Rarity default). Use sparingly for outliers whose value should not track
  * their Rarity band.
  */
-export const SELL_OVERRIDES: Record<string, Partial<SellValue>> = {};
+export const SELL_OVERRIDES: Record<string, Partial<SellValue>> = {
+  // Refined wood (milled at the Sawmill, see CONTEXT.md: Refining). Gold sits
+  // well above the raw log it comes from (the refining margin); sell-XP is held
+  // below the matching refined Collection-entry rate so Collections stay the
+  // better long play (ADR-0027).
+  refined_wood: { gold: 8, xp: 6 },
+  refined_oak_wood: { gold: 24, xp: 14 },
+  refined_pine_wood: { gold: 40, xp: 20 },
+};
 
 /**
  * The Skill an Item's sell-XP feeds (see CONTEXT.md: Sell mode). Maps to the
@@ -46,6 +54,11 @@ export const SELL_OVERRIDES: Record<string, Partial<SellValue>> = {};
 export const SELL_SKILL: Record<string, SkillId> = {
   // Woodcutting source family
   wood: 'woodcutting',
+  oak_wood: 'woodcutting',
+  pine_wood: 'woodcutting',
+  refined_wood: 'woodcutting',
+  refined_oak_wood: 'woodcutting',
+  refined_pine_wood: 'woodcutting',
   tree_knotted_root: 'woodcutting',
   tree_bird_nest: 'woodcutting',
   tree_whispering_acorn: 'woodcutting',

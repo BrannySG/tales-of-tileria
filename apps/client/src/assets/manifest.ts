@@ -19,6 +19,7 @@ import treeOak from '@assets/Entities/T_Entity_OakTree.png';
 import giantStump from '@assets/Entities/T_Entity_GiantStump.png';
 import giantStumpBroken from '@assets/Entities/T_Entity_GiantStumpBroken.png';
 import elderPine from '@assets/Entities/T_Entity_ElderPine.png';
+import sawmill from '@assets/Entities/T_Entity_Sawmill.png';
 import signpost from '@assets/Entities/T_Entity_Signpost.png';
 import npcSmith from '@assets/Entities/T_Entity_Char_MrSmith_Black.png';
 import shack from '@assets/Entities/T_Entity_WoodShack_Built.png';
@@ -52,6 +53,11 @@ import itemPickaxeIron from '@assets/Items/T_Item_IronPickaxe.png';
 import itemIronChunk from '@assets/Items/T_Item_IronChunk.png';
 import itemAetherShard from '@assets/Items/T_Item_AetherShard.png';
 import itemWood from '@assets/Items/T_Item_WoodLogs.png';
+import itemOakWood from '@assets/Items/T_Item_OakWood.png';
+import itemPineWood from '@assets/Items/T_Item_PineWood.png';
+import itemRefinedWood from '@assets/Items/T_Item_RefinedWood.png';
+import itemRefinedOakWood from '@assets/Items/T_Item_RefinedOakWood.png';
+import itemRefinedPineWood from '@assets/Items/T_Item_RefinedPineWood.png';
 import itemStone from '@assets/Items/T_Item_Stone.png';
 import itemBucket from '@assets/Items/T_Item_Bucket.png';
 import itemBucketWater from '@assets/Items/T_Item_BucketWater.png';
@@ -102,6 +108,7 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   entity_giant_stump: giantStump,
   entity_giant_stump_broken: giantStumpBroken,
   entity_elder_pine: elderPine,
+  entity_sawmill: sawmill,
   entity_signpost: signpost,
   npc_smith: npcSmith,
   shack,
@@ -135,6 +142,11 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   item_iron_chunk: itemIronChunk,
   item_aether_shard: itemAetherShard,
   item_wood: itemWood,
+  item_oak_wood: itemOakWood,
+  item_pine_wood: itemPineWood,
+  item_refined_wood: itemRefinedWood,
+  item_refined_oak_wood: itemRefinedOakWood,
+  item_refined_pine_wood: itemRefinedPineWood,
   item_stone: itemStone,
   item_bucket: itemBucket,
   item_bucket_water: itemBucketWater,

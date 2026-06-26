@@ -40,6 +40,13 @@ export const COLLECTION_DEFINITIONS: readonly CollectionDefinition[] = [
     skill: 'mining',
     sortOrder: 3,
   },
+  {
+    id: 'the_pinewright_ledger',
+    name: 'The Pinewright Ledger',
+    description: 'Pine timber and milled boards from the deep woods.',
+    skill: 'woodcutting',
+    sortOrder: 4,
+  },
 ];
 
 // The common-primary requirement reuses the generic `stone` / `wood` Resources;
@@ -290,6 +297,27 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     rewards: { xp: 900 },
     sortOrder: 10,
   },
+  // Refined ladder — milled at the Sawmill (see CONTEXT.md: Refining).
+  {
+    id: 'tree_first_planks',
+    collectionId: 'the_timber_archive',
+    name: 'First Planks',
+    description: 'Your first boards milled clean at the sawmill.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'refined_wood', quantity: 10 }],
+    rewards: { xp: 200 },
+    sortOrder: 11,
+  },
+  {
+    id: 'tree_seasoned_stock',
+    collectionId: 'the_timber_archive',
+    name: 'Seasoned Stock',
+    description: 'A working store of refined planks for the discerning trade.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'refined_wood', quantity: 30 }],
+    rewards: { xp: 450 },
+    sortOrder: 12,
+  },
 
   // --- The Oak Codex (Woodcutting, T2 oak) -------------------------------
   // Post-L10 chase: requires the Oak (Tier 2) source, so rewards run high.
@@ -299,7 +327,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     name: 'A Sturdy Harvest',
     description: 'Oak gives its timber grudgingly, but generously.',
     skill: 'woodcutting',
-    requirements: [{ itemId: 'wood', quantity: 40 }],
+    requirements: [{ itemId: 'oak_wood', quantity: 40 }],
     rewards: { xp: 300 },
     sortOrder: 0,
   },
@@ -320,7 +348,7 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     description: 'A perfectly round gall hidden among the timber.',
     skill: 'woodcutting',
     requirements: [
-      { itemId: 'wood', quantity: 25 },
+      { itemId: 'oak_wood', quantity: 25 },
       { itemId: 'oak_gall', quantity: 1 },
     ],
     rewards: { xp: 450 },
@@ -348,6 +376,16 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     requirements: [{ itemId: 'oak_golden_acorn', quantity: 1 }],
     rewards: { xp: 900 },
     sortOrder: 4,
+  },
+  {
+    id: 'oak_fine_boards',
+    collectionId: 'the_oak_codex',
+    name: 'Fine Oak Boards',
+    description: 'Dense oak milled into prized, smooth boards.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'refined_oak_wood', quantity: 20 }],
+    rewards: { xp: 700 },
+    sortOrder: 5,
   },
 
   // --- The Deepvein Reliquary (Mining, T2/T3) ----------------------------
@@ -402,5 +440,38 @@ export const COLLECTION_ENTRY_DEFINITIONS: readonly CollectionEntryDefinition[] 
     requirements: [{ itemId: 'mining_meteoric_core', quantity: 1 }],
     rewards: { xp: 1000 },
     sortOrder: 4,
+  },
+
+  // --- The Pinewright Ledger (Woodcutting, T3 pine) ----------------------
+  // Pine timber from the Elder Pine (Deepwood) plus its milled boards.
+  {
+    id: 'pine_first_timber',
+    collectionId: 'the_pinewright_ledger',
+    name: 'Deepwood Timber',
+    description: 'Resin-dark pine logs hauled from beyond the Giant Stump.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'pine_wood', quantity: 40 }],
+    rewards: { xp: 350 },
+    sortOrder: 0,
+  },
+  {
+    id: 'pine_seasoned_haul',
+    collectionId: 'the_pinewright_ledger',
+    name: 'A Seasoned Haul',
+    description: 'A heavier store of pine for the long winter trade.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'pine_wood', quantity: 100 }],
+    rewards: { xp: 600 },
+    sortOrder: 1,
+  },
+  {
+    id: 'pine_planed_boards',
+    collectionId: 'the_pinewright_ledger',
+    name: 'Planed Pine Boards',
+    description: 'Fragrant pine milled into warm, planed boards.',
+    skill: 'woodcutting',
+    requirements: [{ itemId: 'refined_pine_wood', quantity: 20 }],
+    rewards: { xp: 900 },
+    sortOrder: 2,
   },
 ];

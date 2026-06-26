@@ -4,6 +4,7 @@ import type { ItemInteraction } from '../types/itemInteraction';
 import type { LootTable } from '../types/loot';
 import type { QuestDefinition } from '../types/quest';
 import type { RecipeDefinition } from '../types/recipe';
+import type { RefineRecipe } from '../types/refine';
 import type { ToolDefinition } from '../types/tool';
 import type { ToolId, ToolType } from '../types/ids';
 import type { CollectionDefinition, CollectionEntryDefinition } from '../types/collection';
@@ -13,6 +14,7 @@ import { ITEM_INTERACTIONS } from './itemInteractions';
 import { LOOT_TABLES } from './lootTables';
 import { QUEST_DEFINITIONS } from './quests';
 import { RECIPE_DEFINITIONS } from './recipes';
+import { REFINE_RECIPES } from './refineRecipes';
 import { TOOL_DEFINITIONS } from './tools';
 import { COLLECTION_DEFINITIONS, COLLECTION_ENTRY_DEFINITIONS } from './collections';
 import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
@@ -27,6 +29,7 @@ const lootTableById = new Map<string, LootTable>(LOOT_TABLES.map((t) => [t.id, t
 const questById = new Map<string, QuestDefinition>(QUEST_DEFINITIONS.map((q) => [q.id, q]));
 const toolById = new Map<ToolId, ToolDefinition>(TOOL_DEFINITIONS.map((t) => [t.id, t]));
 const recipeById = new Map<string, RecipeDefinition>(RECIPE_DEFINITIONS.map((r) => [r.id, r]));
+const refineRecipeById = new Map<string, RefineRecipe>(REFINE_RECIPES.map((r) => [r.id, r]));
 const cursorSkinById = new Map<string, CursorSkin>(CURSOR_SKINS.map((s) => [s.id, s]));
 const achievementById = new Map<string, Achievement>(ACHIEVEMENT_DEFINITIONS.map((a) => [a.id, a]));
 const collectionById = new Map<string, CollectionDefinition>(
@@ -100,6 +103,21 @@ export function findItemInteraction(
     if (tag !== undefined && !tags.includes(tag)) return false;
     return definitionId !== undefined || tag !== undefined;
   });
+}
+
+/**
+ * Whether an armed Item has ANY interaction with an Entity (see CONTEXT.md:
+ * Interaction affordance) — either a data-driven Item interaction (bucket ->
+ * water) or a Refine recipe at a Refinery (raw wood -> Sawmill). The single
+ * predicate the client uses to show the "this can interact" hover affordance, so
+ * the cue stays consistent across every armed-item target. Pure content lookup;
+ * the sim still re-validates on the actual command.
+ */
+export function canArmedItemInteract(itemId: string, entityDef: EntityDefinition): boolean {
+  return (
+    findItemInteraction(itemId, entityDef) !== undefined ||
+    findRefineRecipeForEntity(itemId, entityDef) !== undefined
+  );
 }
 
 export function listLootTables(): readonly LootTable[] {
@@ -176,6 +194,42 @@ export function requireRecipeDefinition(id: string): RecipeDefinition {
 
 export function listRecipeDefinitions(): readonly RecipeDefinition[] {
   return RECIPE_DEFINITIONS;
+}
+
+export function getRefineRecipe(id: string): RefineRecipe | undefined {
+  return refineRecipeById.get(id);
+}
+
+export function requireRefineRecipe(id: string): RefineRecipe {
+  const def = refineRecipeById.get(id);
+  if (!def) throw new Error(`Unknown refine recipe: ${id}`);
+  return def;
+}
+
+export function listRefineRecipes(): readonly RefineRecipe[] {
+  return REFINE_RECIPES;
+}
+
+/**
+ * The Refining recipe (if any) for using the raw Item `itemId` at a Refinery
+ * carrying `stationTag` (see CONTEXT.md: Refining). The first matching recipe
+ * wins; used by the sim `refine.start` handler and the client affordance check.
+ */
+export function findRefineRecipe(itemId: string, stationTag: string): RefineRecipe | undefined {
+  return REFINE_RECIPES.find((r) => r.inputItemId === itemId && r.stationTag === stationTag);
+}
+
+/**
+ * The Refining recipe (if any) for using `itemId` on `entityDef` — resolves the
+ * entity's station tag(s) and finds a matching recipe. Mirrors
+ * {@link findItemInteraction} so the client affordance can treat both uniformly.
+ */
+export function findRefineRecipeForEntity(
+  itemId: string,
+  entityDef: EntityDefinition,
+): RefineRecipe | undefined {
+  const tags = entityDef.tags ?? [];
+  return REFINE_RECIPES.find((r) => r.inputItemId === itemId && tags.includes(r.stationTag));
 }
 
 export function getCursorSkin(id: string): CursorSkin | undefined {

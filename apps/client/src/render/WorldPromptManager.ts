@@ -52,6 +52,11 @@ export class WorldPromptManager {
   private removeFurnaceTimerUpdatable?: () => void;
   private furnaceTimerTick?: Updatable;
   private removeFurnaceTimerTickUpdatable?: () => void;
+  /** Generic countdown badges over an arbitrary station, keyed by instance id. */
+  private readonly stationTimers = new Map<
+    string,
+    { prompt: WorldPrompt; removePrompt: () => void; removeTick: () => void }
+  >();
 
   constructor(private readonly deps: WorldPromptDeps) {}
 
@@ -200,6 +205,48 @@ export class WorldPromptManager {
     }
   }
 
+  // ---- Generic station countdown (e.g. the Sawmill refine run) ----
+
+  /**
+   * Floats a display-only countdown badge over any station entity while a timed
+   * job runs there (see CONTEXT.md: Refining). Generic and instance-keyed so
+   * multiple Refineries (or other stations) can each show their own progress;
+   * `hideStationTimer` clears it (driven by the sim's completion event).
+   */
+  showStationTimer(instanceId: string, remainingSeconds: number, totalSeconds: number): void {
+    if (!this.deps.interactive) return;
+    if (this.stationTimers.has(instanceId)) return;
+    const view = this.deps.getView(instanceId);
+    if (!view) return;
+
+    const timer = new WorldPrompt({ compact: true });
+    timer.setLabel(`${Math.max(1, Math.ceil(remainingSeconds))}s`);
+    timer.setBaseY(view.headAnchorY - CRAFT_PROMPT_FURNACE_OFFSET);
+    timer.container.zIndex = 50;
+    view.container.addChild(timer.container);
+    timer.appear();
+    const removePrompt = this.deps.addUpdatable(timer);
+
+    let remaining = Math.min(remainingSeconds, totalSeconds);
+    const tick: Updatable = {
+      update: (dt) => {
+        remaining = Math.max(0, remaining - dt);
+        timer.setLabel(`${Math.max(0, Math.ceil(remaining))}s`);
+      },
+    };
+    const removeTick = this.deps.addUpdatable(tick);
+    this.stationTimers.set(instanceId, { prompt: timer, removePrompt, removeTick });
+  }
+
+  hideStationTimer(instanceId: string): void {
+    const entry = this.stationTimers.get(instanceId);
+    if (!entry) return;
+    entry.removeTick();
+    entry.removePrompt();
+    entry.prompt.destroy();
+    this.stationTimers.delete(instanceId);
+  }
+
   // ---- Shrine / offering glow ----
 
   hasOffering(instanceId: string): boolean {
@@ -323,6 +370,7 @@ export class WorldPromptManager {
   destroy(): void {
     for (const id of [...this.buildPrompts.keys()]) this.removeBuildPrompt(id);
     for (const id of [...this.offeringGlows.keys()]) this.hideOffering(id);
+    for (const id of [...this.stationTimers.keys()]) this.hideStationTimer(id);
     this.teardownFurnaceTimer();
     this.removeCraftPrompt();
   }

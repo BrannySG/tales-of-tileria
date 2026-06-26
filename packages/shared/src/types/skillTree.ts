@@ -29,6 +29,19 @@ export type StatKey = 'tapDamage' | 'hoverDamage' | 'hoverRate' | 'critChance' |
 export type CursorStatKey = 'autoMoveSpeed' | 'idleYield' | 'maxIdleSkills';
 
 /**
+ * A Refining stat a Skill Tree node can grow (see CONTEXT.md: Refine stat).
+ * These are per-Skill (the Woodcutting tree drives the Sawmill; a future Mining
+ * tree node would drive a Stone Mill) and only matter at a Refinery; they are
+ * resolved by `deriveRefineStats` into a {@link RefineStats} block, separate
+ * from the combat `deriveStats` resolver.
+ *
+ * - `batchSize` — added to how many raw units a single refine run consumes.
+ * - `speedPct`  — added fraction the run duration is shortened by (e.g. `0.1`
+ *                 = 10% faster), capped in the resolver.
+ */
+export type RefineStatKey = 'batchSize' | 'speedPct';
+
+/**
  * The effect an allocated Skill Tree node applies (see CONTEXT.md: Tree Node).
  * A `stat` node adds to a resolved per-Skill Stat; a `tierUnlock` node raises
  * the highest Entity Tier the player may harvest for that Skill. The Idle-Mode
@@ -47,6 +60,7 @@ export type SkillNodeEffect =
   | { kind: 'idleCapability' }
   | { kind: 'idleSkill'; skillId: SkillId }
   | { kind: 'cursorStat'; stat: CursorStatKey; amount: number }
+  | { kind: 'refineStat'; stat: RefineStatKey; amount: number }
   | { kind: 'none' };
 
 /**
@@ -108,6 +122,20 @@ export interface SkillStats {
   critDamage: number;
   /** Highest Entity Tier the player may harvest for this Skill (>= 1). */
   maxTierUnlocked: number;
+}
+
+/**
+ * The resolved, sim-authoritative per-Skill Refining stat block (see CONTEXT.md:
+ * Refine stat). Computed by `deriveRefineStats` from a Skill's tree refine
+ * nodes; read by the sim `refine.start` handler to size a run and shorten its
+ * duration. `batchBonus` adds to a recipe's base batch; `speedPct` is the
+ * (capped) fraction the duration is shortened by.
+ */
+export interface RefineStats {
+  /** Extra raw units consumed per run, added to the recipe's base batch. */
+  batchBonus: number;
+  /** Fraction [0,1) the run duration is shortened by (0 = no speedup). */
+  speedPct: number;
 }
 
 /**

@@ -5,10 +5,12 @@ import {
   addressEvent,
   createPlayer,
   deriveCursorStats,
+  deriveRefineStats,
   deriveStats,
   emptyDivinePowers,
   emptySkills,
   findItemInteraction,
+  findRefineRecipeForEntity,
   getCollectionEntry,
   getCursorSkin,
   getLootTable,
@@ -21,6 +23,7 @@ import {
   requireEntityDefinition,
   requireQuestDefinition,
   requireRecipeDefinition,
+  requireRefineRecipe,
   requireToolDefinition,
   resolveSellValue,
   sandboxSkillTrees,
@@ -531,6 +534,9 @@ export class World {
       case 'craft.claim':
         return this.claimOffering(cmd.instanceId, session);
 
+      case 'refine.start':
+        return this.startRefine(cmd.itemId, cmd.targetInstanceId, session);
+
       case 'player.setName':
         return this.setName(cmd.name, session);
 
@@ -604,10 +610,11 @@ export class World {
     this.tickRespawns(dtSeconds, respawns);
     this.tickRelights(dtSeconds, respawns);
     for (const e of respawns) out.push({ event: e, scope: 'world' });
-    // Crafting is per-player.
+    // Crafting + Refining are per-player timed jobs.
     for (const [pid, session] of this.sessions) {
       const events: SimEvent[] = [];
       this.tickCrafting(dtSeconds, session, events);
+      this.tickRefining(dtSeconds, session, events);
       for (const e of events) out.push(addressEvent(e, pid));
     }
     return out;
@@ -1010,6 +1017,85 @@ export class World {
       fallback = fallback ?? entity;
     }
     return fallback;
+  }
+
+  // --- Refining (see CONTEXT.md: Refining; ADR-0029) ---
+
+  /**
+   * Start a Refining run at a Refinery Entity: matches the armed raw `itemId` to
+   * a Refine recipe by the target's station tag, consumes up to the
+   * Skill-Tree-modified batch of raw input, and begins a `RefineJob`. Silent
+   * no-op when there's no match, a job is already running, or the player has no
+   * input. The output is granted on completion in `tickRefining`.
+   */
+  private startRefine(itemId: string, targetInstanceId: string, session: PlayerSession): SimEvent[] {
+    if (session.player.refineJob) return [];
+    const entity = this.entities.get(targetInstanceId);
+    if (!entity) return [];
+    const def = requireEntityDefinition(entity.definitionId);
+    const recipe = findRefineRecipeForEntity(itemId, def);
+    if (!recipe) return [];
+
+    const refineStats = deriveRefineStats(session.player, recipe.skillId);
+    const batch = recipe.batch + refineStats.batchBonus;
+    const have = session.player.inventory[recipe.inputItemId] ?? 0;
+    const qty = Math.min(have, batch);
+    if (qty <= 0) return [];
+
+    const inv = session.player.inventory;
+    inv[recipe.inputItemId] = have - qty;
+    const totalSeconds = recipe.baseSeconds * (1 - refineStats.speedPct);
+    session.player.refineJob = {
+      recipeId: recipe.id,
+      stationInstanceId: targetInstanceId,
+      remainingSeconds: totalSeconds,
+      totalSeconds,
+      outputItemId: recipe.outputItemId,
+      outputQuantity: qty,
+    };
+    return [
+      { type: 'inventory.changed', inventory: { ...inv } },
+      {
+        type: 'refineJobStarted',
+        recipeId: recipe.id,
+        stationInstanceId: targetInstanceId,
+        outputItemId: recipe.outputItemId,
+        outputQuantity: qty,
+        totalSeconds,
+      },
+    ];
+  }
+
+  private tickRefining(dt: number, session: PlayerSession, events: SimEvent[]): void {
+    const job = session.player.refineJob;
+    if (!job) return;
+    job.remainingSeconds -= dt;
+    if (job.remainingSeconds > 0) return;
+
+    const recipe = requireRefineRecipe(job.recipeId);
+    session.player.refineJob = undefined;
+
+    // Grant the refined output directly to the Bag (no claim step, unlike crafting).
+    const inv = session.player.inventory;
+    inv[job.outputItemId] = (inv[job.outputItemId] ?? 0) + job.outputQuantity;
+    events.push(
+      {
+        type: 'refineJobCompleted',
+        recipeId: recipe.id,
+        stationInstanceId: job.stationInstanceId,
+        outputItemId: job.outputItemId,
+        outputQuantity: job.outputQuantity,
+      },
+      { type: 'inventory.changed', inventory: { ...inv } },
+    );
+    const xp = recipe.xpPerUnit * job.outputQuantity;
+    if (xp > 0) events.push(...this.awardSkillXp({ [recipe.skillId]: xp }, session));
+    events.push(
+      ...this.advanceQuests(
+        { kind: 'itemCollected', itemId: job.outputItemId, quantity: job.outputQuantity },
+        session,
+      ),
+    );
   }
 
   // --- Divine name ---

@@ -59,6 +59,14 @@ function effectText(effect: SkillNodeEffect): string {
         return `+${effect.amount} Simultaneous Idle Skill / rank`;
     }
   }
+  if (effect.kind === 'refineStat') {
+    switch (effect.stat) {
+      case 'batchSize':
+        return `+${effect.amount} Refine Batch / rank`;
+      case 'speedPct':
+        return `+${Math.round(effect.amount * 100)}% Refine Speed / rank`;
+    }
+  }
   switch (effect.stat) {
     case 'tapDamage':
       return `+${effect.amount} Tap Damage / rank`;

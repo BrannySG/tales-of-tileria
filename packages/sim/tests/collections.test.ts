@@ -85,11 +85,11 @@ describe('collectible loot tables', () => {
     expect(sawRoot).toBe(true);
   });
 
-  it('Oak Tree (oak_basic) awards guaranteed wood + its authored collectibles', () => {
+  it('Oak Tree (oak_basic) awards guaranteed oak wood + its authored collectibles', () => {
     const table = getLootTable('oak_basic');
     expect(table).toBeDefined();
     const ids = table!.rolls.map((r) => r.itemId);
-    expect(ids).toContain('wood');
+    expect(ids).toContain('oak_wood');
     expect(ids).toEqual(
       expect.arrayContaining([
         'oak_bark_strip',
@@ -103,11 +103,26 @@ describe('collectible loot tables', () => {
     let sawBark = false;
     for (let seed = 0; seed < 200; seed++) {
       const got = rollLoot(table!, mulberry32(seed)).map((i) => i.itemId);
-      if (!got.includes('wood')) sawWoodEvery = false;
+      if (!got.includes('oak_wood')) sawWoodEvery = false;
       if (got.includes('oak_bark_strip')) sawBark = true;
     }
-    expect(sawWoodEvery).toBe(true); // wood is a guaranteed roll
+    expect(sawWoodEvery).toBe(true); // oak wood is a guaranteed roll
     expect(sawBark).toBe(true); // the common-alt collectible does drop
+  });
+
+  it('Elder Pine (pine_basic) awards guaranteed pine wood + the reused oak collectibles', () => {
+    const table = getLootTable('pine_basic');
+    expect(table).toBeDefined();
+    const ids = table!.rolls.map((r) => r.itemId);
+    expect(ids).toContain('pine_wood');
+    expect(ids).toEqual(expect.arrayContaining(['oak_bark_strip', 'oak_golden_acorn']));
+
+    let sawWoodEvery = true;
+    for (let seed = 0; seed < 200; seed++) {
+      const got = rollLoot(table!, mulberry32(seed)).map((i) => i.itemId);
+      if (!got.includes('pine_wood')) sawWoodEvery = false;
+    }
+    expect(sawWoodEvery).toBe(true);
   });
 
   it('collectibles awarded by depletion land in the inventory', () => {

@@ -62,6 +62,12 @@
         "definitionId": "ancient_tree",
         "x": 1920,
         "y": 540
+      },
+      {
+        "instanceId": "dw_sawmill_1",
+        "definitionId": "sawmill",
+        "x": 2200,
+        "y": 1700
       }
     ],
     "arrivalAnchors": {

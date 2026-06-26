@@ -59,6 +59,12 @@ const LAYOUT: NodeSpec[] = [
   { key: 'rate1', label: 'Hover Rate', x: -190, y: STEP * 2, edges: ['hov1'], cost: 1, levelReq: 6, maxRank: 3, effect: { kind: 'stat', stat: 'hoverRate', amount: -0.04 } },
   { key: 'drain1', label: 'Relentless Drain', x: -380, y: STEP * 2, edges: ['rate1'], cost: 1, levelReq: 9, maxRank: 2, effect: { kind: 'stat', stat: 'hoverDamage', amount: 3 } },
 
+  // --- Refining branch (right): batch size + speed, off the second Hover node.
+  // Drives this Skill's Refinery (Woodcutting -> Sawmill; see CONTEXT.md: Refine
+  // stat, Refinery). Resolved per-Skill by `deriveRefineStats`.
+  { key: 'refineBatch', label: 'Mill Capacity', x: 190, y: STEP * 5, edges: ['hov2'], cost: 1, levelReq: 8, maxRank: 2, effect: { kind: 'refineStat', stat: 'batchSize', amount: 5 } },
+  { key: 'refineSpeed', label: 'Mill Speed', x: 380, y: STEP * 5, edges: ['refineBatch'], cost: 1, levelReq: 10, maxRank: 3, effect: { kind: 'refineStat', stat: 'speedPct', amount: 0.1 } },
+
   // --- Idle Mode unlock (left): gates idling THIS Skill (the Clicker capability
   // gates Idle Mode in general; see CONTEXT.md: Idle Mode). `skillId` is filled
   // in per-tree by the builder. Costs that Skill's own Points + level.

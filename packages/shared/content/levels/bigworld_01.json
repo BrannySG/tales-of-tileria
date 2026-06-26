@@ -535,6 +535,13 @@
         "locked": true,
         "travelTargetLevelId": "deepwood_01",
         "travelArrivalAnchor": "south"
+      },
+      {
+        "instanceId": "bw_sawmill_1",
+        "definitionId": "sawmill",
+        "x": 2040,
+        "y": 1560,
+        "overrides": {}
       }
     ],
     "arrivalAnchors": {

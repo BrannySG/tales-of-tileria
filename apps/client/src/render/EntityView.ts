@@ -69,6 +69,9 @@ export class EntityView {
   private shake = 0;
   private squash = 0;
   private targeted = false;
+  /** Soft pulsing glow shown when an armed Item can act on this entity. */
+  private interactGlow = false;
+  private interactGlowT = 0;
 
   hp: number;
   maxHp: number;
@@ -201,6 +204,19 @@ export class EntityView {
     this.updateUiVisibility();
   }
 
+  /**
+   * Toggles the "armed Item can interact here" affordance (see CONTEXT.md:
+   * Interaction affordance) — a gentle additive glow pulse on the sprite shown
+   * while a compatible Item is armed and this entity is hovered. Purely
+   * presentational; cleared by passing `false`.
+   */
+  setInteractHighlight(on: boolean): void {
+    if (this.interactGlow === on) return;
+    this.interactGlow = on;
+    this.interactGlowT = 0;
+    if (!on) this.flash.alpha = 0;
+  }
+
   /** Reserved for a future in-world locked indicator; cursor shows lock state today. */
   setLocked(_locked: boolean): void {}
 
@@ -264,6 +280,11 @@ export class EntityView {
   update(dt: number): void {
     this.animator.update(dt);
     this.speech?.update(dt);
+    if (this.interactGlow) {
+      this.interactGlowT += dt;
+      this.flash.tint = 0xfff0b0;
+      this.flash.alpha = 0.22 + Math.sin(this.interactGlowT * 6) * 0.14;
+    }
     this.art.x = this.shake > 0 ? (Math.random() * 2 - 1) * this.shake : 0;
     const sx = this.baseScale * (1 + this.squash);
     const sy = this.baseScale * (1 - this.squash);

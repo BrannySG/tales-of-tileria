@@ -464,6 +464,36 @@ language in the design docs, this file wins and the docs should be reconciled.
   point is the relevant station, not the NPC. The crafting prompt opens from the
   Furnace (the forge), while Mr Smith reacts to it.
 
+## Refining
+
+- **Refining** — Converting a raw resource into a more valuable **Refined
+  Resource** at a **Refinery** (see ADR-0029). A generic, data-driven loop,
+  separate from Crafting: 1:1, batched, timed, and granted **directly to the Bag**
+  (no claim step). The first consumer is the Sawmill (raw wood → planks); Stone
+  refining can reuse the same machinery later.
+- **Refinery** — A station Entity where Refining happens, matched by a **station
+  tag** (e.g. `sawmill`). Non-damageable scenery; its only interaction is being
+  the target of an armed raw Item.
+- **Sawmill** — The woodcutting Refinery: arm a raw-wood stack and tap it to mill
+  the batch into Refined wood.
+- **Refined Resource** — The Refined output Item (e.g. Refined Wood/Oak/Pine). A
+  more valuable trade good than the raw log; sellable and registered toward its own
+  Collection entries.
+- **Refine recipe** — Static, reusable content mapping a raw input Item + a
+  station tag to a refined output, with a per-tier base time, default batch, and
+  Skill XP per unit. Adding a refinery is new content, not system code.
+- **Refine job** — A player's single in-flight Refining run, advanced in world
+  ticks (no client timers), separate from the Crafting job. Consuming up to the
+  batch of raw input starts it; after its (Skill-modified) duration the refined
+  output is granted to the Bag with Skill XP. At most one per player.
+- **Refine stat** — A per-Skill Skill-Tree-resolved Refining modifier: **batch
+  size** (more raw consumed per run) and **speed** (shorter run, capped). Resolved
+  by `deriveRefineStats`; the Woodcutting tree drives the Sawmill.
+- **Interaction affordance** — The hover cue shown when an **Armed item** can act
+  on the hovered Entity — either a Refine recipe (raw wood → Sawmill) or an Item
+  interaction (bucket → water). One shared predicate (`canArmedItemInteract`)
+  lights a glow so the "this can interact" signal is consistent everywhere.
+
 ## Quests
 
 - **Quest** — A named unit of directed progress with one or more Objectives and

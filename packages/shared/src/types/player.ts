@@ -2,6 +2,7 @@ import type { SkillId, ToolId, ToolType, TreeId } from './ids';
 import type { QuestState } from './quest';
 import type { CollectionEntryProgress } from './collection';
 import type { CraftingJob } from './recipe';
+import type { RefineJob } from './refine';
 import { DEFAULT_CURSOR_SKIN_ID } from '../content/cursorSkins';
 
 /** A single skill's live progress: accumulated XP and the derived level. */
@@ -77,6 +78,12 @@ export interface Player {
   craftingUnlocked: boolean;
   /** The single in-flight craft, if any (advanced in `World.tick`). */
   craftingJob?: CraftingJob;
+  /**
+   * The single in-flight Refining run, if any (see CONTEXT.md: Refine job).
+   * Advanced in `World.tick`, separate from `craftingJob` so a player can craft
+   * and refine independently. At most one per player.
+   */
+  refineJob?: RefineJob;
   /** Live progress on accepted quests. */
   quests: QuestState[];
   /**

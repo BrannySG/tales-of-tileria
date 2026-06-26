@@ -3,6 +3,12 @@ import { generatePlaceholderSounds, type SoundName } from './synth';
 import meadowUrl from '@assets/Music/Music_Ambient_Meadow.ogg';
 import beforeCouncilUrl from '@assets/Music/Music_BeforeTheCouncil.ogg';
 import lightningUrl from '@assets/Music/SFX_LightningStrike.ogg';
+import treeSwingHitUrl from '@assets/SFX/SFX_TreeSwingHit.ogg';
+import lootDefaultUrl from '@assets/SFX/SFX_LootDefault.ogg';
+import lootSound01Url from '@assets/SFX/SFX_LootSound01.ogg';
+import lootSound02Url from '@assets/SFX/SFX_LootSound02.ogg';
+import lootSound03Url from '@assets/SFX/SFX_LootSound03.ogg';
+import lootSound04Url from '@assets/SFX/SFX_LootSound04.ogg';
 
 /** Background music tracks. */
 export type MusicTrack = 'ambient_meadow' | 'before_council';
@@ -23,6 +29,17 @@ const MUSIC_SOURCES: Partial<Record<MusicTrack, string>> = {
  */
 const SFX_SOURCES: Partial<Record<SoundName, string>> = {
   lightning: lightningUrl,
+  // Default entity hit — material-specific variants later.
+  hitTree: treeSwingHitUrl,
+  hitRock: treeSwingHitUrl,
+  // Generic pickup / acquire (tools, pickups, crafting, collections).
+  loot: lootDefaultUrl,
+  // Per-rarity world loot bursts (loot.rolled → playLootDropSound).
+  lootDropCommon: lootDefaultUrl,
+  lootDropUncommon: lootSound01Url,
+  lootDropRare: lootSound02Url,
+  lootDropEpic: lootSound03Url,
+  lootDropLegendary: lootSound04Url,
 };
 
 interface MusicOptions {

@@ -9,6 +9,59 @@ export const wood: ItemDefinition = {
   worldTextureId: 'item_wood',
 };
 
+/** Tier-2 raw wood, gathered from the Oak Tree. Refines into Refined Oak Wood. */
+export const oakWood: ItemDefinition = {
+  id: 'oak_wood',
+  displayName: 'Oak Wood',
+  rarity: 'common',
+  category: 'resource',
+  description: 'Dense, ruddy oak logs. Heavier and finer than common wood.',
+  worldTextureId: 'item_oak_wood',
+};
+
+/** Tier-3 raw wood, gathered from the Elder Pine. Refines into Refined Pine Wood. */
+export const pineWood: ItemDefinition = {
+  id: 'pine_wood',
+  displayName: 'Pine Wood',
+  rarity: 'common',
+  category: 'resource',
+  description: 'Resinous, fragrant pine logs from the elder stands.',
+  worldTextureId: 'item_pine_wood',
+};
+
+/**
+ * Refined wood — common Wood milled at the Sawmill (see CONTEXT.md: Refining).
+ * A more valuable trade good than the raw log it comes from.
+ */
+export const refinedWood: ItemDefinition = {
+  id: 'refined_wood',
+  displayName: 'Refined Wood',
+  rarity: 'uncommon',
+  category: 'resource',
+  description: 'Clean-cut planks milled from rough logs. Worth more to a trader.',
+  worldTextureId: 'item_refined_wood',
+};
+
+/** Refined oak wood — Oak Wood milled at the Sawmill. */
+export const refinedOakWood: ItemDefinition = {
+  id: 'refined_oak_wood',
+  displayName: 'Refined Oak Wood',
+  rarity: 'rare',
+  category: 'resource',
+  description: 'Smooth oak boards, dense and prized by discerning buyers.',
+  worldTextureId: 'item_refined_oak_wood',
+};
+
+/** Refined pine wood — Pine Wood milled at the Sawmill. */
+export const refinedPineWood: ItemDefinition = {
+  id: 'refined_pine_wood',
+  displayName: 'Refined Pine Wood',
+  rarity: 'epic',
+  category: 'resource',
+  description: 'Fragrant, planed pinewood with a warm sheen. A fine trade good.',
+  worldTextureId: 'item_refined_pine_wood',
+};
+
 export const stone: ItemDefinition = {
   id: 'stone',
   displayName: 'Stone',
@@ -234,6 +287,11 @@ export const miningMeteoricCore: ItemDefinition = {
 
 export const ITEM_DEFINITIONS: readonly ItemDefinition[] = [
   wood,
+  oakWood,
+  pineWood,
+  refinedWood,
+  refinedOakWood,
+  refinedPineWood,
   stone,
   gold,
   ironChunk,

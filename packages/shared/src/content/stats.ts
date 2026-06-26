@@ -1,7 +1,7 @@
 import type { CombatConfig } from '../types/cursor';
 import type { SkillId, TreeId } from '../types/ids';
 import type { Player } from '../types/player';
-import type { CursorStats, SkillStats } from '../types/skillTree';
+import type { CursorStats, RefineStats, SkillStats } from '../types/skillTree';
 import { CLICKER_TREE_ID } from '../types/ids';
 import { getSkillTree, listSkillTrees } from './registry';
 
@@ -13,6 +13,8 @@ export const MIN_HOVER_RATE = 0.1;
 export const BASE_AUTO_MOVE_SPEED = 200;
 /** Total Skill levels required per Clicker level (see CONTEXT.md: Clicker). */
 export const CLICKER_LEVELS_PER_TOTAL = 10;
+/** Cap on the Refining speed bonus so a run can never become instant. */
+export const MAX_REFINE_SPEED_PCT = 0.8;
 
 /**
  * Resolve the player's per-Skill Stat block (see CONTEXT.md: Stat, ADR-0022).
@@ -74,6 +76,37 @@ export function deriveStats(player: Player, skillId: SkillId, combat: CombatConf
   stats.hoverRate = Math.max(MIN_HOVER_RATE, stats.hoverRate);
   stats.critChance = Math.min(1, Math.max(0, stats.critChance));
   return stats;
+}
+
+/**
+ * Resolve a Skill's Refining stat block (see CONTEXT.md: Refine stat). Sums the
+ * `refineStat` nodes allocated in that Skill's tree: `batchBonus` (extra raw
+ * units per run) and `speedPct` (duration shortened, capped at
+ * {@link MAX_REFINE_SPEED_PCT}). Read by the sim `refine.start` handler and the
+ * client to size/preview a run; the per-recipe base batch/seconds live in
+ * refineRecipes.ts.
+ */
+export function deriveRefineStats(player: Player, skillId: SkillId): RefineStats {
+  let batchBonus = 0;
+  let speedPct = 0;
+
+  const tree = getSkillTree(skillId);
+  if (tree) {
+    const allocated = player.skillTrees?.[skillId]?.allocated ?? {};
+    for (const node of tree.nodes) {
+      if (node.effect.kind !== 'refineStat') continue;
+      const rank = node.id === tree.rootNodeId ? 1 : (allocated[node.id] ?? 0);
+      if (rank <= 0) continue;
+      const amount = node.effect.amount * rank;
+      if (node.effect.stat === 'batchSize') batchBonus += amount;
+      else if (node.effect.stat === 'speedPct') speedPct += amount;
+    }
+  }
+
+  return {
+    batchBonus: Math.max(0, Math.round(batchBonus)),
+    speedPct: Math.min(MAX_REFINE_SPEED_PCT, Math.max(0, speedPct)),
+  };
 }
 
 /**
@@ -192,6 +225,8 @@ export function sandboxSkillTrees(): Player['skillTrees'] {
       if (node.id === tree.rootNodeId) continue;
       if (node.effect.kind === 'tierUnlock' || node.effect.kind === 'idleSkill') {
         allocated[node.id] = 1;
+      } else if (node.effect.kind === 'refineStat') {
+        allocated[node.id] = Math.max(1, node.maxRank ?? 1);
       }
     }
     trees[tree.skillId] = { allocated };

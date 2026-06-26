@@ -11,7 +11,9 @@ import {
 } from 'pixi.js';
 import {
   bestUsableTool,
+  canArmedItemInteract,
   cursorSkinTextureId,
+  findRefineRecipeForEntity,
   getItemDefinition,
   getRecipeDefinition,
   getSkillTreeNode,
@@ -147,6 +149,10 @@ export type { Updatable };
 export class SceneRenderer {
   private app!: Application;
   private readonly views = new Map<string, EntityView>();
+  /** The entity currently under the pointer (for the armed-item affordance). */
+  private hoveredInstanceId?: string;
+  /** Active wood-chip emitter while a refine run is in flight, keyed by station. */
+  private refineFx?: { instanceId: string; remove: () => void };
   private readonly defs = new Map<string, EntityDefinition>();
   /**
    * Presentation-only camera: parents the world visual layers (background,
@@ -437,6 +443,16 @@ export class SceneRenderer {
     // A carried snapshot may arrive mid-craft: show the busy timer, not the prompt.
     const job = snapshot.player.craftingJob;
     if (job) this.prompts.showFurnaceTimer(job.remainingSeconds, job.totalSeconds);
+    // Likewise restore a mid-flight refine run's progress + chip FX.
+    const refineJob = snapshot.player.refineJob;
+    if (refineJob) {
+      this.prompts.showStationTimer(
+        refineJob.stationInstanceId,
+        refineJob.remainingSeconds,
+        refineJob.totalSeconds,
+      );
+      this.startRefineFx(refineJob.stationInstanceId);
+    }
 
     if (this.opts.showCursor !== false) {
       this.cursorView = new CursorView(
@@ -479,6 +495,8 @@ export class SceneRenderer {
       if (state.armedItemId === prev.armedItemId) return;
       const texId = state.armedItemId ? getItemDefinition(state.armedItemId)?.worldTextureId : undefined;
       this.cursorView?.setCarriedItem(texId);
+      // Arming/disarming changes whether the hovered entity can interact.
+      this.refreshArmedAffordance();
     });
 
     app.ticker.add((ticker) => {
@@ -774,12 +792,14 @@ export class SceneRenderer {
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
       this.setHoverPreview(instanceId);
+      this.setHovered(instanceId);
       if (!isPickup) this.opts.transport.send({ type: 'entity.hoverStart', instanceId });
     });
     target.on('pointerout', () => {
       this.cursorView?.setTargeting(false);
       this.previewHovering = false;
       this.previewIdleSince = performance.now();
+      this.clearHovered(instanceId);
       if (!isPickup) this.opts.transport.send({ type: 'entity.hoverEnd', instanceId });
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
@@ -812,10 +832,12 @@ export class SceneRenderer {
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
       view.setTargeted(true);
+      this.setHovered(instanceId);
     });
     target.on('pointerout', () => {
       this.cursorView?.setTargeting(false);
       view.setTargeted(false);
+      this.clearHovered(instanceId);
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
@@ -837,10 +859,12 @@ export class SceneRenderer {
     target.on('pointerover', () => {
       this.cursorView?.setTargeting(true);
       view.setTargeted(true);
+      this.setHovered(instanceId);
     });
     target.on('pointerout', () => {
       this.cursorView?.setTargeting(false);
       view.setTargeted(false);
+      this.clearHovered(instanceId);
     });
     target.on('pointertap', (e: FederatedPointerEvent) => {
       e.stopPropagation();
@@ -857,9 +881,45 @@ export class SceneRenderer {
   private tryUseArmedItemOn(instanceId: string): boolean {
     const armed = useHud.getState().armedItemId;
     if (!armed) return false;
-    this.opts.transport.send({ type: 'item.useOn', itemId: armed, targetInstanceId: instanceId });
+    const def = this.defs.get(instanceId);
+    // A Refinery + matching raw Item starts a Refining run; everything else falls
+    // back to the data-driven Item interaction (bucket -> water, etc.).
+    if (def && findRefineRecipeForEntity(armed, def)) {
+      this.opts.transport.send({ type: 'refine.start', itemId: armed, targetInstanceId: instanceId });
+    } else {
+      this.opts.transport.send({ type: 'item.useOn', itemId: armed, targetInstanceId: instanceId });
+    }
     useHud.getState().setArmedItem(undefined);
     return true;
+  }
+
+  /** Records the hovered entity and refreshes the armed-item affordance glow. */
+  private setHovered(instanceId: string): void {
+    this.hoveredInstanceId = instanceId;
+    this.refreshArmedAffordance();
+  }
+
+  /** Clears the hovered entity (if it matches) and drops its affordance glow. */
+  private clearHovered(instanceId: string): void {
+    if (this.hoveredInstanceId !== instanceId) return;
+    this.views.get(instanceId)?.setInteractHighlight(false);
+    this.hoveredInstanceId = undefined;
+  }
+
+  /**
+   * Lights the "this can interact" glow on the hovered entity when the armed Item
+   * has any interaction with it (refine recipe or Item interaction; see
+   * CONTEXT.md: Interaction affordance). Re-run on hover changes and whenever the
+   * armed Item changes.
+   */
+  private refreshArmedAffordance(): void {
+    const id = this.hoveredInstanceId;
+    if (!id) return;
+    const view = this.views.get(id);
+    const def = this.defs.get(id);
+    if (!view || !def) return;
+    const armed = useHud.getState().armedItemId;
+    view.setInteractHighlight(!!armed && canArmedItemInteract(armed, def));
   }
 
   /** Locks the current target (used by the HUD lock button / hotkey). */
@@ -1111,6 +1171,20 @@ export class SceneRenderer {
         this.prompts.hideFurnaceTimer();
         break;
       }
+      case 'refineJobStarted': {
+        this.prompts.showStationTimer(event.stationInstanceId, event.totalSeconds, event.totalSeconds);
+        this.startRefineFx(event.stationInstanceId);
+        this.opts.sound?.play('hitTree');
+        break;
+      }
+      case 'refineJobCompleted': {
+        this.prompts.hideStationTimer(event.stationInstanceId);
+        this.stopRefineFx();
+        // A satisfying finish: a chunky burst of chips + a loot chime.
+        this.refineChipBurst(event.stationInstanceId, 14, 280);
+        this.opts.sound?.play('loot');
+        break;
+      }
       case 'craftedItemPlacedAtShrine': {
         this.prompts.showOffering(event.instanceId, event.grantsToolId);
         this.npcReactions.react('offering_ready');
@@ -1352,8 +1426,7 @@ export class SceneRenderer {
 
     if (!deplete) {
       if (!suppressNumber) this.damageNumbers.spawn(x, y, amount, source, crit);
-      const isRock = def.art.textureId === 'rock';
-      this.opts.sound?.play(isRock ? 'hitRock' : 'hitTree', { pitchVariation: 0.12 });
+      this.opts.sound?.play('hitTree', { pitchVariation: 0.12 });
     }
   }
 
@@ -1471,6 +1544,37 @@ export class SceneRenderer {
   private particleBurstWorld(textureId: string, x: number, y: number, opts?: BurstOptions): void {
     const tex = this.opts.textures.get(textureId);
     if (tex) this.particles.burst(tex, x, y, opts);
+  }
+
+  /** A burst of wood chips from the middle of a station (see CONTEXT.md: Refining). */
+  private refineChipBurst(instanceId: string, count: number, speed: number): void {
+    const view = this.views.get(instanceId);
+    if (!view) return;
+    const x = view.container.x;
+    const y = view.container.y - view.visualHeight * 0.5;
+    this.particleBurstWorld('fx_wood_chip', x, y, { count, speed, scale: 0.45 });
+  }
+
+  /** Starts a steady drizzle of wood chips while a refine run is in flight. */
+  private startRefineFx(instanceId: string): void {
+    this.stopRefineFx();
+    let acc = 0;
+    const emitter: Updatable = {
+      update: (dt) => {
+        acc += dt;
+        if (acc >= 0.3) {
+          acc = 0;
+          this.refineChipBurst(instanceId, 4, 150);
+        }
+      },
+    };
+    this.refineFx = { instanceId, remove: this.addUpdatable(emitter) };
+  }
+
+  /** Stops the wood-chip emitter (refine run finished or scene torn down). */
+  private stopRefineFx(): void {
+    this.refineFx?.remove();
+    this.refineFx = undefined;
   }
 
   /** Animates cost resources flying to the forge + a work spark when a craft starts. */
@@ -1769,6 +1873,7 @@ export class SceneRenderer {
   destroy(): void {
     this.unsubscribe?.();
     this.hudUnsubscribe?.();
+    this.stopRefineFx();
     this.resizeObserver?.disconnect();
     this.app?.canvas?.removeEventListener('contextmenu', this.onContextMenu);
     if (this.camera) {

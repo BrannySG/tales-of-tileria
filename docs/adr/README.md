@@ -43,6 +43,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0026](0026-edge-traversal-with-arrival-anchors.md) | Edge-to-edge Level Travel via Arrival Anchors | Accepted — extends 0023 |
 | [0027](0027-sell-economy-via-vendor-trade-command.md) | Sell economy via a sim-authoritative Vendor trade command (Black Market) | Accepted — builds on 0006/0016, gives Gold its first sink/source |
 | [0028](0028-hover-preview-bar-replaces-modal-inspect.md) | Hover preview bar supersedes the modal Inspect popover | Accepted — presentation-only; reuses 0007-style projection boundary |
+| [0029](0029-generic-refining-system-and-tiered-raw-wood.md) | A generic, data-driven Refining system (Sawmill first) + tiered raw wood | Accepted — separate from 0010 crafting; extends 0018 affordance, 0022 tree hooks, 0027 economy |
 
 ## Supersession map
 
@@ -87,6 +88,14 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   projection boundary (the bar projects `buildInspectModel` + authoritative HP;
   removing it changes no sim state) and leaves `entity.hoverStart/End` and the
   lock mechanic untouched.
+- **0029** adds a new Refining loop alongside (not inside) **0010** crafting — its
+  own `refine.start` command + per-player `RefineJob`, direct-to-Bag output. It
+  reuses **0018**'s armed-Item pattern (one shared `canArmedItemInteract`
+  affordance for refine recipes AND item interactions), adds a `refineStat` hook to
+  **0022**'s Skill Trees, and tunes refined Sell values within **0027**'s economy
+  (sell-XP below the Collection rate). It also introduces a tiered raw-wood ladder
+  (`oak_wood`/`pine_wood`), retheming Oak/Elder-Pine loot + the Woodcutting
+  Collections.
 
 ## Adding an ADR
 
