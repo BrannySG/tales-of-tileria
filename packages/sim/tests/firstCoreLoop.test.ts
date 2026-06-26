@@ -129,6 +129,7 @@ describe('tier gating (see ADR-0022)', () => {
   it('fells the oak once Woodcutting Tier 2 is unlocked in the tree', () => {
     const player = createPlayer('local', 'Hero');
     player.ownedTools = ['axe_rusty'];
+    player.equippedBySlot = { axe: 'axe_rusty' };
     player.skills = emptySkills();
     // Tier-2 node (woodcutting_t2) requires Woodcutting 5 to allocate.
     player.skills.woodcutting = { xp: xpToReach(5), level: 5 };

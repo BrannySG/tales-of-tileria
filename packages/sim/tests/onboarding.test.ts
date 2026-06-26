@@ -71,21 +71,116 @@ describe('World — tool gating', () => {
 });
 
 describe('World — pickups', () => {
-  it('grants and equips the tool, removes the pickup, and reports it', () => {
+  it('grants the tool (without auto-equipping), removes the pickup, and reports it', () => {
     const world = new World(makeLevel(), { seed: 1, startingTools: [] });
     const events = world.applyCommand({ type: 'pickup.collect', instanceId: 'axe1' });
     expect(typesOf(events)).toContain('pickup.collected');
-    expect(typesOf(events)).toContain('tool.equipped');
+    // Auto-equip is gutted (see ADR-0030): acquiring a tool no longer equips it.
+    expect(typesOf(events)).not.toContain('tool.equipped');
     expect(world.getEntity('axe1')).toBeUndefined();
     expect(world.getPlayer().ownedTools).toContain('axe_rusty');
-    expect(world.getPlayer().equippedToolType).toBe('axe');
+    expect(world.getPlayer().equippedBySlot.axe).toBeUndefined();
   });
 
-  it('lets the player chop after collecting the axe', () => {
+  it('lets the player chop after collecting AND equipping the axe', () => {
     const world = new World(makeLevel(), { seed: 1, startingTools: [], combat: { activeDamage: 3 } });
     world.applyCommand({ type: 'pickup.collect', instanceId: 'axe1' });
+    // Owned but not equipped: chopping is blocked until the axe is equipped.
+    const blocked = world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
+    expect(blocked.some((e) => e.type === 'entity.blocked' && e.reason === 'notEquipped')).toBe(true);
+    world.applyCommand({ type: 'equipment.equip', slot: 'axe', equipmentId: 'axe_rusty' });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 't1' });
     expect(typesOf(events)).toContain('entity.damaged');
+  });
+});
+
+/** A rock (needs a pickaxe) for the Vendor Buy → equip → unlock flow. */
+function makeMineLevel(): LevelDefinition {
+  return {
+    id: 'mine',
+    displayName: 'Mine',
+    backgroundTextureId: 'bg',
+    width: 100,
+    height: 100,
+    entities: [{ instanceId: 'rock1', definitionId: 'small_rock', x: 10, y: 10, overrides: { maxHp: 6 } }],
+  };
+}
+
+/** The Axe-only starter (see ADR-0030): owns + equips the Rusty Axe, holds Gold. */
+function axeOnlyStarter(): ReturnType<typeof createPlayer> {
+  const player = createPlayer('local', 'Miner');
+  player.ownedTools = ['axe_rusty'];
+  player.equippedBySlot = { axe: 'axe_rusty' };
+  player.inventory = { gold: 100 };
+  return player;
+}
+
+describe('Equipment — Vendor Buy → equip → Mining unlock (ADR-0030)', () => {
+  it('blocks Mining as missingTool before the Pickaxe is bought', () => {
+    const world = new World(makeMineLevel(), { seed: 1, player: axeOnlyStarter(), combat: { activeDamage: 3 } });
+    const blocked = world.applyCommand({ type: 'entity.tap', instanceId: 'rock1' });
+    const block = blocked.find((e) => e.type === 'entity.blocked');
+    expect(block?.type === 'entity.blocked' && block.reason).toBe('missingTool');
+    expect(block?.type === 'entity.blocked' && block.requiredToolType).toBe('pickaxe');
+  });
+
+  it('buys the Pickaxe (debits Gold, grants it unequipped), then equipping unlocks Mining', () => {
+    const world = new World(makeMineLevel(), { seed: 1, player: axeOnlyStarter(), combat: { activeDamage: 3 } });
+
+    // Buy the starter Pickaxe from the Equipment stall's Buy stock.
+    const bought = world.applyCommand({
+      type: 'item.buy',
+      equipmentId: 'pickaxe_rusty',
+      vendorId: 'blackmarket_equipment',
+    });
+    expect(typesOf(bought)).toContain('shop.bought');
+    expect(typesOf(bought)).toContain('inventory.changed');
+    expect(world.getPlayer().inventory.gold).toBe(80); // 100 - 20
+    expect(world.getPlayer().ownedTools).toContain('pickaxe_rusty');
+    // Buying does NOT auto-equip (see ADR-0030).
+    expect(world.getPlayer().equippedBySlot.pickaxe).toBeUndefined();
+
+    // Owned but not equipped: still blocked, now as notEquipped.
+    const stillBlocked = world.applyCommand({ type: 'entity.tap', instanceId: 'rock1' });
+    expect(stillBlocked.some((e) => e.type === 'entity.blocked' && e.reason === 'notEquipped')).toBe(true);
+
+    // Equip it, then Mining works.
+    const equipped = world.applyCommand({
+      type: 'equipment.equip',
+      slot: 'pickaxe',
+      equipmentId: 'pickaxe_rusty',
+    });
+    expect(typesOf(equipped)).toContain('equipment.changed');
+    expect(world.getPlayer().equippedBySlot.pickaxe).toBe('pickaxe_rusty');
+    const mined = world.applyCommand({ type: 'entity.tap', instanceId: 'rock1' });
+    expect(typesOf(mined)).toContain('entity.damaged');
+  });
+
+  it('rejects a buy the player cannot afford and one already owned', () => {
+    const player = axeOnlyStarter();
+    player.inventory = { gold: 5 }; // can't afford the 20g Pickaxe
+    const world = new World(makeMineLevel(), { seed: 1, player });
+    expect(world.applyCommand({ type: 'item.buy', equipmentId: 'pickaxe_rusty', vendorId: 'blackmarket_equipment' })).toEqual([]);
+    expect(world.getPlayer().ownedTools).not.toContain('pickaxe_rusty');
+
+    // Already-owned axe is not re-buyable (and not stocked here anyway).
+    expect(world.applyCommand({ type: 'item.buy', equipmentId: 'axe_rusty', vendorId: 'blackmarket_equipment' })).toEqual([]);
+  });
+
+  it('unequip empties the slot and re-gates the Skill', () => {
+    const player = axeOnlyStarter();
+    player.ownedTools = ['axe_rusty', 'pickaxe_rusty'];
+    player.equippedBySlot = { axe: 'axe_rusty', pickaxe: 'pickaxe_rusty' };
+    const world = new World(makeMineLevel(), { seed: 1, player, combat: { activeDamage: 3 } });
+
+    expect(typesOf(world.applyCommand({ type: 'entity.tap', instanceId: 'rock1' }))).toContain('entity.damaged');
+
+    const unequipped = world.applyCommand({ type: 'equipment.unequip', slot: 'pickaxe' });
+    expect(typesOf(unequipped)).toContain('equipment.changed');
+    expect(world.getPlayer().equippedBySlot.pickaxe).toBeUndefined();
+
+    const blocked = world.applyCommand({ type: 'entity.tap', instanceId: 'rock1' });
+    expect(blocked.some((e) => e.type === 'entity.blocked' && e.reason === 'notEquipped')).toBe(true);
   });
 });
 

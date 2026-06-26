@@ -67,7 +67,9 @@ export type SynthSoundName =
   | 'skillAllocate'
   | 'skillComplete'
   | 'skillTier'
-  | 'skillRespec';
+  | 'skillRespec'
+  | 'sawmillLoop'
+  | 'refineDing';
 
 /** All one-shot names: the synthesised set plus file-backed SFX (see SoundSystem). */
 export type SoundName = SynthSoundName | 'lightning';
@@ -214,6 +216,31 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     }),
   );
 
+  // Sawmill loop: a chugging engine drone meant to play on repeat while milling.
+  // Every component completes a whole number of cycles in 0.4s so the loop seam
+  // is near-seamless: low body tones (90/180/270 Hz), a slow 7.5 Hz amplitude
+  // wobble, a 12.5 Hz mechanical "chug", and a touch of broadband grit.
+  const sawmillLoop = encodeWav(
+    make(0.4, (t) => {
+      const wobble = 0.7 + 0.3 * sine(t, 7.5);
+      const body = sine(t, 90) * 0.5 + sine(t, 180) * 0.25 + sine(t, 270) * 0.12;
+      const chug = Math.sign(sine(t, 12.5)) * 0.06;
+      const grit = (Math.random() * 2 - 1) * 0.04;
+      return (body * wobble + chug + grit) * 0.5;
+    }),
+  );
+
+  // Refine ding: a bright, satisfying "da-ding!" — two ascending notes (G5->D6)
+  // with an octave shimmer; the completion flourish for a finished refine run.
+  const refineDing = encodeWav(
+    make(0.4, (t) => {
+      const local = t < 0.1 ? t : t - 0.1;
+      const f = t < 0.1 ? 783.99 : 1174.66;
+      const attack = Math.min(1, local / 0.006);
+      return (sine(t, f) * 0.34 + sine(t, f * 2) * 0.1) * attack * decay(local, 9) * 0.7;
+    }),
+  );
+
   return {
     hitRock,
     hitTree,
@@ -231,5 +258,7 @@ export function generatePlaceholderSounds(): Record<SynthSoundName, string> {
     skillComplete,
     skillTier,
     skillRespec,
+    sawmillLoop,
+    refineDing,
   };
 }

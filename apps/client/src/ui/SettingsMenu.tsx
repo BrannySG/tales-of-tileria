@@ -66,6 +66,7 @@ export function SettingsMenu({
   onMusicVolumeChange,
   onSfxVolumeChange,
   onUiScaleChange,
+  onToggleScreenshotMode,
   onToggleSound,
   onForceWipe,
   onClose,
@@ -73,6 +74,7 @@ export function SettingsMenu({
   onMusicVolumeChange: (volume: number) => void;
   onSfxVolumeChange: (volume: number) => void;
   onUiScaleChange: (scale: number) => void;
+  onToggleScreenshotMode: (enabled: boolean) => void;
   onToggleSound: (enabled: boolean) => void;
   /** Wipe the saved progression (keeps name + cosmetics) and reload the game. */
   onForceWipe: () => void;
@@ -82,6 +84,8 @@ export function SettingsMenu({
   const musicVolume = useHud((s) => s.musicVolume);
   const sfxVolume = useHud((s) => s.sfxVolume);
   const uiScale = useHud((s) => s.uiScale);
+  const hudVisible = useHud((s) => s.hudVisible);
+  const screenshotMode = !hudVisible;
 
   return (
     <div className="settings-overlay" onClick={onClose}>
@@ -131,6 +135,18 @@ export function SettingsMenu({
           onChange={onUiScaleChange}
           onReset={() => onUiScaleChange(1)}
         />
+        <div className="settings-row">
+          <label>Screenshot Mode</label>
+          <button
+            className={`settings-toggle ${screenshotMode ? 'on' : 'off'}`}
+            role="switch"
+            aria-checked={screenshotMode}
+            onClick={() => onToggleScreenshotMode(!screenshotMode)}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+          <span className="settings-val">{screenshotMode ? 'On' : 'Off'}</span>
+        </div>
 
         <h4 className="settings-section">Save</h4>
 

@@ -122,6 +122,10 @@ export class OnboardingDirector {
       (e) => e.type === 'pickup.collected' && (axeId ? e.instanceId === axeId : true),
     );
     if (this.cancelled) return;
+    // Auto-equip is gutted (see ADR-0030), so the Director equips the just-found
+    // Axe via the public command — the upcoming chop beats gate on it being
+    // equipped, not merely owned.
+    this.session.transport.send({ type: 'equipment.equip', slot: 'axe', equipmentId: 'axe_rusty' });
     await this.sleep(450);
 
     // Camera pans back to the NPC for his reaction to the floating axe.
@@ -289,6 +293,13 @@ export class OnboardingDirector {
       if (!this.owns('pickaxe_rusty')) {
         await this.waitForEvent((e) => e.type === 'pickup.collected' && e.instanceId === pickaxeId);
       }
+      // Equip the found Pickaxe via the public command (auto-equip is gutted, see
+      // ADR-0030) so the Mining beats that follow are unlocked.
+      this.session.transport.send({
+        type: 'equipment.equip',
+        slot: 'pickaxe',
+        equipmentId: 'pickaxe_rusty',
+      });
     }
     if (this.cancelled) return;
     await this.sleep(450);

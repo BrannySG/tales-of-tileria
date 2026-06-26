@@ -19,6 +19,8 @@ export interface VendorDialogue {
   onSell: readonly string[];
   /** Special reaction lines for selling an Epic/Legendary Item. */
   onSellRare: readonly string[];
+  /** Reaction lines fired on a purchase (Buy vendors). */
+  onBuy?: readonly string[];
 }
 
 export interface VendorProfile {
@@ -28,6 +30,14 @@ export interface VendorProfile {
   skinId: string;
   /** Player-facing name shown atop the Vendor scene. */
   displayName: string;
+  /** Subtitle under the name (defaults to "Black Market"). */
+  subtitle?: string;
+  /**
+   * The Buy-stock table id this Vendor sells from (key into `VENDOR_STOCK`, see
+   * CONTEXT.md: Buy; ADR-0030). When set the Buy tab lists this stock and the
+   * scene opens on Buy; absent Vendors keep the "coming soon" Buy stub.
+   */
+  buyStockId?: string;
   dialogue: VendorDialogue;
 }
 
@@ -67,7 +77,48 @@ const BLACKMARKET_GENERAL: VendorProfile = {
   },
 };
 
-export const VENDOR_PROFILES: readonly VendorProfile[] = [BLACKMARKET_GENERAL];
+const BLACKMARKET_EQUIPMENT: VendorProfile = {
+  id: 'blackmarket_equipment',
+  skinId: 'blackmarket_equipment',
+  displayName: 'The Quartermaster',
+  subtitle: 'Black Market — Equipment',
+  buyStockId: 'blackmarket_equipment',
+  dialogue: {
+    greet: [
+      'Tools, divine one? You came to the right stall.',
+      'Ahh, in the market for a proper implement. Wise.',
+      'A god is only as sharp as the gear they wield. Browse.',
+      'Bare-handed miracles only get you so far. Let us fix that.',
+    ],
+    idle: [
+      'A Pickaxe opens the earth. The earth opens... opportunities.',
+      'Every tool I sell fell off a mortal forge. Quality, guaranteed-ish.',
+      'Equip what you buy, mind you. Owning is not wielding.',
+      'The Council frowns on shortcuts. I sell shortcuts.',
+      'Better steel, better yield. The simulation rewards the equipped.',
+    ],
+    onSell: [
+      'Mm. Into the pile it goes.',
+      'A fair trade. For me, certainly.',
+      'Sold. Now, can I interest you in an upgrade?',
+    ],
+    onSellRare: [
+      'Oho! I will take that off your hands, gladly.',
+      'A relic among the scrap. The watchers will notice.',
+    ],
+    onBuy: [
+      'Excellent choice. Now go forth and equip it.',
+      'Sold! Wield it well, divine one.',
+      'A fine implement. Do not leave it rotting in your bag.',
+      'Pleasure. The earth will not break itself.',
+    ],
+  },
+};
+
+export const VENDOR_PROFILES: readonly VendorProfile[] = [
+  BLACKMARKET_GENERAL,
+  BLACKMARKET_EQUIPMENT,
+];
 
 const profileBySkinId = new Map<string, VendorProfile>(
   VENDOR_PROFILES.map((p) => [p.skinId, p]),

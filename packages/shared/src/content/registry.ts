@@ -6,7 +6,7 @@ import type { QuestDefinition } from '../types/quest';
 import type { RecipeDefinition } from '../types/recipe';
 import type { RefineRecipe } from '../types/refine';
 import type { ToolDefinition } from '../types/tool';
-import type { ToolId, ToolType } from '../types/ids';
+import type { SkillId, ToolId, ToolType } from '../types/ids';
 import type { CollectionDefinition, CollectionEntryDefinition } from '../types/collection';
 import { ENTITY_DEFINITIONS } from './entities';
 import { ITEM_DEFINITIONS } from './items';
@@ -307,6 +307,56 @@ export function listAllTrees(): readonly SkillTreeDefinition[] {
 /** A single node within a tree, by tree id + node id (or undefined). */
 export function getSkillTreeNode(treeId: TreeId, nodeId: string): SkillTreeNode | undefined {
   return treeById.get(treeId)?.nodes.find((n) => n.id === nodeId);
+}
+
+/**
+ * Which Tool slot (toolType) gates and feeds a Skill's Stats (see ADR-0030).
+ * The equipped Tool in this slot satisfies the Skill's access requirement and
+ * contributes its Stats through `deriveStats`. Combat maps to the sword slot
+ * even though its tree is dormant today.
+ */
+export const TOOL_TYPE_BY_SKILL: Partial<Record<SkillId, ToolType>> = {
+  woodcutting: 'axe',
+  mining: 'pickaxe',
+  combat: 'sword',
+};
+
+/** Inverse of {@link TOOL_TYPE_BY_SKILL}: the Skill a Tool slot feeds. */
+export const SKILL_BY_TOOL_TYPE: Record<ToolType, SkillId> = {
+  axe: 'woodcutting',
+  pickaxe: 'mining',
+  sword: 'combat',
+};
+
+/** The highest-tier owned Tool id of a type, or undefined when none is owned. */
+export function bestOwnedToolId(
+  ownedToolIds: readonly ToolId[],
+  toolType: ToolType,
+): ToolId | undefined {
+  let best: ToolDefinition | undefined;
+  for (const id of ownedToolIds) {
+    const def = toolById.get(id);
+    if (!def || def.toolType !== toolType) continue;
+    if (!best || def.tier > best.tier) best = def;
+  }
+  return best?.id;
+}
+
+/**
+ * Equip the best owned Tool into each Tool slot (see ADR-0030). This is NOT the
+ * gameplay equip path — real players equip deliberately via `equipment.equip`.
+ * It's the shared building block for the DEV/seed paths (Zoo/editor sandbox),
+ * the legacy-snapshot migration heal in `clonePlayer`, and test fixtures.
+ */
+export function equipmentBySlotFromOwned(
+  ownedToolIds: readonly ToolId[],
+): Partial<Record<ToolType, ToolId>> {
+  const equipped: Partial<Record<ToolType, ToolId>> = {};
+  for (const toolType of ['axe', 'pickaxe', 'sword'] as ToolType[]) {
+    const id = bestOwnedToolId(ownedToolIds, toolType);
+    if (id) equipped[toolType] = id;
+  }
+  return equipped;
 }
 
 /**

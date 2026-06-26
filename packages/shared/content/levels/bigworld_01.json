@@ -495,37 +495,43 @@
         "instanceId": "boulder_mqpl5cyo_1",
         "definitionId": "boulder",
         "x": 4171,
-        "y": 2694
+        "y": 2694,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqpl5h5s_2",
         "definitionId": "small_rock",
         "x": 4345,
-        "y": 2561
+        "y": 2561,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqpl5leo_3",
         "definitionId": "small_rock",
         "x": 4436,
-        "y": 2644
+        "y": 2644,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqpl5pb0_4",
         "definitionId": "small_rock",
         "x": 3987,
-        "y": 2553
+        "y": 2553,
+        "overrides": {}
       },
       {
         "instanceId": "small_rock_mqpl5s4u_5",
         "definitionId": "small_rock",
         "x": 3887,
-        "y": 2678
+        "y": 2678,
+        "overrides": {}
       },
       {
         "instanceId": "bw_giant_stump_north",
         "definitionId": "giant_stump",
         "x": 2880,
-        "y": 300
+        "y": 300,
+        "overrides": {}
       },
       {
         "instanceId": "bw_signpost_north",
@@ -534,19 +540,17 @@
         "y": 250,
         "locked": true,
         "travelTargetLevelId": "deepwood_01",
-        "travelArrivalAnchor": "south"
+        "travelArrivalAnchor": "south",
+        "overrides": {}
       },
       {
-        "instanceId": "bw_sawmill_1",
+        "instanceId": "sawmill_mquzn2jx_1",
         "definitionId": "sawmill",
-        "x": 2040,
-        "y": 1560,
+        "x": 1154,
+        "y": 2198,
         "overrides": {}
       }
     ],
-    "arrivalAnchors": {
-      "north": { "x": 2880, "y": 620 }
-    },
     "multiplayer": {
       "maxPlayers": 6,
       "interactionDefault": "lastHit"

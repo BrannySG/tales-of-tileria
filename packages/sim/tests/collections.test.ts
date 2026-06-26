@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createPlayer,
+  equipmentBySlotFromOwned,
   getLootTable,
   xpToReach,
   type LevelDefinition,
@@ -314,7 +315,14 @@ function leveledPlayer(overrides: Partial<Player> = {}): Player {
   for (const id of Object.keys(base.skills) as (keyof typeof base.skills)[]) {
     base.skills[id] = { xp: xpToReach(50), level: 50 };
   }
-  return { ...base, ...overrides };
+  const merged = { ...base, ...overrides };
+  // Equip whatever Tools the fixture owns so Skill access isn't `notEquipped`
+  // (see ADR-0030). Rusty tools add no Stats, so derived-Stat assertions are
+  // unaffected; explicit `equippedBySlot` overrides win.
+  if (!overrides.equippedBySlot) {
+    merged.equippedBySlot = equipmentBySlotFromOwned(merged.ownedTools);
+  }
+  return merged;
 }
 
 describe('skill tree allocation', () => {

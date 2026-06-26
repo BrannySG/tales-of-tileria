@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(added a high-priority lightweight onboarding quest spine with a DECISION-FIRST gate model question; loot reel remains locked from mockup and introduces the cross-cutting **Item Card** visual language, specced in ux-housekeeping.md)*
+> Last reviewed: 2026-06-26 *(added vendor equipment progression + clarified onboarding gate: start with Axe only, buy Pickaxe to unlock Mining)*
 
 ---
 
@@ -19,6 +19,20 @@
 I want this to be my masterpiece. The game that represents everything I enjoy
 about games. Designed in a way that feels social, enjoyable and addicting — with
 a great grind of course.
+
+### Re-review sweep (2026-06-26)
+
+- Lightweight onboarding quest spine: **HIGH (unchanged)**
+- Loot drop carousel (loot reel): **HIGH (unchanged)**
+- Custom scrollbar: **LOW (unchanged)**
+- Shop unlock via hatch / breakable gate: **MEDIUM (unchanged)**
+- Vendor equipment progression: **HIGH (new)**
+- Stack limits + wood refinement: **DECISION FIRST -> MEDIUM (unchanged)**
+- Artifacts: **HIGH (unchanged, clarified layering with skill equipment)**
+- Timed rare spawns: **MEDIUM (HIGH once Artifacts ship, unchanged)**
+- Region travel via repaired portals: **MEDIUM (unchanged)**
+- Jim's Gym: **LOW (unchanged)**
+- Monetization survey: **LOW (unchanged)**
 
 ---
 
@@ -33,9 +47,12 @@ onboarding quest spine that introduces the core loop through small, readable
 
 ### Target first-session flow
 
-1. **Gather basics** from nearby entities (teaches tap/hover gather loop).
+1. **Gather basics (Woodcutting-first)** with the starter Axe (teaches tap/hover
+   gather loop with one clear early Skill lane).
 2. **Register/sell a small amount** (teaches progression/economy decision points).
-3. **Complete one key quest** that unlocks continuation into the next zone.
+3. **Buy a basic Pickaxe from a Vendor** as an explicit onboarding objective.
+4. **Unlock Mining** once the Pickaxe objective is completed.
+5. **Complete one key quest** that unlocks continuation into the next zone.
 
 The tone should be lightweight and actionable, not a long tutorial wall. The
 goal is momentum: always one obvious next step.
@@ -74,10 +91,14 @@ Cons / risks:
   the game "opens."
 - Split direction between this lightweight flow and the future full arc could
   create duplicated onboarding work if not explicitly scoped.
+- If Pickaxe pricing/economy pacing is off, Mining unlock can feel like a forced
+  grind wall instead of a satisfying progression beat.
 
 Notes:
 - **DECISION FIRST:** choose gate model (A obstacle break, B item requirement,
   C hybrid) before building quest content.
+- Start-state direction for this flow: player begins with **Axe only**; first
+  Pickaxe is intentionally acquired through Vendor + quest guidance.
 - This **reinforces** the existing "Shop unlock via hatch / breakable gate" idea:
   both rely on diegetic world progression beats and item-on-entity style framing.
 - This **upgrades** "onboarding is parked" from a distant backlog item to an
@@ -260,6 +281,85 @@ Notes:
 
 ---
 
+## Vendor equipment progression (skill equipment + buyable upgrades)
+
+> **Status: IN BUILD / SHIPPED (ADR-0030).** Built as the **unified Equipment**
+> model: Tools are now an Equipment *subtype*, equipping gates Skill access AND
+> grants Stats, auto-equip is gutted, and the Black Market Equipment stall has a
+> live `item.buy` path. Start is **Axe-only** (Pickaxe bought + equipped to unlock
+> Mining). The immediate follow-up is **Artifacts** (below) — the behavioural
+> chase layer that plugs into the same `deriveStats` Equipment source + slot model.
+> Deferred from this sprint: randomized stat rolls, `+XP yield` Stat, and
+> loot/craft acquisition of Tools.
+>
+> **Priority: HIGH (with DECISION FIRST gates)**
+> Impact: Fills a current progression gap: players start with Axe/Pickaxe but have
+> no meaningful equipment chase in the early loop.
+
+### Current gap
+
+Right now players effectively begin with both gathering lanes available. Shift to
+a clearer ramp: start with **Axe only**, then unlock Mining by buying the first
+Pickaxe through onboarding-guided Vendor interaction. This makes early progression
+legible and gives Vendor stock immediate gameplay purpose.
+
+### Proposed rules
+
+1. **Skill access requires ownership** of at least one matching equipment piece
+   (example: must own an Axe to chop trees).
+2. **Equipment upgrades grant simple, readable stats** in early game (small
+   values like +damage, +crit chance, +crit damage, +XP yield; avoid OP spikes).
+3. **Equipment must be equipped** to grant its stats (and possibly to satisfy the
+   skill-access requirement).
+4. **Acquisition broadens over time:** Vendor Buy stock first, then loot and
+   crafting paths later.
+5. **Longer-term chase:** stat randomization on dropped/crafted equipment for a
+   grind layer once baseline progression is stable.
+
+### Vendor role
+
+- Add buyable upgrade options to existing NPC Vendors as the first reliable source
+  of equipment progression.
+- Use the first **Pickaxe purchase** as the introductory "buy to unlock a Skill"
+  beat in onboarding/tutorial flow.
+- Keep early stock deliberately simple and tightly tiered so players learn the
+  system before special-effect items arrive.
+- Treat this as the bridge into later special-effect design (Artifacts/proc items),
+  not a replacement for that fantasy layer.
+
+**Review (2026-06-26)**
+
+Pros:
+- Closes an obvious early-game motivation gap by turning Gold into tangible power.
+- Gives Vendor Buy stock a concrete purpose beyond "coming soon."
+- Makes tool identity stronger per Skill (Woodcutting gear feels distinct from
+  Mining gear) and creates a clean runway for loot/craft progression later.
+- Supports both casual and grindy players: deterministic buy path now, randomized
+  chase path later.
+
+Cons / risks:
+- **DECISION FIRST:** resolve ownership-vs-equip semantics (is owning enough to do
+  a Skill, or must it be actively equipped?).
+- Risks overlap/confusion with Artifacts if the two layers are not clearly
+  separated in both naming and stat/effect policy.
+- Equipment-slot UX can sprawl quickly without a minimal first version per Skill.
+- Randomized stats can create balance churn and inventory clutter if introduced too
+  early.
+- Early Mining pacing now depends on Vendor availability + price tuning for the
+  starter Pickaxe (avoid "stuck before Mining" frustration).
+
+Notes:
+- This **upgrades** the old "no upgrade path after starter tools" pain point into a
+  top-priority loop fix.
+- This **reinforces** the Artifacts direction when scoped as: Equipment = baseline
+  stat progression; Artifacts = behavioural/special-effect layer.
+- Onboarding sequencing now explicitly includes: starter Axe -> buy first Pickaxe
+  -> Mining unlock.
+- Suggested sequencing: Vendor deterministic upgrades first -> equip model and slot
+  UX -> loot/craft variants -> randomized rolls.
+
+---
+
 ## Stack limits + wood refinement at the saw
 
 > **Priority: DECISION FIRST (stack cap), then MEDIUM (saw refinement)**
@@ -369,8 +469,9 @@ Open design questions:
 - Can multiple Skill-specific Artifacts equip at once, or one "signature" per Skill?
 - Sim authority: procs (Smite, AoE zap) must emit through commands/events, not
   client-only VFX.
-- Relationship to **Tools** (auto-equipped tier gates) — Tools stay access keys;
-  Artifacts are the power fantasy layer.
+- Relationship to **Skill equipment** (Vendor/craft/loot): baseline equipment owns
+  readable stat progression + skill access gating; Artifacts own higher-fantasy
+  behavioural effects and chase identity.
 
 **Review**
 
@@ -527,11 +628,12 @@ Notes:
 
 ---
 
-## Equippable Gear that grants Stats *(superseded — see Artifacts above)*
+## Equippable Gear that grants Stats *(superseded as a primary model)*
 
 > **Priority: SUPERSEDED**
-> The Gear framing is retired in favour of **Artifacts** (same `deriveStats` seam,
-> different thematic and effect model). Kept as a one-line pointer only.
+> Traditional broad "gear set" framing remains retired in favour of **Artifacts**.
+> For current progression direction, see **Vendor equipment progression** above
+> (skill equipment baseline) + **Artifacts** (behavioural chase layer).
 
 ## Items sell for XP — the economy question *(RESOLVED — shipped, ADR-0027)*
 
@@ -562,6 +664,23 @@ stock (once **Artifacts** ships), XP-boost consumables, or a hatch-gated interio
 trainer, not a mortal) whose voice stays in the sincere-bewilderment tone (never a
 winking gym joke). A new Level means Editor/art/dialogue/Beacon work — only worth it
 for a unique hook, not a duplicate sell screen.
+
+**Review (2026-06-26)**
+
+Pros:
+- Strong character hook that could give a future Vendor lane personality and voice.
+- Could host specialized Buy stock without duplicating Black Market sell flow.
+- Pairs naturally with hatch-gated unlock beats already proposed in this doc.
+
+Cons / risks:
+- High production footprint (new region art/content/dialogue) for non-core value.
+- Risks becoming redundant if it does not ship with a distinct system hook.
+- Timing conflict: easier wins exist in current loop before a new character Level.
+
+Notes:
+- Keep as LOW priority until Artifacts or another unique buyable system needs a
+  themed home.
+- Do not migrate selling away from Black Market; ADR-0027 settled that role.
 
 ---
 

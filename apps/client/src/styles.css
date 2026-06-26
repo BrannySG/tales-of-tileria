@@ -2016,6 +2016,22 @@ button.bag-slot:hover {
   margin: 0 0 12px;
 }
 
+.welcome-panel a,
+.live-reset-panel a {
+  color: #8fd9ff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.12s ease;
+}
+
+.welcome-panel a:hover,
+.welcome-panel a:focus-visible,
+.live-reset-panel a:hover,
+.live-reset-panel a:focus-visible {
+  color: #c2ecff;
+}
+
 .welcome-wipe-note {
   margin: 16px 0 4px;
   text-align: left;
@@ -4717,10 +4733,13 @@ button.bag-slot:hover {
 
 .idle-bar {
   position: absolute;
-  bottom: calc(env(safe-area-inset-bottom) + 18px * var(--hud-scale));
+  /* Sits above the bottom-center Bag toggle (~30px + 72px tall) so the two
+     never overlap; both share the same centered bottom anchor. */
+  bottom: calc(env(safe-area-inset-bottom) + 120px * var(--hud-scale));
   left: 50%;
   transform: translateX(-50%) scale(var(--hud-scale));
   transform-origin: bottom center;
+  z-index: 11;
   display: flex;
   align-items: center;
   gap: 12px;

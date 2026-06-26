@@ -5,8 +5,9 @@ import type { SkillId } from './ids';
  * Refining, Refine recipe). Refining is sim-authoritative and tick-based: a
  * `refine.start` at a Refinery (matched by `stationTag`) consumes up to `batch`
  * of `inputItemId` and begins a `RefineJob`; after the (skill-modified)
- * duration the output is granted directly to the Bag (no claim step, unlike
- * crafting). Generic by design so Stone refining can reuse it later.
+ * duration the run becomes claimable and the player taps the Refinery to claim
+ * the output into the Bag (`refine.claim`, like a crafting offering). Generic by
+ * design so Stone refining can reuse it later.
  */
 export interface RefineRecipe {
   id: string;
@@ -40,8 +41,13 @@ export interface RefineJob {
   remainingSeconds: number;
   /** Total duration, mirrored for client progress rendering. */
   totalSeconds: number;
-  /** The refined Item granted on completion. */
+  /** The refined Item granted on claim. */
   outputItemId: string;
   /** How many refined units this run will produce. */
   outputQuantity: number;
+  /**
+   * True once the timer has elapsed and the output is waiting to be claimed
+   * (the player taps the Refinery to collect it). The job lingers until claimed.
+   */
+  ready: boolean;
 }

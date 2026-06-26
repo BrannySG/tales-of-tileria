@@ -2,7 +2,10 @@ import {
   CLICKER_TREE_ID,
   DEFAULT_COMBAT_CONFIG,
   DEFAULT_CURSOR_SKIN_ID,
+  SKILL_BY_TOOL_TYPE,
   addressEvent,
+  bestOwnedToolId,
+  equipmentBySlotFromOwned,
   createPlayer,
   deriveCursorStats,
   deriveRefineStats,
@@ -11,10 +14,12 @@ import {
   emptySkills,
   findItemInteraction,
   findRefineRecipeForEntity,
+  findVendorStockEntry,
   getCollectionEntry,
   getCursorSkin,
   getLootTable,
   getSkillTree,
+  getToolDefinition,
   listAchievements,
   listQuestDefinitions,
   listSkillTrees,
@@ -41,6 +46,7 @@ import {
   type CursorStats,
   type DamageSource,
   type DivinePowerId,
+  type EquipmentSlot,
   type EntityInstance,
   type InteractionRule,
   type ItemCost,
@@ -211,13 +217,20 @@ export class World {
         // entities, without distorting base damage/crit (see ADR-0022).
         player.skillTrees = sandboxSkillTrees();
       }
+      // Equip the best owned Tool per slot for this DEV/seed path (sandbox + the
+      // `startingTools` dev/test seed) so seeded tools are usable without manual
+      // equipping (see ADR-0030). Real players never take this branch — they
+      // carry their own `equippedBySlot` via the `player` snapshot below.
+      player.equippedBySlot = autoEquipAllSlots(player.ownedTools);
     }
 
     if (opts.passiveDamage !== undefined) player.passiveDamage = opts.passiveDamage;
-    player.equippedToolType =
-      opts.equippedTool ??
-      player.equippedToolType ??
-      defaultEquippedToolType(player, (s) => player.skills[s]?.level ?? 1);
+    // `equippedTool` option (dev/scene convenience): equip the best owned Tool of
+    // that type into its slot. Players equip via the `equipment.equip` command.
+    if (opts.equippedTool) {
+      const id = bestOwnedToolId(player.ownedTools, opts.equippedTool);
+      if (id) player.equippedBySlot[opts.equippedTool] = id;
+    }
 
     this.defaultPlayerId = player.id;
     const session = this.makeSession(player);
@@ -234,8 +247,6 @@ export class World {
    */
   addPlayer(snapshot: Player): AddressedEvent[] {
     const player = clonePlayer(snapshot);
-    player.equippedToolType =
-      player.equippedToolType ?? defaultEquippedToolType(player, (s) => player.skills[s]?.level ?? 1);
     const session = this.makeSession(player);
     this.sessions.set(player.id, session);
     this.reconcileActiveQuests(session);
@@ -252,7 +263,7 @@ export class World {
           name: player.displayName,
           x: session.cursor.x,
           y: session.cursor.y,
-          equippedToolType: player.equippedToolType,
+          equippedToolType: primaryEquippedToolType(player),
           cursorSkinId: player.cursorSkinId,
         },
         scope: 'world',
@@ -292,7 +303,7 @@ export class World {
       x: s.cursor.x,
       y: s.cursor.y,
       mode: s.cursor.mode,
-      equippedToolType: s.player.equippedToolType,
+      equippedToolType: primaryEquippedToolType(s.player),
       cursorSkinId: s.player.cursorSkinId,
     }));
   }
@@ -300,7 +311,7 @@ export class World {
   private makeSession(player: Player): PlayerSession {
     return {
       player,
-      cursor: { x: 0, y: 0, mode: 'free', equippedToolType: player.equippedToolType },
+      cursor: { x: 0, y: 0, mode: 'free', equippedToolType: primaryEquippedToolType(player) },
       passiveAccumulator: 0,
       smiteCount: 0,
       personalHp: new Map(),
@@ -510,8 +521,20 @@ export class World {
       case 'item.useOn':
         return this.useItemOn(cmd.itemId, cmd.targetInstanceId, session);
 
-      case 'tool.equip':
-        return this.equipTool(cmd.toolType, session);
+      case 'tool.equip': {
+        // Back-compat (see ADR-0030): equip the best owned Tool of the type.
+        const id = bestOwnedToolId(session.player.ownedTools, cmd.toolType);
+        return id ? this.equipEquipment(cmd.toolType, id, session) : [];
+      }
+
+      case 'equipment.equip':
+        return this.equipEquipment(cmd.slot, cmd.equipmentId, session);
+
+      case 'equipment.unequip':
+        return this.unequipEquipment(cmd.slot, session);
+
+      case 'item.buy':
+        return this.buyEquipment(cmd.equipmentId, cmd.vendorId, session);
 
       case 'quest.grant':
         return this.grantQuest(cmd.questId, session);
@@ -536,6 +559,8 @@ export class World {
 
       case 'refine.start':
         return this.startRefine(cmd.itemId, cmd.targetInstanceId, session);
+      case 'refine.claim':
+        return this.claimRefine(cmd.targetInstanceId, session);
 
       case 'player.setName':
         return this.setName(cmd.name, session);
@@ -664,13 +689,17 @@ export class World {
     if (!req) return undefined;
     const player = session.player;
 
-    // Tool-type ownership (soft requirement): you still need *an* axe/pickaxe.
+    // Equipment gate (see ADR-0030): you need a Tool of the required type, AND it
+    // must be EQUIPPED in its slot. Owning but not equipping is `notEquipped`.
     if (req.toolType) {
       const ownsType = player.ownedTools.some(
         (id) => requireToolDefinition(id).toolType === req.toolType,
       );
       if (!ownsType) {
         return { reason: 'missingTool', requiredToolType: req.toolType };
+      }
+      if (!player.equippedBySlot?.[req.toolType]) {
+        return { reason: 'notEquipped', requiredToolType: req.toolType };
       }
     }
 
@@ -740,9 +769,10 @@ export class World {
         y: entity.y,
       },
     ];
-    session.player.equippedToolType = toolDef.toolType;
-    session.cursor.equippedToolType = toolDef.toolType;
-    events.push({ type: 'tool.equipped', toolType: toolDef.toolType });
+    // No auto-equip (see ADR-0030): acquiring a Tool adds it to the owned set;
+    // the player equips it deliberately via `equipment.equip`. Clean up the slot
+    // if the acquisition supplanted a tool that happened to be equipped.
+    events.push(...this.normalizeEquipped(session));
     events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }, session));
     return events;
   }
@@ -790,13 +820,115 @@ export class World {
     return events;
   }
 
-  private equipTool(toolType: ToolType, session: PlayerSession): SimEvent[] {
-    const owns = session.player.ownedTools.some((id) => requireToolDefinition(id).toolType === toolType);
-    if (!owns) return [];
-    if (session.player.equippedToolType === toolType) return [];
-    session.player.equippedToolType = toolType;
-    session.cursor.equippedToolType = toolType;
-    return [{ type: 'tool.equipped', toolType }];
+  /**
+   * Equip a piece of Equipment into a slot (see CONTEXT.md: Equipped equipment;
+   * ADR-0030). Validates ownership + slot fit, then sets the slot and emits the
+   * change + the affected Skill's recomputed Stats. A no-op if not owned, the
+   * piece doesn't fit the slot, or it is already equipped there.
+   */
+  private equipEquipment(
+    slot: EquipmentSlot,
+    equipmentId: ToolId,
+    session: PlayerSession,
+  ): SimEvent[] {
+    const player = session.player;
+    if (!player.ownedTools.includes(equipmentId)) return [];
+    const def = getToolDefinition(equipmentId);
+    if (!def || def.toolType !== slot) return [];
+    if (player.equippedBySlot[slot] === equipmentId) return [];
+    player.equippedBySlot = { ...player.equippedBySlot, [slot]: equipmentId };
+    session.cursor.equippedToolType = primaryEquippedToolType(player);
+    return this.equipChangeEvents(slot, session);
+  }
+
+  /** Empty an Equipment slot (see CONTEXT.md: Equipped equipment). No-op if empty. */
+  private unequipEquipment(slot: EquipmentSlot, session: PlayerSession): SimEvent[] {
+    const player = session.player;
+    if (!player.equippedBySlot[slot]) return [];
+    const next = { ...player.equippedBySlot };
+    delete next[slot];
+    player.equippedBySlot = next;
+    session.cursor.equippedToolType = primaryEquippedToolType(player);
+    return this.equipChangeEvents(slot, session);
+  }
+
+  /**
+   * Emits the `equipment.changed` projection plus the recomputed Stats for the
+   * Skill the changed slot feeds (Equipment is a `deriveStats` source, ADR-0030).
+   */
+  private equipChangeEvents(slot: EquipmentSlot, session: PlayerSession): SimEvent[] {
+    const events: SimEvent[] = [
+      { type: 'equipment.changed', equippedBySlot: { ...session.player.equippedBySlot } },
+    ];
+    const skillId = SKILL_BY_TOOL_TYPE[slot];
+    if (skillId && getSkillTree(skillId)) {
+      events.push({
+        type: 'player.statsChanged',
+        skillId,
+        stats: deriveStats(session.player, skillId, this.combat),
+      });
+    }
+    return events;
+  }
+
+  /**
+   * Drops any equipped slot whose Tool the player no longer owns (e.g. a bought
+   * upgrade supplanted it). Returns the change events (empty if nothing changed).
+   */
+  private normalizeEquipped(session: PlayerSession): SimEvent[] {
+    const player = session.player;
+    const changedSlots: EquipmentSlot[] = [];
+    for (const slot of Object.keys(player.equippedBySlot) as EquipmentSlot[]) {
+      const id = player.equippedBySlot[slot];
+      if (id && !player.ownedTools.includes(id)) {
+        delete player.equippedBySlot[slot];
+        changedSlots.push(slot);
+      }
+    }
+    if (changedSlots.length === 0) return [];
+    session.cursor.equippedToolType = primaryEquippedToolType(player);
+    const events: SimEvent[] = [
+      { type: 'equipment.changed', equippedBySlot: { ...player.equippedBySlot } },
+    ];
+    for (const slot of changedSlots) {
+      const skillId = SKILL_BY_TOOL_TYPE[slot];
+      if (skillId && getSkillTree(skillId)) {
+        events.push({
+          type: 'player.statsChanged',
+          skillId,
+          stats: deriveStats(player, skillId, this.combat),
+        });
+      }
+    }
+    return events;
+  }
+
+  /**
+   * Buy a piece of Equipment from a Vendor's Buy stock for Gold (see CONTEXT.md:
+   * Buy; ADR-0030). Validates the stock line, affordability, and that the player
+   * doesn't already own it; debits Gold and grants the Equipment (NOT equipped).
+   */
+  private buyEquipment(
+    equipmentId: ToolId,
+    vendorId: string,
+    session: PlayerSession,
+  ): SimEvent[] {
+    const entry = findVendorStockEntry(vendorId, equipmentId);
+    if (!entry) return [];
+    if (!getToolDefinition(equipmentId)) return [];
+    const player = session.player;
+    if (player.ownedTools.includes(equipmentId)) return [];
+    const inv = player.inventory;
+    if ((inv.gold ?? 0) < entry.goldCost) return [];
+
+    inv.gold = (inv.gold ?? 0) - entry.goldCost;
+    player.ownedTools.push(equipmentId);
+    const events: SimEvent[] = [
+      { type: 'inventory.changed', inventory: { ...inv } },
+      { type: 'shop.bought', equipmentId, goldSpent: entry.goldCost },
+    ];
+    events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId: equipmentId }, session));
+    return events;
   }
 
   private spawnEntity(cmd: Extract<SimCommand, { type: 'entity.spawn' }>): SimEvent[] {
@@ -1004,6 +1136,9 @@ export class World {
         y: shrine.y,
       },
     ];
+    // No auto-equip (see ADR-0030); just clean up a slot if the claim supplanted
+    // an equipped tool.
+    events.push(...this.normalizeEquipped(session));
     events.push(...this.advanceQuests({ kind: 'toolAcquired', toolId }, session));
     return events;
   }
@@ -1025,8 +1160,9 @@ export class World {
    * Start a Refining run at a Refinery Entity: matches the armed raw `itemId` to
    * a Refine recipe by the target's station tag, consumes up to the
    * Skill-Tree-modified batch of raw input, and begins a `RefineJob`. Silent
-   * no-op when there's no match, a job is already running, or the player has no
-   * input. The output is granted on completion in `tickRefining`.
+   * no-op when there's no match, a job is already running (including one waiting
+   * to be claimed), or the player has no input. The run becomes claimable in
+   * `tickRefining` and the output is granted on `claimRefine`.
    */
   private startRefine(itemId: string, targetInstanceId: string, session: PlayerSession): SimEvent[] {
     if (session.player.refineJob) return [];
@@ -1052,6 +1188,7 @@ export class World {
       totalSeconds,
       outputItemId: recipe.outputItemId,
       outputQuantity: qty,
+      ready: false,
     };
     return [
       { type: 'inventory.changed', inventory: { ...inv } },
@@ -1068,26 +1205,49 @@ export class World {
 
   private tickRefining(dt: number, session: PlayerSession, events: SimEvent[]): void {
     const job = session.player.refineJob;
-    if (!job) return;
+    if (!job || job.ready) return;
     job.remainingSeconds -= dt;
     if (job.remainingSeconds > 0) return;
+
+    // Timer elapsed: the run is now claimable. The job lingers (the output is
+    // granted on `refine.claim`, like a crafting offering); nothing enters the
+    // Bag yet, and XP is awarded at claim time.
+    job.remainingSeconds = 0;
+    job.ready = true;
+    const recipe = requireRefineRecipe(job.recipeId);
+    events.push({
+      type: 'refineJobReady',
+      recipeId: recipe.id,
+      stationInstanceId: job.stationInstanceId,
+      outputItemId: job.outputItemId,
+      outputQuantity: job.outputQuantity,
+    });
+  }
+
+  /**
+   * Claim a finished Refining run: grants the refined output into the Bag and
+   * awards the run's Skill XP. Silent no-op unless the player has a `ready`
+   * RefineJob at `targetInstanceId`.
+   */
+  private claimRefine(targetInstanceId: string, session: PlayerSession): SimEvent[] {
+    const job = session.player.refineJob;
+    if (!job || !job.ready || job.stationInstanceId !== targetInstanceId) return [];
 
     const recipe = requireRefineRecipe(job.recipeId);
     session.player.refineJob = undefined;
 
-    // Grant the refined output directly to the Bag (no claim step, unlike crafting).
     const inv = session.player.inventory;
     inv[job.outputItemId] = (inv[job.outputItemId] ?? 0) + job.outputQuantity;
-    events.push(
+    const events: SimEvent[] = [
       {
-        type: 'refineJobCompleted',
+        type: 'refineJobClaimed',
         recipeId: recipe.id,
-        stationInstanceId: job.stationInstanceId,
+        stationInstanceId: targetInstanceId,
         outputItemId: job.outputItemId,
         outputQuantity: job.outputQuantity,
       },
       { type: 'inventory.changed', inventory: { ...inv } },
-    );
+    ];
     const xp = recipe.xpPerUnit * job.outputQuantity;
     if (xp > 0) events.push(...this.awardSkillXp({ [recipe.skillId]: xp }, session));
     events.push(
@@ -1096,6 +1256,7 @@ export class World {
         session,
       ),
     );
+    return events;
   }
 
   // --- Divine name ---
@@ -1931,29 +2092,30 @@ function scaleXpRewards(
   return out;
 }
 
-/** First owned tool's type, or undefined if the player owns none. */
-function firstOwnedToolType(player: Player): ToolType | undefined {
-  const first = player.ownedTools[0];
-  return first ? requireToolDefinition(first).toolType : undefined;
+/** The Tool slots, in the order the cursor ring prefers for its default icon. */
+const TOOL_SLOTS: ToolType[] = ['axe', 'pickaxe', 'sword'];
+
+/**
+ * Equip the best owned Tool into each Tool slot (see ADR-0030). Used ONLY for
+ * sandbox seeding (Zoo/editor), the `equippedTool` dev option, and the
+ * legacy-snapshot migration heal — real play equips deliberately via
+ * `equipment.equip`. Delegates to the shared content helper so the "equip best
+ * owned" rule lives in one place.
+ */
+function autoEquipAllSlots(ownedTools: readonly ToolId[]): Partial<Record<EquipmentSlot, ToolId>> {
+  return equipmentBySlotFromOwned(ownedTools);
 }
 
 /**
- * The type to seed `equippedToolType` with: the type of the best tool the player
- * can actually wield now (so the cursor never defaults to an unequippable
- * upgrade), falling back to the first owned tool's type when none are wieldable.
+ * The tool type the cursor ring shows by default (presentation only): the first
+ * occupied Tool slot. The local client overrides this contextually per hovered
+ * Entity; this is the fallback + what remotes render (see ADR-0030).
  */
-function defaultEquippedToolType(
-  player: Player,
-  skillLevel: (skillId: SkillId) => number,
-): ToolType | undefined {
-  let best: { tier: number; type: ToolType } | undefined;
-  for (const id of player.ownedTools) {
-    const def = requireToolDefinition(id);
-    const wield = def.wieldRequirement;
-    if (wield && skillLevel(wield.skillId) < wield.level) continue;
-    if (!best || def.tier > best.tier) best = { tier: def.tier, type: def.toolType };
+function primaryEquippedToolType(player: Player): ToolType | undefined {
+  for (const slot of TOOL_SLOTS) {
+    if (player.equippedBySlot?.[slot]) return slot;
   }
-  return best?.type ?? firstOwnedToolType(player);
+  return undefined;
 }
 
 /** Deep-clones a Player so the World owns its own mutable state. */
@@ -2010,6 +2172,14 @@ function clonePlayer(player: Player): Player {
     ...rest,
     passiveDamage: player.passiveDamage ?? 0,
     ownedTools: [...player.ownedTools],
+    // Migration (ADR-0030): snapshots from before the Equipment model have NO
+    // `equippedBySlot` field at all (`undefined`). Heal those by equipping the
+    // best owned Tool per slot so existing players don't suddenly find every
+    // Skill gated as `notEquipped`. A *defined-but-empty* `{}` is a valid
+    // "nothing equipped" state (e.g. a fresh player) and must be preserved.
+    equippedBySlot: player.equippedBySlot
+      ? { ...player.equippedBySlot }
+      : autoEquipAllSlots(player.ownedTools),
     inventory: { ...player.inventory },
     skills,
     craftingJob: player.craftingJob ? { ...player.craftingJob } : undefined,

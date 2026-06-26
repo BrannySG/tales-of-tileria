@@ -67,6 +67,8 @@ export class EntityView {
   private readonly speechAnchorY: number;
   private speech?: SpeechBubble;
   private shake = 0;
+  /** Sustained jitter while a station is actively working (e.g. a Sawmill milling). */
+  private activeShake = 0;
   private squash = 0;
   private targeted = false;
   /** Soft pulsing glow shown when an armed Item can act on this entity. */
@@ -217,6 +219,19 @@ export class EntityView {
     if (!on) this.flash.alpha = 0;
   }
 
+  /**
+   * Sets a sustained jitter amplitude (px) for a station that's actively working
+   * (e.g. a Sawmill mid-run). Pass 0 to settle the sprite back to rest. Purely
+   * presentational.
+   */
+  setActiveShake(amount: number): void {
+    this.activeShake = Math.max(0, amount);
+    if (this.activeShake === 0) {
+      this.art.x = 0;
+      this.art.y = 0;
+    }
+  }
+
   /** Reserved for a future in-world locked indicator; cursor shows lock state today. */
   setLocked(_locked: boolean): void {}
 
@@ -285,7 +300,10 @@ export class EntityView {
       this.flash.tint = 0xfff0b0;
       this.flash.alpha = 0.22 + Math.sin(this.interactGlowT * 6) * 0.14;
     }
-    this.art.x = this.shake > 0 ? (Math.random() * 2 - 1) * this.shake : 0;
+    // The transient hit shake and the sustained active shake compound.
+    const sh = Math.max(this.shake, this.activeShake);
+    this.art.x = sh > 0 ? (Math.random() * 2 - 1) * sh : 0;
+    if (this.activeShake > 0) this.art.y = (Math.random() * 2 - 1) * this.activeShake * 0.5;
     const sx = this.baseScale * (1 + this.squash);
     const sy = this.baseScale * (1 - this.squash);
     // Buildables are inert (no hit squash); their scale is driven by build/idle tweens.

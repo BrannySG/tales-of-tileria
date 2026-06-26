@@ -57,6 +57,8 @@ export class WorldPromptManager {
     string,
     { prompt: WorldPrompt; removePrompt: () => void; removeTick: () => void }
   >();
+  /** Tappable "claim refined output" prompts over a Refinery, keyed by instance id. */
+  private readonly refineClaims = new Map<string, { prompt: WorldPrompt; remove: () => void }>();
 
   constructor(private readonly deps: WorldPromptDeps) {}
 
@@ -247,6 +249,41 @@ export class WorldPromptManager {
     this.stationTimers.delete(instanceId);
   }
 
+  // ---- Refinery claim prompt (tap to collect a finished refine run) ----
+
+  /**
+   * Floats a tappable claim prompt over a Refinery once its run is ready: the
+   * refined Item's icon + "×N", with a green ready stroke. Tapping sends
+   * `refine.claim`; the sim's claim event clears it (see `hideRefineClaim`).
+   */
+  showRefineClaim(instanceId: string, itemId: string, quantity: number): void {
+    if (!this.deps.interactive) return;
+    if (this.refineClaims.has(instanceId)) return;
+    const view = this.deps.getView(instanceId);
+    if (!view) return;
+
+    const prompt = new WorldPrompt({
+      onTap: () => this.deps.send({ type: 'refine.claim', targetInstanceId: instanceId }),
+    });
+    const iconTex = this.deps.textures.get(`item_${itemId}`);
+    if (iconTex) prompt.setIcon(iconTex);
+    prompt.setLabel(`×${quantity}`);
+    prompt.setBaseY(view.headAnchorY - CRAFT_PROMPT_FURNACE_OFFSET);
+    prompt.container.zIndex = 60;
+    view.container.addChild(prompt.container);
+    prompt.appear();
+    prompt.setReady(true);
+    this.refineClaims.set(instanceId, { prompt, remove: this.deps.addUpdatable(prompt) });
+  }
+
+  hideRefineClaim(instanceId: string): void {
+    const entry = this.refineClaims.get(instanceId);
+    if (!entry) return;
+    entry.remove();
+    entry.prompt.destroy();
+    this.refineClaims.delete(instanceId);
+  }
+
   // ---- Shrine / offering glow ----
 
   hasOffering(instanceId: string): boolean {
@@ -371,6 +408,7 @@ export class WorldPromptManager {
     for (const id of [...this.buildPrompts.keys()]) this.removeBuildPrompt(id);
     for (const id of [...this.offeringGlows.keys()]) this.hideOffering(id);
     for (const id of [...this.stationTimers.keys()]) this.hideStationTimer(id);
+    for (const id of [...this.refineClaims.keys()]) this.hideRefineClaim(id);
     this.teardownFurnaceTimer();
     this.removeCraftPrompt();
   }

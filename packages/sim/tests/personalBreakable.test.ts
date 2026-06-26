@@ -34,7 +34,7 @@ function stumpField(): LevelDefinition {
 function chopper(id: string): Player {
   const p = createPlayer(id, id.toUpperCase());
   p.ownedTools = ['axe_rusty'];
-  p.equippedToolType = 'axe';
+  p.equippedBySlot = { axe: 'axe_rusty' };
   p.skills.woodcutting = { xp: xpToReach(25), level: 25 };
   p.skillTrees = sandboxSkillTrees();
   return p;
@@ -109,7 +109,7 @@ describe('personal breakable — per-player permanence (ADR-0025)', () => {
   it('gates on Tier/skill: an unqualified player is blocked and deals no damage', () => {
     const novice = createPlayer('n1', 'Novice');
     novice.ownedTools = ['axe_rusty'];
-    novice.equippedToolType = 'axe';
+    novice.equippedBySlot = { axe: 'axe_rusty' };
     const world = new World(stumpField(), { seed: 1, player: novice, combat: { activeDamage: 10 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'stump' }, 'n1');
     expect(events.some((e) => e.type === 'entity.blocked')).toBe(true);

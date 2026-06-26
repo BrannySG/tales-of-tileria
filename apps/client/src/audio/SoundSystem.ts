@@ -58,6 +58,8 @@ export class SoundSystem {
   private readonly sounds = new Map<SoundName, Howl>();
   /** Authored per-sound base volume, scaled by `sfxVolume` at play time. */
   private readonly sfxBaseVolume = new Map<SoundName, number>();
+  /** Active looping SFX (e.g. the sawmill motor), keyed by name -> Howl play id. */
+  private readonly loopIds = new Map<SoundName, number>();
   private enabled = true;
   private music?: Howl;
   private musicTrack?: MusicTrack;
@@ -67,7 +69,8 @@ export class SoundSystem {
   constructor() {
     const sources = generatePlaceholderSounds();
     for (const [name, uri] of Object.entries(sources) as [SoundName, string][]) {
-      const base = name === 'hitRock' ? 0.5 : 0.4;
+      // The sawmill motor sits under the chips as a steady drone — keep it low.
+      const base = name === 'hitRock' ? 0.5 : name === 'sawmillLoop' ? 0.25 : 0.4;
       this.sfxBaseVolume.set(name, base);
       this.sounds.set(name, new Howl({ src: [uri], format: ['wav'], volume: base }));
     }
@@ -86,6 +89,29 @@ export class SoundSystem {
     if (variation > 0) howl.rate(1 - variation + Math.random() * variation * 2);
     howl.volume((this.sfxBaseVolume.get(name) ?? 1) * this.sfxVolume);
     howl.play();
+  }
+
+  /**
+   * Starts (or keeps) a looping one-shot — e.g. the sawmill motor while a refine
+   * run is in flight. Idempotent: a second call while already looping is a no-op.
+   * Pair every `startLoop` with a `stopLoop`.
+   */
+  startLoop(name: SoundName): void {
+    if (!this.enabled) return;
+    if (this.loopIds.has(name)) return;
+    const howl = this.sounds.get(name);
+    if (!howl) return;
+    howl.loop(true);
+    howl.volume((this.sfxBaseVolume.get(name) ?? 1) * this.sfxVolume);
+    this.loopIds.set(name, howl.play());
+  }
+
+  /** Stops a looping one-shot started with `startLoop`. Safe to call when idle. */
+  stopLoop(name: SoundName): void {
+    const id = this.loopIds.get(name);
+    if (id === undefined) return;
+    this.loopIds.delete(name);
+    this.sounds.get(name)?.stop(id);
   }
 
   /**

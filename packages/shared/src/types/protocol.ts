@@ -1,6 +1,7 @@
 import type { AwardedItem } from './loot';
 import type { EntityInstance, EntityOverrides } from './entity';
 import type { CursorMode, CursorState } from './cursor';
+import type { EquipmentSlot } from './equipment';
 import type { SkillId, ToolId, ToolType, TreeId } from './ids';
 import type { Player } from './player';
 import type { QuestState } from './quest';
@@ -35,7 +36,36 @@ export type SimCommand =
       itemId: string;
       targetInstanceId: string;
     }
+  /** @deprecated Equip via `equipment.equip`; kept for back-compat (see ADR-0030). */
   | { type: 'tool.equip'; toolType: ToolType }
+  | {
+      /**
+       * Equip a piece of Equipment into a slot (see CONTEXT.md: Equipped
+       * equipment; ADR-0030). For a Tool the slot is its `toolType`. Equipping
+       * grants the piece's Stats and (for Tools) satisfies its Skill's access
+       * requirement. A no-op unless the player owns `equipmentId` and it fits
+       * `slot`. Replaces the legacy auto-equip — equipping is always explicit.
+       */
+      type: 'equipment.equip';
+      slot: EquipmentSlot;
+      equipmentId: ToolId;
+    }
+  | {
+      /** Empty an Equipment slot (see CONTEXT.md: Equipped equipment). A no-op if already empty. */
+      type: 'equipment.unequip';
+      slot: EquipmentSlot;
+    }
+  | {
+      /**
+       * Buy a piece of Equipment from a Vendor's Buy stock for Gold (see
+       * CONTEXT.md: Buy; ADR-0030). `vendorId` selects the stock table. A no-op
+       * if the Vendor doesn't stock it, the player can't afford it, or already
+       * owns it. Does NOT auto-equip — the player equips it deliberately.
+       */
+      type: 'item.buy';
+      equipmentId: ToolId;
+      vendorId: string;
+    }
   | { type: 'quest.grant'; questId: string }
   | { type: 'quest.claim'; questId: string }
   | { type: 'entity.build'; instanceId: string }
@@ -61,6 +91,15 @@ export type SimCommand =
        */
       type: 'refine.start';
       itemId: string;
+      targetInstanceId: string;
+    }
+  | {
+      /**
+       * Claim a finished Refining run at its Refinery (see CONTEXT.md: Refining).
+       * Grants the refined output into the Bag and awards Skill XP. A no-op unless
+       * the player has a `ready` RefineJob at `targetInstanceId`.
+       */
+      type: 'refine.claim';
       targetInstanceId: string;
     }
   | { type: 'player.setName'; name: string }
@@ -148,14 +187,15 @@ export type DamageSource = 'active' | 'passive';
 
 /**
  * Why an interaction was rejected. `missingTool` = owns no tool of the required
- * type (tools gate by TYPE only now, see ADR-0022); `tierLocked` = the entity's
- * Tier is not yet unlocked in the matching Skill tree; `skillLevel` = the
- * entity's own skill-level requirement is unmet. `toolTierTooLow` /
- * `toolWieldLevel` are retained for back-compat but no longer emitted (tool tier
- * and wield level stopped gating in ADR-0022).
+ * type; `notEquipped` = owns one but has not equipped it in its slot (equipping
+ * gates access now, see ADR-0030); `tierLocked` = the entity's Tier is not yet
+ * unlocked in the matching Skill tree; `skillLevel` = the entity's own
+ * skill-level requirement is unmet. `toolTierTooLow` / `toolWieldLevel` are
+ * retained for back-compat but no longer emitted (see ADR-0022).
  */
 export type BlockReason =
   | 'missingTool'
+  | 'notEquipped'
   | 'tierLocked'
   | 'skillLevel'
   | 'toolTierTooLow'
@@ -278,7 +318,17 @@ export type SimEvent =
       y: number;
       message?: string;
     }
+  /** @deprecated Equip changes now ride `equipment.changed` (see ADR-0030). */
   | { type: 'tool.equipped'; toolType: ToolType }
+  | {
+      /**
+       * The player's equipped Equipment changed (see CONTEXT.md: Equipped
+       * equipment; ADR-0030). Carries the full slot→equipmentId map. The
+       * affected Skill's Stats ride a companion `player.statsChanged`.
+       */
+      type: 'equipment.changed';
+      equippedBySlot: Partial<Record<EquipmentSlot, ToolId>>;
+    }
   | { type: 'quest.updated'; quest: QuestState }
   | { type: 'target.changed'; instanceId: string | undefined; locked: boolean }
   | {
@@ -302,11 +352,23 @@ export type SimEvent =
     }
   | {
       /**
-       * A Refining run completed: the refined output was granted directly to the
-       * Bag (the grant rides a companion `inventory.changed`; XP rides
-       * `skill.xpGained`). Presentation hook for the finish flourish.
+       * A Refining run's timer elapsed and its output is now claimable at the
+       * Refinery (the job lingers until the player taps to claim). Presentation
+       * hook for the "ready" flourish + tap-to-claim prompt.
        */
-      type: 'refineJobCompleted';
+      type: 'refineJobReady';
+      recipeId: string;
+      stationInstanceId: string;
+      outputItemId: string;
+      outputQuantity: number;
+    }
+  | {
+      /**
+       * A Refining run was claimed: the refined output was granted to the Bag (the
+       * grant rides a companion `inventory.changed`; XP rides `skill.xpGained`).
+       * Presentation hook for the finish flourish.
+       */
+      type: 'refineJobClaimed';
       recipeId: string;
       stationInstanceId: string;
       outputItemId: string;
@@ -433,6 +495,17 @@ export type SimEvent =
       xpGained?: number;
       skillId?: SkillId;
     }
+  | {
+      /**
+       * A piece of Equipment was bought from a Vendor (see CONTEXT.md: Buy;
+       * ADR-0030). Private feedback hook for the Vendor scene; the Gold debit +
+       * grant ride a companion `inventory.changed` (and the player still equips
+       * it manually).
+       */
+      type: 'shop.bought';
+      equipmentId: ToolId;
+      goldSpent: number;
+    }
   // --- Multiplayer presence (see ADR-0016) ---
   | {
       /** Another player entered the Level instance (or is already present on join). */
@@ -493,6 +566,7 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   'pickup.collectedItem': 'player',
   'item.used': 'player',
   'tool.equipped': 'player',
+  'equipment.changed': 'player',
   'quest.updated': 'player',
   'target.changed': 'player',
   'skill.xpGained': 'player',
@@ -500,7 +574,8 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   craftingJobStarted: 'player',
   craftingJobCompleted: 'player',
   refineJobStarted: 'player',
-  refineJobCompleted: 'player',
+  refineJobReady: 'player',
+  refineJobClaimed: 'player',
   craftedItemPlacedAtShrine: 'player',
   craftedItemClaimed: 'player',
   'player.nameChanged': 'player',
@@ -522,8 +597,9 @@ export const EVENT_SCOPE: Record<SimEvent['type'], EventScope> = {
   // Cosmetics: unlocks are private; an equip must be seen by everyone.
   'cosmetic.unlocked': 'player',
   'cosmetic.equipped': 'world',
-  // Trade: a sale is one player's private feedback (state rides inventory/skill).
+  // Trade: a sale/purchase is one player's private feedback (state rides inventory/skill).
   'shop.sold': 'player',
+  'shop.bought': 'player',
   // Presence: shared world state every player in the instance must see.
   'presence.joined': 'world',
   'presence.left': 'world',

@@ -3,13 +3,16 @@ import {
   RARITIES,
   cursorSkinTextureId,
   getItemDefinition,
+  getToolDefinition,
   resolveSellValue,
   sellSkillFor,
   sellValueFor,
+  vendorStock,
   type ItemDefinition,
   type Rarity,
   type SellMode,
   type SimTransport,
+  type ToolId,
 } from '@tot/shared';
 import { ASSET_URL } from '../assets/manifest';
 import { useHud } from '../state/store';
@@ -64,7 +67,10 @@ export function VendorScene({
   onClose: () => void;
 }) {
   const inventory = useHud((s) => s.inventory);
-  const [tab, setTab] = useState<'sell' | 'buy'>('sell');
+  const ownedToolIds = useHud((s) => s.ownedToolIds);
+  const equippedBySlot = useHud((s) => s.equippedBySlot);
+  // Buy vendors (an Equipment stall) open on the Buy tab; sell-only vendors on Sell.
+  const [tab, setTab] = useState<'sell' | 'buy'>(profile.buyStockId ? 'buy' : 'sell');
   const [mode, setMode] = useState<SellMode>('gold');
   const [line, setLine] = useState<string>(() => pickLine(profile.dialogue.greet));
   const [confirm, setConfirm] = useState<{ itemId: string; quantity: number } | null>(null);
@@ -84,18 +90,21 @@ export function VendorScene({
     lineTimer.current = window.setTimeout(() => setLine(''), LINE_HOLD_MS);
   };
 
-  // Project sales: drive reaction lines + the running tally from the
-  // authoritative `shop.sold` event (presentation, never mutates state).
+  // Project trades: drive reaction lines + the running tally from the
+  // authoritative `shop.sold`/`shop.bought` events (presentation, never mutates).
   useEffect(() => {
     const unsub = transport.subscribe((event) => {
-      if (event.type !== 'shop.sold') return;
-      setTally((t) => ({
-        gold: t.gold + (event.goldGained ?? 0),
-        xp: t.xp + (event.xpGained ?? 0),
-      }));
-      const def = getItemDefinition(event.itemId);
-      const rare = def ? CONFIRM_RARITIES.has(def.rarity) : false;
-      speak(pickLine(rare ? profile.dialogue.onSellRare : profile.dialogue.onSell));
+      if (event.type === 'shop.sold') {
+        setTally((t) => ({
+          gold: t.gold + (event.goldGained ?? 0),
+          xp: t.xp + (event.xpGained ?? 0),
+        }));
+        const def = getItemDefinition(event.itemId);
+        const rare = def ? CONFIRM_RARITIES.has(def.rarity) : false;
+        speak(pickLine(rare ? profile.dialogue.onSellRare : profile.dialogue.onSell));
+      } else if (event.type === 'shop.bought') {
+        speak(pickLine(profile.dialogue.onBuy ?? profile.dialogue.onSell));
+      }
     });
     return unsub;
     // `profile` is stable for the scene's lifetime, so [transport] is enough.
@@ -135,6 +144,14 @@ export function VendorScene({
     transport.send({ type: 'item.sell', itemId, quantity, mode });
   };
 
+  const buy = (equipmentId: ToolId) => {
+    if (!profile.buyStockId) return;
+    transport.send({ type: 'item.buy', equipmentId, vendorId: profile.buyStockId });
+  };
+
+  // The Buy stock for this Vendor (empty for sell-only vendors).
+  const stock = profile.buyStockId ? vendorStock(profile.buyStockId) : [];
+
   const requestSell = (def: ItemDefinition, quantity: number) => {
     if (quantity <= 0) return;
     if (CONFIRM_RARITIES.has(def.rarity)) {
@@ -173,7 +190,7 @@ export function VendorScene({
             )}
           </div>
           <div className="vendor-name">{profile.displayName}</div>
-          <div className="vendor-subtitle">Black Market</div>
+          <div className="vendor-subtitle">{profile.subtitle ?? 'Black Market'}</div>
         </div>
 
         {/* Right: the trade panel */}
@@ -284,7 +301,7 @@ export function VendorScene({
                 </button>
               </div>
             </div>
-          ) : (
+          ) : stock.length === 0 ? (
             <div className="vendor-buy">
               <div className="vendor-buy-soon">
                 <span className="vendor-buy-soon-title">Wares coming soon</span>
@@ -292,6 +309,48 @@ export function VendorScene({
                   &ldquo;Equipment? I&rsquo;m still... acquiring stock. Sell to me for now, and
                   come back when the shelves are full.&rdquo;
                 </p>
+              </div>
+            </div>
+          ) : (
+            <div className="vendor-sell">
+              <div className="vendor-list">
+                {stock.map(({ equipmentId, goldCost }) => {
+                  const def = getToolDefinition(equipmentId);
+                  if (!def) return null;
+                  const owned = ownedToolIds.includes(equipmentId);
+                  const equipped = equippedBySlot[def.toolType] === equipmentId;
+                  const tooPoor = gold < goldCost;
+                  const status = equipped ? 'Equipped' : owned ? 'Owned' : null;
+                  return (
+                    <div className={`vendor-row ${owned ? 'disabled' : ''}`} key={equipmentId}>
+                      <div className="vendor-row-icon">
+                        {ASSET_URL[def.iconTextureId] && (
+                          <img src={ASSET_URL[def.iconTextureId]} alt={def.displayName} />
+                        )}
+                      </div>
+                      <div className="vendor-row-info">
+                        <span className="vendor-row-name">{def.displayName}</span>
+                        <span className="vendor-row-value">
+                          {status ?? `${goldCost.toLocaleString()} Gold`}
+                        </span>
+                      </div>
+                      <div className="vendor-row-actions">
+                        <button
+                          className="vendor-btn primary"
+                          disabled={owned || tooPoor}
+                          onClick={() => buy(equipmentId)}
+                        >
+                          {owned ? 'Owned' : tooPoor ? 'Too pricey' : 'Buy'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="vendor-footer">
+                <div className="vendor-tally">
+                  Buy gear, then equip it from your Bag to gain its power.
+                </div>
               </div>
             </div>
           )}

@@ -50,6 +50,7 @@ export function App() {
   const [mode, setMode] = useState<Mode>(readMode);
   const [showLiveResetNotice, setShowLiveResetNotice] = useState(false);
   const cursorSkinId = useHud((s) => s.cursorSkinId);
+  const hudVisible = useHud((s) => s.hudVisible);
   const [appCursor, setAppCursor] = useState(`url(${cursorUrl}) 2 2, auto`);
   // A glowing variant of the equipped skin, shown on hover of interactable HUD
   // controls (the DOM half of the glow-only affordance; see ux-housekeeping.md).
@@ -148,9 +149,11 @@ export function App() {
       {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}
       {/* Always-present build badge; lives at the app shell so it survives every
           mode and is never clipped by the letterboxed world frame. */}
-      <span className="version-badge" aria-hidden>
-        {VERSION_LABEL}
-      </span>
+      {hudVisible && (
+        <span className="version-badge" aria-hidden>
+          {VERSION_LABEL}
+        </span>
+      )}
       {showLiveResetNotice && <LiveResetNotice onClose={() => setShowLiveResetNotice(false)} />}
     </div>
   );

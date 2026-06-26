@@ -1,9 +1,9 @@
 import type { CombatConfig } from '../types/cursor';
 import type { SkillId, TreeId } from '../types/ids';
 import type { Player } from '../types/player';
-import type { CursorStats, RefineStats, SkillStats } from '../types/skillTree';
+import type { CursorStats, RefineStats, SkillStats, StatKey } from '../types/skillTree';
 import { CLICKER_TREE_ID } from '../types/ids';
-import { getSkillTree, listSkillTrees } from './registry';
+import { getSkillTree, getToolDefinition, listSkillTrees, TOOL_TYPE_BY_SKILL } from './registry';
 
 /** Base crit damage multiplier when no Crit Damage nodes are allocated. */
 export const BASE_CRIT_DAMAGE = 1.5;
@@ -20,8 +20,10 @@ export const MAX_REFINE_SPEED_PCT = 0.8;
  * Resolve the player's per-Skill Stat block (see CONTEXT.md: Stat, ADR-0022).
  * This is the single choke point where Stats are summed: a base (the Level's
  * `combat` config + the player's `passiveDamage` floor) plus every allocated
- * Skill Tree node for `skillId` (the root is always counted). A future
- * account-wide Gear source adds here too — nothing else should compute Stats.
+ * Skill Tree node for `skillId` (the root is always counted), plus the flat
+ * Stats of the Tool equipped in this Skill's slot (see CONTEXT.md: Equipment;
+ * ADR-0030). A future Artifacts source adds at this same choke point — nothing
+ * else should compute Stats.
  *
  * Sim-authoritative: the World calls this for gameplay and ships the result in
  * the snapshot / `player.statsChanged`; the client only renders it.
@@ -73,9 +75,41 @@ export function deriveStats(player: Player, skillId: SkillId, combat: CombatConf
     }
   }
 
+  // Equipment source (see CONTEXT.md: Equipment; ADR-0030): the Tool equipped in
+  // this Skill's slot contributes its flat Stats. Artifacts will add here too.
+  const toolType = TOOL_TYPE_BY_SKILL[skillId];
+  const equippedId = toolType ? player.equippedBySlot?.[toolType] : undefined;
+  if (equippedId) {
+    const equipped = getToolDefinition(equippedId);
+    if (equipped?.stats) applyStatBonuses(stats, equipped.stats);
+  }
+
   stats.hoverRate = Math.max(MIN_HOVER_RATE, stats.hoverRate);
   stats.critChance = Math.min(1, Math.max(0, stats.critChance));
   return stats;
+}
+
+/** Adds a flat per-Stat bonus block onto a resolved {@link SkillStats} in place. */
+function applyStatBonuses(stats: SkillStats, bonuses: Partial<Record<StatKey, number>>): void {
+  for (const [key, amount] of Object.entries(bonuses) as [StatKey, number][]) {
+    switch (key) {
+      case 'tapDamage':
+        stats.tapDamage += amount;
+        break;
+      case 'hoverDamage':
+        stats.hoverDamage += amount;
+        break;
+      case 'hoverRate':
+        stats.hoverRate += amount;
+        break;
+      case 'critChance':
+        stats.critChance += amount;
+        break;
+      case 'critDamage':
+        stats.critDamage += amount;
+        break;
+    }
+  }
 }
 
 /**

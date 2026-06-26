@@ -22,14 +22,16 @@ function typesOf(events: SimEvent[]): string[] {
 
 describe('World — active damage & respawn', () => {
   it('applies active damage on tap', () => {
-    const world = new World(makeLevel(), { seed: 1, combat: { activeDamage: 3 } });
+    // Equip a Rusty Pickaxe (tier-1, no Stat bonus) so the tap deals exactly the
+    // configured active damage without an Equipment contribution (see ADR-0030).
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['pickaxe_rusty'], combat: { activeDamage: 3 } });
     const events = world.applyCommand({ type: 'entity.tap', instanceId: 'r1' });
     expect(typesOf(events)).toEqual(['entity.damaged']);
     expect(world.getEntity('r1')?.hp).toBe(3);
   });
 
   it('depletes, schedules respawn, ignores taps while down, then respawns', () => {
-    const world = new World(makeLevel(), { seed: 1, combat: { activeDamage: 3 } });
+    const world = new World(makeLevel(), { seed: 1, startingTools: ['pickaxe_rusty'], combat: { activeDamage: 3 } });
     world.applyCommand({ type: 'entity.tap', instanceId: 'r1' }); // hp 3
     const depleteEvents = world.applyCommand({ type: 'entity.tap', instanceId: 'r1' }); // hp 0
     expect(typesOf(depleteEvents)).toContain('entity.depleted');

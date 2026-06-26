@@ -33,6 +33,7 @@ function arcLevel(): LevelDefinition {
 function divinePlayer(): Player {
   const player = createPlayer('local', 'Smitey');
   player.ownedTools = ['axe_rusty'];
+  player.equippedBySlot = { axe: 'axe_rusty' };
   player.divinePowers.smite.unlocked = true;
   return player;
 }

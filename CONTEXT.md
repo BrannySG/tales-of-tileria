@@ -250,11 +250,21 @@ language in the design docs, this file wins and the docs should be reconciled.
   floor, each glowing in its Rarity color. Purely presentational — the loot is
   already awarded to the Inventory the instant the entity is depleted.
 - **Shop** — A Vendor's trade surface: the player opens it by tapping a wired
-  Vendor (see Vendor) and trades there. The first Shop is the Black Market General
-  vendor's, presented as a dedicated full-screen Vendor scene (the Vendor's
-  Cursor-skin portrait bobs and speaks on the left; trade tabs on the right). The
-  Shop has a **Sell** tab (live) and a **Buy** tab (deferred — see ADR-0027). The
-  scene is presentation; the trade itself is a sim command.
+  Vendor (see Vendor) and trades there. Presented as a dedicated full-screen
+  Vendor scene (the Vendor's Cursor-skin portrait bobs and speaks on the left;
+  trade tabs on the right). The Shop has a **Sell** tab and a **Buy** tab; which
+  tabs a Vendor offers is its role — the Black Market General vendor is the Sell
+  hub, the Black Market **Equipment** stall is the first Buy Vendor (see ADR-0030).
+  The scene is presentation; the trade itself is a sim command.
+- **Buy** — Purchasing a piece of Equipment from a Vendor's **Buy stock** for Gold,
+  sim-authoritative via the `item.buy` command (see ADR-0030). Validated against
+  the stock line, affordability, and non-ownership; debits Gold and grants the
+  Equipment to the owned set (it is **not** auto-equipped — the player equips it
+  from the Bag). The starter Pickaxe is the first Buy (the Mining-unlock purchase);
+  higher tiers are deterministic upgrades.
+- **Buy stock** — The per-Vendor table of purchasable Equipment (`vendorStock`):
+  Vendor id → `[{ equipmentId, goldCost }]`. Authored content; the sim validates
+  against it and the client Buy tab renders the same table.
 - **Sell** — Trading owned Items to a Vendor for either Gold or Skill XP (the
   **Sell mode**), sim-authoritative via the `item.sell` command (see ADR-0027). A
   no-op when the player owns too few, or when XP is requested for a Gold-only
@@ -304,39 +314,52 @@ language in the design docs, this file wins and the docs should be reconciled.
   structured verdict to accept or retry, and can scaffold the new Item/Entity
   wiring. Not shipped to players.
 
-## Tools & Gating
+## Equipment & Gating
 
-- **Tool** — A held item that unlocks interactions (Axe, Pickaxe, Sword). Tools
-  are not Resources: they are owned, gate which entities a player may damage, and
-  come in tiers. Each tool the player holds is an instance of a Tool definition.
-- **Tool definition** — The static, reusable content describing one tool (id,
-  Tool type, Tool tier, display name, icon, optional Wield requirement). Tools are
-  *identified*: the player owns a set of tool ids, e.g. `axe_rusty`, `axe_stone`.
-  Tiers progress Rusty (found, tier 1) → Stone (crafted, tier 2) for both the Axe
-  (Woodcutting) and Pickaxe (Mining) lines.
-- **Tool type** — The category a tool belongs to (axe, pickaxe, sword), used by
-  a Tool requirement to say *what kind* of tool an entity needs.
-- **Tool tier** — A numeric rank on a Tool definition (higher = more capable).
-  Tool tier **no longer gates** harvesting (see ADR-0022): tiers/crafting remain
-  in content for flavour and the future **Artifacts** sprint (the relic-equipment
-  direction that supersedes the old "Gear" framing — see `creative/design-ideas.md`
-  and the Update on ADR-0022), but access is decided by the Skill Tree's Tier
-  unlocks, not by which tool tier you hold.
+- **Equipment** — The umbrella for anything the player can *wear* into a slot to
+  gain its effect (see ADR-0030). Equipment is owned, then deliberately **equipped**;
+  equipping gates Skill access AND contributes Stats. `Tool` is the first
+  Equipment subtype; `Artifact` is the next.
+- **Equipment subtype** — A kind of Equipment. **Tool** (Axe, Pickaxe, Sword) is
+  shipped; **Artifact** (relics with procs/effects) is designed-for and lands in a
+  follow-up sprint, plugging into the same slot + Stat model.
+- **Equipment definition** — The static base content for a piece of Equipment
+  (id, optional `stats` mapping Stat keys → flat amounts). A Tool definition
+  *extends* this with its Tool type, Tool tier, display name, and icon.
+- **Equipment slot** — A named place a piece of Equipment occupies. Each Tool type
+  is its own slot (`axe`, `pickaxe`, `sword`); Artifacts add new slots later. A
+  slot holds at most one piece of Equipment.
+- **Equipped equipment** — The authoritative record of what the player wears,
+  `Player.equippedBySlot: slot → equipmentId`. Equipping is a deliberate player
+  action (`equipment.equip` / `equipment.unequip`), **not** auto-derived (auto-equip
+  was gutted by ADR-0030).
+- **Tool** — An Equipment subtype that unlocks gathering interactions (Axe,
+  Pickaxe, Sword). Tools are owned (a set of tool ids, e.g. `axe_rusty`,
+  `axe_stone`), and must be **equipped** in their slot to grant access + Stats.
+- **Tool type** — The category a tool belongs to (axe, pickaxe, sword); it is also
+  the tool's Equipment slot, and what a Tool requirement names.
+- **Tool tier** — A numeric rank on a Tool definition (higher = better). Tier is a
+  **Stat-quality indicator**, not a gate (see ADR-0022/0030): higher tiers grant
+  bigger `stats` (the tier-1 Rusty tools grant *access only*, no Stat bonus —
+  the baseline upgrades read against; Stone/Iron add the bumps). Access is decided
+  by the Skill Tree's Tier unlocks, not by which tool tier you hold.
 - **Wield requirement** — A legacy Skill-level gate on a Tool definition. **No
-  longer enforced** (see ADR-0022); tools gate by *type ownership* only. The field
-  stays in content for now but does not block use.
-- **Owned tool** — A tool the player has acquired (a tool id in their set). The
-  set of owned tools is authoritative state.
-- **Equipped tool** — The tool whose icon the cursor ring shows. Presentation-
-  derived, not a gating input: the world auto-selects an owned tool of the type an
-  interaction needs, so the player never manually equips.
+  longer enforced** (see ADR-0022); the field stays in content but does not block.
+- **Owned tool** — A tool the player has acquired (a tool id in their set).
+  Authoritative state. Owning is necessary but **not sufficient** — it must be
+  equipped to be used.
+- **Equipped tool** — The tool currently in a Tool slot (`equippedBySlot[type]`).
+  Authoritative and manual. The cursor ring shows the equipped tool's icon for the
+  hovered entity's slot (or a generic icon when the slot is empty) — that display
+  is presentation; the slot record is the source of truth.
 - **Tool requirement** — A gate on an entity declaring the Tool *type* needed to
-  damage it (e.g. needs *an* axe). Satisfied when the player owns any tool of that
-  type; tier is irrelevant (see ADR-0022).
+  damage it (e.g. needs *an* axe). Satisfied only when the player has a tool of
+  that type **equipped** in its slot; tier is irrelevant (see ADR-0022/0030).
 - **Blocked** — The outcome of an interaction whose requirement is unmet. The
-  world reports *why* so the presentation can explain it. Reasons: missing tool
-  (`missingTool`), Tier not unlocked in the Skill Tree (`tierLocked`), or Skill
-  level too low (`skillLevel`). (Design-doc cursor "Disabled / Blocked" maps here.)
+  world reports *why* so the presentation can explain it. Reasons: owns no tool of
+  the type (`missingTool`), owns one but it is not equipped (`notEquipped`), Tier
+  not unlocked in the Skill Tree (`tierLocked`), or Skill level too low
+  (`skillLevel`). (Design-doc cursor "Disabled / Blocked" maps here.)
 - **Locked pickup** — A pickup that exists in the Level but is not yet
   collectible. It becomes collectible only when enabled (e.g. when the player is
   asked to take it), letting authored items sit inertly in the world beforehand.
@@ -425,10 +448,12 @@ language in the design docs, this file wins and the docs should be reconciled.
 - **Stat** — A sim-resolved per-Skill combat/gathering value: **Tap Damage**
   (active click), **Hover Damage** (passive tick), **Hover Rate** (passive tick
   cadence, lower = faster), **Crit Chance**, **Crit Damage**. Resolved per
-  interaction by the target Entity's Skill as `base + Skill Tree (+ future
-  Artifacts)` through one resolver (`deriveStats`); never computed anywhere else.
-  (The reserved third source was formerly framed as "Gear"; the creative direction
-  is now **Artifacts** — see ADR-0022's Update.)
+  interaction by the target Entity's Skill as `base + Skill Tree + Equipment`
+  through one resolver (`deriveStats`); never computed anywhere else. The
+  **Equipment source** is the piece equipped in the slot mapped to that Skill —
+  today the equipped Tool's `stats`; Artifacts append here next (ADR-0030). (This
+  is the third source ADR-0022 reserved and once framed as "Gear" — now generalised
+  to Equipment.)
 - **Crit** — A chance-based bonus on **Tap** damage only (seeded sim RNG for
   determinism): a crit multiplies Tap Damage by Crit Damage. Stacks
   multiplicatively with Smite (see ADR-0022).
@@ -468,14 +493,15 @@ language in the design docs, this file wins and the docs should be reconciled.
 
 - **Refining** — Converting a raw resource into a more valuable **Refined
   Resource** at a **Refinery** (see ADR-0029). A generic, data-driven loop,
-  separate from Crafting: 1:1, batched, timed, and granted **directly to the Bag**
-  (no claim step). The first consumer is the Sawmill (raw wood → planks); Stone
-  refining can reuse the same machinery later.
+  separate from Crafting: 1:1, batched, timed, and **tap-to-claim** — when the
+  run finishes, the player taps the Refinery to collect the output into the Bag
+  (like a crafting Offering). The first consumer is the Sawmill (raw wood →
+  planks); Stone refining can reuse the same machinery later.
 - **Refinery** — A station Entity where Refining happens, matched by a **station
-  tag** (e.g. `sawmill`). Non-damageable scenery; its only interaction is being
-  the target of an armed raw Item.
+  tag** (e.g. `sawmill`). Non-damageable scenery; its interactions are being the
+  target of an armed raw Item and being tapped to claim a finished run.
 - **Sawmill** — The woodcutting Refinery: arm a raw-wood stack and tap it to mill
-  the batch into Refined wood.
+  the batch into Refined wood, then tap again to claim it when it's ready.
 - **Refined Resource** — The Refined output Item (e.g. Refined Wood/Oak/Pine). A
   more valuable trade good than the raw log; sellable and registered toward its own
   Collection entries.
@@ -484,8 +510,9 @@ language in the design docs, this file wins and the docs should be reconciled.
   Skill XP per unit. Adding a refinery is new content, not system code.
 - **Refine job** — A player's single in-flight Refining run, advanced in world
   ticks (no client timers), separate from the Crafting job. Consuming up to the
-  batch of raw input starts it; after its (Skill-modified) duration the refined
-  output is granted to the Bag with Skill XP. At most one per player.
+  batch of raw input starts it; after its (Skill-modified) duration it becomes
+  **ready** and lingers until the player claims it, granting the refined output
+  to the Bag with Skill XP. At most one per player.
 - **Refine stat** — A per-Skill Skill-Tree-resolved Refining modifier: **batch
   size** (more raw consumed per run) and **speed** (shorter run, capped). Resolved
   by `deriveRefineStats`; the Woodcutting tree drives the Sawmill.

@@ -7,8 +7,11 @@ import { createPlayer, emptySkills, type Player } from '@tot/shared';
  */
 export function buildStarterPlayer(id: string, displayName: string): Player {
   const player = createPlayer(id, displayName);
-  player.ownedTools = ['axe_rusty', 'pickaxe_rusty'];
-  player.equippedToolType = 'axe';
+  // Axe-only start (see ADR-0030): the Rusty Axe comes pre-equipped so the first
+  // beats (Woodcutting) just work, while Mining stays naturally gated until the
+  // player buys + equips a Pickaxe from the Black Market Equipment stall.
+  player.ownedTools = ['axe_rusty'];
+  player.equippedBySlot = { axe: 'axe_rusty' };
   player.craftingUnlocked = true;
   player.skills = emptySkills();
   return player;

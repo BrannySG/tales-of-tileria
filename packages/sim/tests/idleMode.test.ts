@@ -27,6 +27,7 @@ function idleReadyPlayer(
 ): Player {
   const player = createPlayer('local', 'Idler');
   player.ownedTools = ['pickaxe_rusty', 'axe_rusty'];
+  player.equippedBySlot = { pickaxe: 'pickaxe_rusty', axe: 'axe_rusty' };
   player.passiveDamage = 1000; // one gather tick fells a low-HP node
   player.skills = emptySkills();
   player.skills.mining = { xp: xpToReach(20), level: 20 };
@@ -244,6 +245,7 @@ describe('idle mode — respects multiplayer claims (ADR-0014/0016)', () => {
 
     const rival = createPlayer('rival', 'Rival');
     rival.ownedTools = ['pickaxe_rusty'];
+    rival.equippedBySlot = { pickaxe: 'pickaxe_rusty' };
     rival.skills = emptySkills();
     rival.skills.mining = { xp: xpToReach(5), level: 5 };
     world.addPlayer(rival);

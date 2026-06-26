@@ -117,6 +117,8 @@ export function WorldScene({
   }, [vendorInstanceId, level]);
   const stage = useStageScale(hostRef);
   const uiScale = useHud((s) => s.uiScale);
+  const screenshotHudVisible = useHud((s) => s.hudVisible);
+  const effectiveHudVisible = hudVisible && screenshotHudVisible;
 
   const onCraft = (recipeId: string) => {
     sessionRef.current?.transport.send({ type: 'craft.start', recipeId });
@@ -125,10 +127,13 @@ export function WorldScene({
 
   const onLock = () => sessionRef.current?.renderer.lockCurrentTarget();
   const onUnlock = () => sessionRef.current?.renderer.unlock();
-  const onSelectTool = (next: ToolType) => {
-    // The sim is authoritative over the equipped tool; it echoes `tool.equipped`,
-    // which updates the HUD store and cursor (see ADR-0006).
-    sessionRef.current?.transport.send({ type: 'tool.equip', toolType: next });
+  // Equipping is sim-authoritative (see ADR-0030): send the command and let the
+  // echoed `equipment.changed` update the HUD store + cursor (see store.ts).
+  const onEquip = (slot: ToolType, equipmentId: ToolId) => {
+    sessionRef.current?.transport.send({ type: 'equipment.equip', slot, equipmentId });
+  };
+  const onUnequip = (slot: ToolType) => {
+    sessionRef.current?.transport.send({ type: 'equipment.unequip', slot });
   };
   const onClaimQuest = (questId: string) => {
     sessionRef.current?.transport.send({ type: 'quest.claim', questId });
@@ -198,6 +203,9 @@ export function WorldScene({
   const onUiScaleChange = (scale: number) => {
     useHud.getState().setUiScale(scale);
   };
+  const onToggleScreenshotMode = (enabled: boolean) => {
+    useHud.getState().setHudVisible(!enabled);
+  };
   const onTestLootBurst = (rarity: Rarity) => {
     sessionRef.current?.renderer.testLootBurst(rarity);
   };
@@ -213,6 +221,13 @@ export function WorldScene({
   // Spacebar toggles lock on the current target (keyboard players).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.code === 'Backquote' || e.key === '`') && !e.repeat) {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        useHud.getState().toggleHudVisible();
+        return;
+      }
       if (e.code !== 'Space' || e.repeat) return;
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
@@ -229,7 +244,7 @@ export function WorldScene({
   return (
     <>
       <div className="stage-host" ref={hostRef} />
-      <div className="world-frame-host" style={{ display: hudVisible ? undefined : 'none' }}>
+      <div className="world-frame-host" style={{ display: effectiveHudVisible ? undefined : 'none' }}>
         <div className="world-frame">
           <div className="hud-layer" style={{ '--hud-scale': stage.scale * uiScale } as CSSProperties}>
             <Hud
@@ -238,7 +253,8 @@ export function WorldScene({
               idleableSkills={idleableSkills}
               onLock={onLock}
               onUnlock={onUnlock}
-              onSelectTool={onSelectTool}
+              onEquip={onEquip}
+              onUnequip={onUnequip}
               onClaimQuest={onClaimQuest}
               onCombatChange={onCombatChange}
               onPassiveDamageChange={onPassiveDamageChange}
@@ -257,6 +273,7 @@ export function WorldScene({
                 onMusicVolumeChange={onMusicVolumeChange}
                 onSfxVolumeChange={onSfxVolumeChange}
                 onUiScaleChange={onUiScaleChange}
+                onToggleScreenshotMode={onToggleScreenshotMode}
                 onToggleSound={onToggleSound}
                 onForceWipe={onForceWipe}
                 onClose={() => setSettingsOpen(false)}

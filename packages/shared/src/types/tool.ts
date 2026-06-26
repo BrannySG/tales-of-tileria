@@ -1,21 +1,21 @@
 import type { SkillRequirement, ToolId, ToolType } from './ids';
+import type { EquipmentDefinition } from './equipment';
 
 /**
- * An identified Tool: reusable content describing a single tool the player can
- * own (see ADR-0008). Tools have a `toolType` (axe/pickaxe/sword) and a numeric
- * `tier`; entity tool requirements gate on both. A tool may carry a
- * `wieldRequirement` (a skill level needed to *use* it) — owning a tool is not
- * enough if its wield requirement is unmet (e.g. the Stone Axe needs
- * Woodcutting 3). Gating is owned-based; the cursor ring auto-equips the best
- * *usable* tool of the required type.
+ * An identified Tool: the first Equipment subtype (see CONTEXT.md: Equipment,
+ * Tool; ADR-0008, ADR-0030). Tools have a `toolType` (axe/pickaxe/sword, which
+ * IS the Equipment slot) and a numeric `tier` (a stat-quality indicator, no
+ * longer a harvest gate — see ADR-0022). A Tool gates skill access by type and
+ * grants its `stats` ONLY while equipped (see ADR-0030). `wieldRequirement` is
+ * legacy and no longer enforced (see ADR-0022).
  */
-export interface ToolDefinition {
+export interface ToolDefinition extends EquipmentDefinition {
   id: ToolId;
   toolType: ToolType;
-  /** Tier the tool satisfies; entity requirements declare a `minTier`. */
+  /** Tier of the Tool (stat-quality indicator; no longer gates harvesting). */
   tier: number;
   displayName: string;
-  /** Skill level needed to wield (use) the tool. Owned-but-unusable below it. */
+  /** @deprecated Skill level needed to wield. No longer enforced (see ADR-0022). */
   wieldRequirement?: SkillRequirement;
   /** Texture id (client manifest) for the HUD/cursor icon. */
   iconTextureId: string;

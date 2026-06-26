@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createPlayer, type LevelDefinition, type Player, type SimTransport, type ToolId, type ToolType } from '@tot/shared';
+import { bestOwnedToolId, createPlayer, type LevelDefinition, type Player, type SimTransport, type ToolId, type ToolType } from '@tot/shared';
 import { LocalTransport, World } from '@tot/sim';
 import { SceneRenderer } from '../render/SceneRenderer';
 import { WebSocketTransport } from '../net/WebSocketTransport';
@@ -30,7 +30,12 @@ function carriedPlayer(
   if (opts.player) return { ...opts.player, id, displayName: name };
   const player = createPlayer(id, name);
   if (opts.startingTools) player.ownedTools = [...opts.startingTools];
-  if (opts.tool) player.equippedToolType = opts.tool;
+  // Equip the best owned Tool of `tool` into its slot (dev/scene convenience;
+  // players equip deliberately via the equipment.equip command — see ADR-0030).
+  if (opts.tool) {
+    const equipId = bestOwnedToolId(player.ownedTools, opts.tool);
+    if (equipId) player.equippedBySlot = { ...player.equippedBySlot, [opts.tool]: equipId };
+  }
   return player;
 }
 
@@ -59,9 +64,14 @@ export function snapshotPlayerForSave(transport: SimTransport): Player {
     ...base,
     displayName: hud.displayName || base.displayName,
     ownedTools: [...hud.ownedToolIds],
-    equippedToolType: hud.equippedTool,
+    equippedBySlot: { ...hud.equippedBySlot },
     inventory: { ...hud.inventory },
     skills: { ...hud.skills },
+    // Collections + Skill Trees are tracked live in the HUD too; read them here
+    // (not from `base`) so networked progress persists — the WebSocket snapshot
+    // is frozen at join, so `...base` would silently drop this session's gains.
+    collections: { ...hud.collections },
+    skillTrees: { ...hud.skillTrees },
     passiveDamage: hud.passiveDamage,
     craftingUnlocked: hud.craftingUnlocked,
     craftingJob,

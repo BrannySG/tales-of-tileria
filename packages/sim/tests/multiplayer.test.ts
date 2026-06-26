@@ -38,7 +38,7 @@ function peacefulRocks(): LevelDefinition {
 function miner(id: string): Player {
   const p = createPlayer(id, id.toUpperCase());
   p.ownedTools = ['pickaxe_rusty'];
-  p.equippedToolType = 'pickaxe';
+  p.equippedBySlot = { pickaxe: 'pickaxe_rusty' };
   return p;
 }
 

@@ -44,12 +44,15 @@ refining (and content) can scale by tier.**
   command is handled by `World.startRefine`: it matches a recipe by the target's
   tags, consumes up to the batch of raw input up-front, and begins a per-player
   `RefineJob` advanced in `World.tick` (`tickRefining`, beside `tickCrafting`).
-  On completion the Refined Item is granted **directly to the Bag** (no claim
-  step) with Skill XP, and `refineJobStarted` / `refineJobCompleted` drive the
-  presentation. A player can craft and refine simultaneously (separate job slot).
+  When the timer elapses the run becomes **claimable** (`refineJobReady`) — the
+  job lingers and the player **taps the Refinery to claim** (`refine.claim`),
+  which grants the Refined Item to the Bag with Skill XP (`refineJobClaimed`),
+  mirroring a crafting Offering. `refineJobStarted` / `refineJobReady` /
+  `refineJobClaimed` drive the presentation (countdown → tap-to-claim prompt). A
+  player can craft and refine simultaneously (separate job slot).
 - **Tier timing is authored per recipe.** `baseSeconds` rises with tier
-  (3 / 5 / 7s). 1:1 conversion — value lives in higher Sell price and the Refined
-  Collection entries, not a lossy ratio.
+  (2 / 4 / 6s); default batch is 20. 1:1 conversion — value lives in higher Sell
+  price and the Refined Collection entries, not a lossy ratio.
 - **Upgradable in the Skill Tree (generic).** A new `refineStat` node effect kind
   (`batchSize` | `speedPct`), resolved per-Skill by `deriveRefineStats`. The
   Woodcutting tree gains `Mill Capacity` (+batch) and `Mill Speed` (faster) nodes;

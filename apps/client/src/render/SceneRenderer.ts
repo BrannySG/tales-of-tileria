@@ -10,7 +10,6 @@ import {
   type FederatedPointerEvent,
 } from 'pixi.js';
 import {
-  bestUsableTool,
   canArmedItemInteract,
   cursorSkinTextureId,
   findRefineRecipeForEntity,
@@ -264,16 +263,8 @@ export class SceneRenderer {
   // parallel mirrors that could drift. `bindHud` subscribes before this
   // renderer does (see useWorldScene), so the store is always updated first.
 
-  private get ownedToolIds(): readonly ToolId[] {
-    return useHud.getState().ownedToolIds;
-  }
-
   private get craftingUnlocked(): boolean {
     return useHud.getState().craftingUnlocked;
-  }
-
-  private skillLevel(skillId: SkillId): number {
-    return useHud.getState().skills[skillId]?.level ?? 1;
   }
 
   static async create(opts: SceneRendererOptions): Promise<SceneRenderer> {
@@ -443,9 +434,16 @@ export class SceneRenderer {
     // A carried snapshot may arrive mid-craft: show the busy timer, not the prompt.
     const job = snapshot.player.craftingJob;
     if (job) this.prompts.showFurnaceTimer(job.remainingSeconds, job.totalSeconds);
-    // Likewise restore a mid-flight refine run's progress + chip FX.
+    // Likewise restore a mid-flight refine run: either its countdown + chip FX,
+    // or — if it already finished while away — the tap-to-claim prompt.
     const refineJob = snapshot.player.refineJob;
-    if (refineJob) {
+    if (refineJob?.ready) {
+      this.prompts.showRefineClaim(
+        refineJob.stationInstanceId,
+        refineJob.outputItemId,
+        refineJob.outputQuantity,
+      );
+    } else if (refineJob) {
       this.prompts.showStationTimer(
         refineJob.stationInstanceId,
         refineJob.remainingSeconds,
@@ -455,9 +453,11 @@ export class SceneRenderer {
     }
 
     if (this.opts.showCursor !== false) {
+      const eq = snapshot.player.equippedBySlot ?? {};
+      const primaryType = (['axe', 'pickaxe', 'sword'] as ToolType[]).find((t) => eq[t]);
       this.cursorView = new CursorView(
         this.opts.textures,
-        this.toolIconForType(snapshot.player.equippedToolType),
+        this.iconForEquipped(primaryType, eq),
         cursorSkinTextureId(snapshot.player.cursorSkinId),
       );
       this.cursorLayer.addChild(this.cursorView.container);
@@ -467,7 +467,7 @@ export class SceneRenderer {
       // its world position; the player's pointer cursor above stays independent.
       this.idleCursorView = new CursorView(
         this.opts.textures,
-        this.toolIconForType(snapshot.player.equippedToolType),
+        this.iconForEquipped(primaryType, eq),
         cursorSkinTextureId(snapshot.player.cursorSkinId),
       );
       this.idleCursorView.setIdle(true);
@@ -705,34 +705,43 @@ export class SceneRenderer {
   }
 
   /**
-   * The manifest texture id for the cursor ring's tool icon for a given type:
-   * the best tool of that type the player can actually *wield* now (so a Stone
-   * Axe owned before Woodcutting 3 doesn't show as equipped while the usable
-   * Rusty Axe is what actually swings). Falls back to best-owned, then the
-   * generic per-type icon when none is owned yet.
+   * The cursor ring's icon for a tool slot (see ADR-0030): the icon of the Tool
+   * EQUIPPED in that slot, falling back to the generic per-type icon when the
+   * slot is empty. No longer derived from "best usable" — equipping is explicit.
    */
   private toolIconForType(type: ToolType | undefined): string | undefined {
-    if (!type) return undefined;
-    const usable = bestUsableTool(this.ownedToolIds, type, (s) => this.skillLevel(s));
-    if (usable) return usable.iconTextureId;
-    let best: { tier: number; iconTextureId: string } | undefined;
-    for (const id of this.ownedToolIds) {
-      const def = getToolDefinition(id);
-      if (def?.toolType === type && (!best || def.tier > best.tier)) {
-        best = { tier: def.tier, iconTextureId: def.iconTextureId };
-      }
-    }
-    return best?.iconTextureId ?? TOOL_ICON[type];
+    return this.iconForEquipped(type, useHud.getState().equippedBySlot);
   }
 
-  /** Auto-equips the cursor ring to the best usable tool for the hovered target. */
-  private autoEquipForTarget(instanceId: string | undefined): void {
+  /** Resolves the equipped-slot icon from a given equip map (for init hydration). */
+  private iconForEquipped(
+    type: ToolType | undefined,
+    equippedBySlot: Partial<Record<ToolType, ToolId>>,
+  ): string | undefined {
+    if (!type) return undefined;
+    const equippedId = equippedBySlot[type];
+    const def = equippedId ? getToolDefinition(equippedId) : undefined;
+    return def?.iconTextureId ?? TOOL_ICON[type];
+  }
+
+  /** The primary equipped tool type (first occupied slot), for the ring default. */
+  private primaryEquippedType(): ToolType | undefined {
+    const eq = useHud.getState().equippedBySlot;
+    return (['axe', 'pickaxe', 'sword'] as ToolType[]).find((t) => eq[t]);
+  }
+
+  /**
+   * Points the cursor ring at the Tool equipped in the slot the hovered Entity
+   * needs (see ADR-0030). Shows the generic type icon when the slot is empty so
+   * the player can see what to equip; this is presentation only — it never
+   * equips anything (auto-equip was gutted by ADR-0030).
+   */
+  private pointRingAtTargetSlot(instanceId: string | undefined): void {
     if (!instanceId) return;
     const def = this.defs.get(instanceId);
     const reqType = def?.requirements?.toolType;
     if (!reqType) return;
-    const tool = bestUsableTool(this.ownedToolIds, reqType, (s) => this.skillLevel(s));
-    if (tool) this.cursorView?.setTool(tool.iconTextureId);
+    this.cursorView?.setTool(this.toolIconForType(reqType));
   }
 
   /**
@@ -931,10 +940,6 @@ export class SceneRenderer {
     this.opts.transport.send({ type: 'entity.unlock' });
   }
 
-  setEquippedTool(tool: ToolType | undefined): void {
-    this.cursorView?.setTool(this.toolIconForType(tool));
-  }
-
   /** Dev/Content-Zoo: fire a loot burst of a chosen rarity at screen center. */
   testLootBurst(rarity: Rarity): void {
     this.lootDrops.testBurst(rarity, VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.62);
@@ -1122,8 +1127,10 @@ export class SceneRenderer {
         this.floatText(x, y, this.blockedMessage(event), { color: 0xffd24a });
         break;
       }
-      case 'tool.equipped': {
-        this.cursorView?.setTool(this.toolIconForType(event.toolType));
+      case 'equipment.changed': {
+        // Re-point the ring at whatever we're hovering (or the primary slot).
+        if (this.currentTargetId) this.pointRingAtTargetSlot(this.currentTargetId);
+        else this.cursorView?.setTool(this.toolIconForType(this.primaryEquippedType()));
         break;
       }
       case 'target.changed': {
@@ -1135,7 +1142,7 @@ export class SceneRenderer {
           const view = this.views.get(event.instanceId);
           view?.setTargeted(true);
           view?.setLocked(event.locked);
-          this.autoEquipForTarget(event.instanceId);
+          this.pointRingAtTargetSlot(event.instanceId);
         }
         this.cursorView?.setLocked(event.locked);
         if (event.locked) this.opts.sound?.play('lock');
@@ -1173,15 +1180,22 @@ export class SceneRenderer {
       }
       case 'refineJobStarted': {
         this.prompts.showStationTimer(event.stationInstanceId, event.totalSeconds, event.totalSeconds);
+        // startRefineFx drives the chips, the sawmill's shake, and the motor loop.
         this.startRefineFx(event.stationInstanceId);
-        this.opts.sound?.play('hitTree');
         break;
       }
-      case 'refineJobCompleted': {
+      case 'refineJobReady': {
         this.prompts.hideStationTimer(event.stationInstanceId);
         this.stopRefineFx();
-        // A satisfying finish: a chunky burst of chips + a loot chime.
-        this.refineChipBurst(event.stationInstanceId, 14, 280);
+        // A satisfying finish: a chunky burst of chips + a "da-ding!" chime, then
+        // the tap-to-claim prompt floats up over the mill.
+        this.refineChipBurst(event.stationInstanceId, 26, 360);
+        this.opts.sound?.play('refineDing');
+        this.prompts.showRefineClaim(event.stationInstanceId, event.outputItemId, event.outputQuantity);
+        break;
+      }
+      case 'refineJobClaimed': {
+        this.prompts.hideRefineClaim(event.stationInstanceId);
         this.opts.sound?.play('loot');
         break;
       }
@@ -1471,6 +1485,8 @@ export class SceneRenderer {
     switch (event.reason) {
       case 'missingTool':
         return `Need ${indefiniteArticle(toolLabel)} ${toolLabel}`;
+      case 'notEquipped':
+        return `Equip your ${toolLabel}`;
       case 'tierLocked':
         return event.requiredSkillId && event.requiredTier
           ? `Unlock ${skillLabel(event.requiredSkillId)} Tier ${event.requiredTier} in the Skill Tree`
@@ -1552,29 +1568,38 @@ export class SceneRenderer {
     if (!view) return;
     const x = view.container.x;
     const y = view.container.y - view.visualHeight * 0.5;
-    this.particleBurstWorld('fx_wood_chip', x, y, { count, speed, scale: 0.45 });
+    // Bigger, chunkier chips that spray out hard and fall fast.
+    this.particleBurstWorld('fx_wood_chip', x, y, { count, speed, scale: 0.8, gravity: 1100 });
   }
 
-  /** Starts a steady drizzle of wood chips while a refine run is in flight. */
+  /**
+   * Starts the active-refine FX bundle: an aggressive, steady spray of wood
+   * chips, the sawmill's working shake, and the motor loop. All are stopped
+   * together in `stopRefineFx`.
+   */
   private startRefineFx(instanceId: string): void {
     this.stopRefineFx();
+    this.views.get(instanceId)?.setActiveShake(2.5);
+    this.opts.sound?.startLoop('sawmillLoop');
     let acc = 0;
     const emitter: Updatable = {
       update: (dt) => {
         acc += dt;
-        if (acc >= 0.3) {
+        if (acc >= 0.16) {
           acc = 0;
-          this.refineChipBurst(instanceId, 4, 150);
+          this.refineChipBurst(instanceId, 9, 260);
         }
       },
     };
     this.refineFx = { instanceId, remove: this.addUpdatable(emitter) };
   }
 
-  /** Stops the wood-chip emitter (refine run finished or scene torn down). */
+  /** Stops the active-refine FX bundle (run finished or scene torn down). */
   private stopRefineFx(): void {
+    if (this.refineFx) this.views.get(this.refineFx.instanceId)?.setActiveShake(0);
     this.refineFx?.remove();
     this.refineFx = undefined;
+    this.opts.sound?.stopLoop('sawmillLoop');
   }
 
   /** Animates cost resources flying to the forge + a work spark when a craft starts. */

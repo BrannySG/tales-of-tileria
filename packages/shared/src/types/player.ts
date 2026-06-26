@@ -1,4 +1,5 @@
-import type { SkillId, ToolId, ToolType, TreeId } from './ids';
+import type { SkillId, ToolId, TreeId } from './ids';
+import type { EquipmentSlot } from './equipment';
 import type { QuestState } from './quest';
 import type { CollectionEntryProgress } from './collection';
 import type { CraftingJob } from './recipe';
@@ -60,10 +61,13 @@ export interface Player {
   /** Identified tools the player has acquired (see ADR-0008). */
   ownedTools: ToolId[];
   /**
-   * The tool type whose icon the cursor ring shows. Presentation-derived (the
-   * sim auto-selects the best *usable* tool); not a gating input.
+   * The Equipment equipped per slot (see CONTEXT.md: Equipped equipment,
+   * Equipment slot; ADR-0030). For a Tool the slot is its `toolType`. A Tool
+   * grants its Stats AND satisfies its Skill's access requirement ONLY while
+   * equipped here — equipping is a deliberate player action (no auto-equip).
+   * Authoritative and portable across Levels (see ADR-0011).
    */
-  equippedToolType?: ToolType;
+  equippedBySlot: Partial<Record<EquipmentSlot, ToolId>>;
   /** Stackable resource counts keyed by itemId. */
   inventory: Record<string, number>;
   /** Per-skill XP + derived level. `level` is recomputed from `xp` on gain. */
@@ -132,6 +136,7 @@ export function createPlayer(id: string, displayName: string): Player {
     id,
     displayName,
     ownedTools: [],
+    equippedBySlot: {},
     inventory: {},
     skills: emptySkills(),
     passiveDamage: 0,

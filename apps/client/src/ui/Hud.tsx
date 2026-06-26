@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cursorSkinTextureId, type CombatConfig, type Rarity, type SkillId, type ToolType, type TreeId } from '@tot/shared';
+import { cursorSkinTextureId, type CombatConfig, type Rarity, type SkillId, type ToolId, type ToolType, type TreeId } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
 import { Bag } from './Bag';
@@ -18,7 +18,10 @@ export type HudVariant = 'game' | 'zoo';
 export interface HudCallbacks {
   onLock: () => void;
   onUnlock: () => void;
-  onSelectTool: (tool: ToolType) => void;
+  /** Equip a piece of Equipment into its slot (sends `equipment.equip`). */
+  onEquip: (slot: ToolType, equipmentId: ToolId) => void;
+  /** Empty an Equipment slot (sends `equipment.unequip`). */
+  onUnequip: (slot: ToolType) => void;
   onClaimQuest: (questId: string) => void;
   onCombatChange: (partial: Partial<CombatConfig>) => void;
   onPassiveDamageChange: (amount: number) => void;
@@ -189,7 +192,7 @@ export function Hud(props: HudProps) {
         <small>Tileria</small>
         <span className="hud-location-name">{locationName}</span>
       </div>
-      <Bag />
+      <Bag onEquip={props.onEquip} onUnequip={props.onUnequip} />
       {variant === 'game' && (
         <>
           <SkillTracker onOpenSkillTree={props.onOpenSkillTree} />

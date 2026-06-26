@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   RARITIES,
-  bestUsableTool,
   getItemDefinition,
   getToolDefinition,
   type ItemCategory,
   type ItemDefinition,
   type Rarity,
-  type SkillId,
   type ToolDefinition,
   type ToolId,
   type ToolType,
@@ -16,6 +14,13 @@ import { ASSET_URL } from '../assets/manifest';
 import { useHud } from '../state/store';
 
 type BagTab = 'items' | 'equipment';
+
+export interface BagProps {
+  /** Equip a piece of Equipment into its slot (sends `equipment.equip`). */
+  onEquip: (slot: ToolType, equipmentId: ToolId) => void;
+  /** Empty an Equipment slot (sends `equipment.unequip`). */
+  onUnequip: (slot: ToolType) => void;
+}
 
 const BAG_OPEN_KEY = 'tot.bagOpen';
 /** Minimum number of slots rendered (padded with empties) for a comfortable grid. */
@@ -83,23 +88,24 @@ function bagItems(inventory: Record<string, number>): BagItem[] {
   });
 }
 
-/** Best wieldable tool per type (falls back to best owned), one slot per type. */
-function equipmentSlots(ownedToolIds: readonly ToolId[], skillLevel: (s: SkillId) => number): ToolDefinition[] {
-  const slots: ToolDefinition[] = [];
-  for (const type of TYPE_ORDER) {
-    const usable = bestUsableTool(ownedToolIds, type, skillLevel);
-    if (usable) {
-      slots.push(usable);
-      continue;
-    }
-    const best = ownedToolIds
-      .map((id) => getToolDefinition(id))
-      .filter((d): d is ToolDefinition => Boolean(d) && d!.toolType === type)
-      .reduce<ToolDefinition | undefined>((acc, d) => (!acc || d.tier > acc.tier ? d : acc), undefined);
-    if (best) slots.push(best);
-  }
-  return slots;
+/** All owned Tools, grouped by slot order then ascending tier (the equip list). */
+function ownedToolsSorted(ownedToolIds: readonly ToolId[]): ToolDefinition[] {
+  const defs = ownedToolIds
+    .map((id) => getToolDefinition(id))
+    .filter((d): d is ToolDefinition => Boolean(d));
+  return defs.sort((a, b) => {
+    const t = TYPE_ORDER.indexOf(a.toolType) - TYPE_ORDER.indexOf(b.toolType);
+    if (t !== 0) return t;
+    return a.tier - b.tier;
+  });
 }
+
+/** Player-facing label per Tool slot. */
+const SLOT_LABEL: Record<ToolType, string> = {
+  sword: 'Sword',
+  axe: 'Axe',
+  pickaxe: 'Pickaxe',
+};
 
 function BackpackIcon() {
   return (
@@ -137,15 +143,15 @@ function ItemTooltip({ item }: { item: BagItem }) {
  * The Bag (see CONTEXT.md: Bag): the docked window onto the player's Inventory.
  * The Items tab shows held Items as a slot grid (Gold excluded — it is Currency,
  * shown in the profile); clicking an item arms it for use on the world (see
- * CONTEXT.md: Armed item). The Equipment tab shows owned Tools read-only (the
- * sim auto-equips, so there is nothing to click). Open by default, toggled by a
- * button or the I/B hotkey, with the preference persisted per device.
+ * CONTEXT.md: Armed item). The Equipment tab is an interactive equip surface
+ * (see CONTEXT.md: Equipped equipment; ADR-0030): click an owned Tool to equip
+ * it into its slot, click the equipped one to unequip. Open by default, toggled
+ * by a button or the I/B hotkey, with the preference persisted per device.
  */
-export function Bag() {
+export function Bag({ onEquip, onUnequip }: BagProps) {
   const inventory = useHud((s) => s.inventory);
   const ownedToolIds = useHud((s) => s.ownedToolIds);
-  const equippedTool = useHud((s) => s.equippedTool);
-  const skills = useHud((s) => s.skills);
+  const equippedBySlot = useHud((s) => s.equippedBySlot);
   const armedItemId = useHud((s) => s.armedItemId);
 
   const [open, setOpen] = useState<boolean>(loadBagOpen);
@@ -180,8 +186,7 @@ export function Bag() {
   };
 
   const items = bagItems(inventory);
-  const skillLevel = (s: SkillId) => skills[s]?.level ?? 1;
-  const tools = equipmentSlots(ownedToolIds, skillLevel);
+  const tools = ownedToolsSorted(ownedToolIds);
   const emptyCount = Math.max(0, MIN_SLOTS - items.length);
 
   const armItem = (id: string) => {
@@ -233,15 +238,23 @@ export function Bag() {
             </div>
           ) : (
             <div className="bag-grid">
-              {tools.map((tool) => (
-                <div
-                  key={tool.toolType}
-                  className={`bag-slot ${equippedTool === tool.toolType ? 'equipped' : ''}`}
-                  title={tool.displayName}
-                >
-                  <img src={ASSET_URL[tool.iconTextureId]} alt={tool.displayName} />
-                </div>
-              ))}
+              {tools.map((tool) => {
+                const equipped = equippedBySlot[tool.toolType] === tool.id;
+                const onClick = () =>
+                  equipped ? onUnequip(tool.toolType) : onEquip(tool.toolType, tool.id);
+                return (
+                  <button
+                    key={tool.id}
+                    className={`bag-slot ${equipped ? 'equipped' : ''}`}
+                    onClick={onClick}
+                    title={`${tool.displayName} — ${SLOT_LABEL[tool.toolType]} slot${
+                      equipped ? ' (equipped — click to unequip)' : ' (click to equip)'
+                    }`}
+                  >
+                    <img src={ASSET_URL[tool.iconTextureId]} alt={tool.displayName} />
+                  </button>
+                );
+              })}
               {tools.length === 0 && <div className="bag-empty-note">No tools owned yet.</div>}
             </div>
           )}

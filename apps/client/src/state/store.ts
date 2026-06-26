@@ -164,6 +164,8 @@ export interface RefineJobView {
   outputQuantity: number;
   /** performance.now() when the run started, for animating progress. */
   startedAt: number;
+  /** True once the timer elapsed and the output is waiting to be claimed. */
+  ready: boolean;
 }
 
 /** Client-side view of the player's in-flight craft (for menu progress). */
@@ -268,6 +270,9 @@ interface HudState {
   quests: QuestState[];
   ownedToolIds: ToolId[];
   ownedTools: ToolType[];
+  /** Equipment equipped per slot (mirrors `Player.equippedBySlot`, ADR-0030). */
+  equippedBySlot: Partial<Record<ToolType, ToolId>>;
+  /** Derived primary tool type for the cursor ring's default icon (first occupied slot). */
   equippedTool: ToolType | undefined;
   skills: Record<SkillId, SkillState>;
   /** Collection Entry progress keyed by entry id (mirrors `Player.collections`). */
@@ -337,13 +342,15 @@ interface HudState {
   sfxVolume: number;
   /** HUD-only UI scale multiplier, persisted across sessions. */
   uiScale: number;
+  /** Session-only HUD visibility toggle for screenshot mode. */
+  hudVisible: boolean;
   setInventory: (inventory: Record<string, number>) => void;
   upsertQuest: (quest: QuestState) => void;
   setOwnedToolIds: (ids: ToolId[]) => void;
   addOwnedToolId: (id: ToolId) => void;
   /** Grants `id` and drops any tools it supplanted, in one update. */
   replaceOwnedTool: (id: ToolId, replaced?: ToolId[]) => void;
-  setEquippedTool: (tool: ToolType | undefined) => void;
+  setEquippedBySlot: (equippedBySlot: Partial<Record<ToolType, ToolId>>) => void;
   setSkill: (skillId: SkillId, skill: SkillState) => void;
   setSkills: (skills: Record<SkillId, SkillState>) => void;
   setCollections: (collections: Record<string, CollectionEntryProgress>) => void;
@@ -409,6 +416,8 @@ interface HudState {
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
   setUiScale: (scale: number) => void;
+  setHudVisible: (visible: boolean) => void;
+  toggleHudVisible: () => void;
   reset: () => void;
 }
 
@@ -422,6 +431,17 @@ function toolTypesOf(ids: readonly ToolId[]): ToolType[] {
   return types;
 }
 
+/** Preference order for the cursor ring's default tool icon (first occupied slot). */
+const TOOL_SLOT_ORDER: ToolType[] = ['axe', 'pickaxe', 'sword'];
+
+/** The primary equipped tool type (first occupied slot), for the ring default. */
+function primaryToolType(equippedBySlot: Partial<Record<ToolType, ToolId>>): ToolType | undefined {
+  for (const slot of TOOL_SLOT_ORDER) {
+    if (equippedBySlot[slot]) return slot;
+  }
+  return undefined;
+}
+
 const initialAudio = loadAudioSettings();
 const initialSeen = loadSeen();
 
@@ -430,6 +450,7 @@ export const useHud = create<HudState>((set) => ({
   quests: [],
   ownedToolIds: [],
   ownedTools: [],
+  equippedBySlot: {},
   equippedTool: undefined,
   skills: emptySkills(),
   collections: {},
@@ -467,6 +488,7 @@ export const useHud = create<HudState>((set) => ({
   musicVolume: initialAudio.musicVolume,
   sfxVolume: initialAudio.sfxVolume,
   uiScale: initialAudio.uiScale,
+  hudVisible: true,
   setInventory: (inventory) => set({ inventory: { ...inventory } }),
   upsertQuest: (quest) =>
     set((state) => {
@@ -490,7 +512,8 @@ export const useHud = create<HudState>((set) => ({
       if (!ownedToolIds.includes(id)) ownedToolIds.push(id);
       return { ownedToolIds, ownedTools: toolTypesOf(ownedToolIds) };
     }),
-  setEquippedTool: (equippedTool) => set({ equippedTool }),
+  setEquippedBySlot: (equippedBySlot) =>
+    set({ equippedBySlot: { ...equippedBySlot }, equippedTool: primaryToolType(equippedBySlot) }),
   setSkill: (skillId, skill) => set((state) => ({ skills: { ...state.skills, [skillId]: skill } })),
   setSkills: (skills) => set({ skills: { ...skills } }),
   setCollections: (collections) => set({ collections: { ...collections } }),
@@ -702,6 +725,8 @@ export const useHud = create<HudState>((set) => ({
       });
       return { uiScale: next };
     }),
+  setHudVisible: (hudVisible) => set({ hudVisible }),
+  toggleHudVisible: () => set((state) => ({ hudVisible: !state.hudVisible })),
   reset: () =>
     // Note: seen* read-receipts are intentionally NOT reset — they are a
     // per-device history that should survive session/level swaps.
@@ -710,6 +735,7 @@ export const useHud = create<HudState>((set) => ({
       quests: [],
       ownedToolIds: [],
       ownedTools: [],
+      equippedBySlot: {},
       equippedTool: undefined,
       skills: emptySkills(),
       collections: {},
@@ -760,7 +786,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
   const hud = useHud.getState();
   hud.setInventory(snapshot.player.inventory);
   hud.setOwnedToolIds(snapshot.player.ownedTools);
-  hud.setEquippedTool(snapshot.player.equippedToolType);
+  hud.setEquippedBySlot(snapshot.player.equippedBySlot ?? {});
   hud.setSkills(snapshot.player.skills);
   hud.setCollections(snapshot.player.collections ?? {});
   hud.setBrokenEntities(snapshot.player.brokenEntities ?? []);
@@ -778,6 +804,7 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
       outputQuantity: rj.outputQuantity,
       // Anchor progress so a mid-run reload shows the remaining time, not the full bar.
       startedAt: performance.now() - (rj.totalSeconds - rj.remainingSeconds) * 1000,
+      ready: rj.ready,
     });
   }
   // Seed already-owned collectibles as discovered (silently, no toast flood),
@@ -865,8 +892,15 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
         useHud.getState().replaceOwnedTool(event.toolId, event.replacedToolIds);
         break;
       }
-      case 'tool.equipped': {
-        useHud.getState().setEquippedTool(event.toolType);
+      case 'equipment.changed': {
+        useHud.getState().setEquippedBySlot(event.equippedBySlot);
+        break;
+      }
+      case 'shop.bought': {
+        // Buying grants a Tool with no pickup event; mirror it into owned tools
+        // so the Equipment tab can offer it to equip (Gold debit rides
+        // inventory.changed).
+        useHud.getState().addOwnedToolId(event.equipmentId);
         break;
       }
       case 'quest.updated': {
@@ -897,10 +931,16 @@ export function bindHud(transport: SimTransport, nameOf: (instanceId: string) =>
           outputItemId: event.outputItemId,
           outputQuantity: event.outputQuantity,
           startedAt: performance.now(),
+          ready: false,
         });
         break;
       }
-      case 'refineJobCompleted': {
+      case 'refineJobReady': {
+        const current = useHud.getState().refineJob;
+        if (current) useHud.getState().setRefineJob({ ...current, ready: true });
+        break;
+      }
+      case 'refineJobClaimed': {
         useHud.getState().setRefineJob(undefined);
         break;
       }

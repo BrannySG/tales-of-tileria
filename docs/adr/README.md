@@ -44,6 +44,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0027](0027-sell-economy-via-vendor-trade-command.md) | Sell economy via a sim-authoritative Vendor trade command (Black Market) | Accepted — builds on 0006/0016, gives Gold its first sink/source |
 | [0028](0028-hover-preview-bar-replaces-modal-inspect.md) | Hover preview bar supersedes the modal Inspect popover | Accepted — presentation-only; reuses 0007-style projection boundary |
 | [0029](0029-generic-refining-system-and-tiered-raw-wood.md) | A generic, data-driven Refining system (Sawmill first) + tiered raw wood | Accepted — separate from 0010 crafting; extends 0018 affordance, 0022 tree hooks, 0027 economy |
+| [0030](0030-unified-equipment-equip-gates-access.md) | Unified Equipment (Tool/Artifact subtypes); equipping gates access AND grants Stats; auto-equip gutted; Vendor Buy path | Accepted — reframes 0022's "Artifacts supersede Gear", supersedes 0008's equip path, fills 0027's deferred Buy seam |
 
 ## Supersession map
 
@@ -96,6 +97,14 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   (sell-XP below the Collection rate). It also introduces a tiered raw-wood ladder
   (`oak_wood`/`pine_wood`), retheming Oak/Elder-Pine loot + the Woodcutting
   Collections.
+- **0030** reframes **0022**'s reserved third `deriveStats` source from "Artifacts
+  supersede Gear" into "**Equipment is the umbrella; Tools and Artifacts are
+  subtypes**." It supersedes **0008**'s equip path (equipping, not owning,
+  satisfies the access gate; auto-equip is gutted) while keeping **0022**'s retired
+  tier/wield gating retired. It fills **0027**'s explicitly deferred Buy seam with
+  a sim-authoritative `item.buy` command + `vendorStock` table at the Black Market
+  Equipment stall, giving Gold a power sink. Equipment now both gates Skill access
+  (`notEquipped`) and feeds Stats (the new Equipment source).
 
 ## Adding an ADR
 
