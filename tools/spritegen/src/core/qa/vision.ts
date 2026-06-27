@@ -37,7 +37,7 @@ export async function visionQa(candidate: Buffer, opts: VisionQaOptions): Promis
 
   const raw = await critique(opts.model, prompt, [candidate, ...references]);
 
-  let parsed: VisionReply = {};
+  let parsed: VisionReply;
   try {
     parsed = JSON.parse(raw) as VisionReply;
   } catch {

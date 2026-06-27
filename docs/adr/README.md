@@ -45,6 +45,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0028](0028-hover-preview-bar-replaces-modal-inspect.md) | Hover preview bar supersedes the modal Inspect popover | Accepted — presentation-only; reuses 0007-style projection boundary |
 | [0029](0029-generic-refining-system-and-tiered-raw-wood.md) | A generic, data-driven Refining system (Sawmill first) + tiered raw wood | Accepted — separate from 0010 crafting; extends 0018 affordance, 0022 tree hooks, 0027 economy |
 | [0030](0030-unified-equipment-equip-gates-access.md) | Unified Equipment (Tool/Artifact subtypes); equipping gates access AND grants Stats; auto-equip gutted; Vendor Buy path | Accepted — reframes 0022's "Artifacts supersede Gear", supersedes 0008's equip path, fills 0027's deferred Buy seam |
+| [0031](0031-theme-agnostic-sprite-pipeline-style-packs.md) | Theme-agnostic Sprite Pipeline: swappable Style Packs + pluggable per-Preset processing/QA strategies; a `ui-frame` Preset with contract-driven 9-slice metadata | Accepted — refactors the spritegen tool (no sim/runtime impact) |
 
 ## Supersession map
 
@@ -105,6 +106,12 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   a sim-authoritative `item.buy` command + `vendorStock` table at the Black Market
   Equipment stall, giving Gold a power sink. Equipment now both gates Skill access
   (`notEquipped`) and feeds Stats (the new Equipment source).
+
+- **0031** is a tooling refactor with no sim/runtime impact: it splits the Sprite
+  Pipeline into a theme-agnostic engine + swappable **Style Packs** + pluggable
+  per-Preset `process`/`qa` strategies, and adds a `ui-frame` Preset whose
+  prompt-enforced geometry contract drives emitted CSS 9-slice metadata. Subject
+  Sprite output (item Icons / Entities / cursors) is unchanged.
 
 ## Adding an ADR
 

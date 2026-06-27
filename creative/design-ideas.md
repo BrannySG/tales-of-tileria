@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-26 *(added vendor equipment progression + clarified onboarding gate: start with Axe only, buy Pickaxe to unlock Mining)*
+> Last reviewed: 2026-06-26 *(added shader / filter FX layer idea — wind-sway trees, ambient world life)*
 
 ---
 
@@ -25,6 +25,7 @@ a great grind of course.
 - Lightweight onboarding quest spine: **HIGH (unchanged)**
 - Loot drop carousel (loot reel): **HIGH (unchanged)**
 - Custom scrollbar: **LOW (unchanged)**
+- Shader / filter FX layer (wind-sway, ambient juice): **LOW (new)**
 - Shop unlock via hatch / breakable gate: **MEDIUM (unchanged)**
 - Vendor equipment progression: **HIGH (new)**
 - Stack limits + wood refinement: **DECISION FIRST -> MEDIUM (unchanged)**
@@ -224,6 +225,55 @@ Notes:
 - Do not block any gameplay feature work on this.
 - Consider a CSS-only approach first (`::-webkit-scrollbar` + `scrollbar-width`
   for Firefox) before reaching for a library.
+
+---
+
+## Shader / filter FX layer — wind-sway & ambient world life
+
+> **Priority: LOW (no action now — keep in mind for a future polish pass)**
+> Impact: Atmosphere / "the world feels alive" — pure juice, not a loop gap.
+
+Nothing to action yet — parking it as a future quality lever. PixiJS (we're on
+v8, `pixi.js@^8.19.0`) supports shaders natively: built-in filters + the
+`pixi-filters` pack (glow, outline, bloom, displacement, etc.), custom full-screen
+`Filter`s, and geometry-level `Mesh` + `Shader` programs.
+
+Concrete starter idea: a **simple "wind" vertex/displacement shader** that makes
+trees (and other foliage) gently sway, so the world reads as living rather than
+static. Other low-effort wins later: glow on rare loot/entities, hover outlines,
+damage flash, divine-power distortion, vignette during scripted beats.
+
+### Boundaries / seam
+- **Pure presentation** — lives in `apps/client/src/render` (near `entityFx.ts` /
+  `particles.ts`), driven by `SimEvent`s; never touches authoritative state
+  (ADR-0007/0015). Must stay out of `packages/sim` / `packages/shared` so the
+  headless DO build never sees Pixi/WebGL (invariant #3).
+- **No Cloudflare impact** — shaders run on the client GPU; the Worker + DOs only
+  run the headless sim and fan out events. Only real cost is a small client bundle
+  bump if `pixi-filters` is added.
+- **Pixi v8 gotcha:** v8 can render via WebGL *or* WebGPU. A GLSL-only shader
+  silently no-ops on WebGPU — either ship both GLSL + WGSL programs or pin the
+  renderer to WebGL.
+- Respect `prefers-reduced-motion` (disable sway/animated effects).
+
+**Review (2026-06-26)**
+
+Pros:
+- High perceived-polish payoff for low effort; wind-sway alone adds a lot of life.
+- Natively supported by our Pixi version; slots cleanly into the presentation lane.
+- Cheap incremental wins via `pixi-filters` without bespoke shader code.
+
+Cons / risks:
+- WebGL-vs-WebGPU dual-shader requirement (or renderer pin) is an easy footgun.
+- Custom shaders carry a perf/maintenance cost; easy to over-juice and hurt the
+  readability of the god-cursor sandbox.
+- Zero loop impact — strictly polish, so it should never displace loop work.
+
+Notes:
+- No action item — revisit during a dedicated UI/juice polish sprint (natural
+  companion to the custom scrollbar and loot-reel fanfare work).
+- Wind-sway foliage is the recommended first experiment (lowest risk, highest
+  ambient return).
 
 ---
 
@@ -554,6 +604,118 @@ Notes:
   bursts (ADR-0007).
 - Escalate to **HIGH** priority once Artifacts system is specced — rare spawns are
   the best multiplayer showcase for chase drops.
+- The **Level-wide announcement** UI is now the same surface as the **chat + system
+  event feed** below — build the feed first and rare spawns just emit into it.
+
+---
+
+## Chat + system event feed (bottom-right social feed)
+
+> **Priority: MEDIUM (with DECISION FIRST gates on routing + placement)**
+> Impact: First real social/presence channel in the shared world; a home for the
+> hype moments (rare drops, rare spawns) the world currently has no voice for.
+
+A scrolling **feed panel** in (or near) the **bottom-right corner** that does two
+jobs:
+
+1. **Player chat** — players in a Level can type and see each other's messages.
+2. **System events** — authoritative hype broadcasts the server fans out to
+   everyone in the Level, e.g.:
+   > *"BRANNY LOOTED A {Very Rare Item}"*
+   > *"A RARE [Entity Name] has spawned!"*
+
+These read as celebratory "watch the world happen" moments and give multiplayer
+presence beyond seeing other cursors with nametags.
+
+### Why feasibility is better than it looks
+
+The hard part — *fan a message out to everyone in a Level* — **already exists**.
+The server runs the same `@tot/sim` `World` in an `InstanceDO` per Level instance
+and broadcasts `SimEvent`s to every connected client (ADR-0002/0006). So:
+
+- **System events are nearly free.** Rare loot / rare spawn announcements are just a
+  **presentation layer over events the sim already emits** (loot is auto-awarded;
+  rare spawns would emit `entity.rareSpawn`). No new authority — same boundary as
+  loot bursts (ADR-0007). The feed subscribes to a curated set of events and renders
+  a line per noteworthy one.
+- **Chat is the genuinely new bit.** It needs a way to get a typed string from one
+  client to all others in the Level.
+
+### DECISION FIRST — how does chat traffic flow?
+
+Chat text is **not authoritative world state**, which makes routing a design call:
+
+- **Option A — through the sim (`chat.send` command → `chat.message` event).**
+  Cleanest fit with "commands in, events out"; reuses existing fan-out and the
+  `LocalTransport`/`WebSocketTransport` swap for free. Risk: pollutes the sim with
+  non-world state and event log it doesn't need to be deterministic about.
+- **Option B — transport/DO side-channel.** A separate WS message type the
+  `InstanceDO` relays without touching the `World`. Keeps the sim pure (invariant
+  #3) but adds a second message path outside the command/event protocol — a new
+  seam to maintain and test.
+
+Pick this before building; it determines whether `packages/shared` gains a chat
+command/event or the transport grows a parallel channel.
+
+### DECISION FIRST — placement vs the crowded bottom-right
+
+The **bottom-right is already busy**: the sticky hover-preview bar (ADR-0028) +
+Skill Tracker live there, and the **loot reel was deliberately put on the left edge
+specifically to avoid that corner**. A chat box in the same corner needs a
+deconfliction plan: collapsible/toggle, auto-hide when idle, share space with the
+Skill Tracker, or sit above/below the hover bar. Resolve layout before building.
+
+### Boundaries / seam
+
+- **System-feed half is pure presentation** — a HUD panel projecting a filtered set
+  of `SimEvent`s (rare loot, rare spawns, milestones). Removing it changes no sim
+  state (ADR-0007/0015). It is the same surface the rare-spawn **Level-wide
+  announcement** should target — build it once.
+- **Chat half** needs server fan-out (multiplayer only); single-player modes (Zoo,
+  Editor, tutorial) show the system feed but have no one to chat with.
+- Keep the sim **headless/DOM-free** regardless of routing choice (invariant #3).
+- Needs basic **moderation hygiene** before any wider audience: length cap, rate
+  limit, profanity filtering, and remember the **trust model** — client-seeded
+  data is spoofable today, so the server must own/validate broadcast content
+  (don't let a client fake "BRANNY LOOTED A {Legendary}"). (ADR-0016.)
+
+### Rarity threshold for loot shoutouts
+
+Only **Rare+ (or a tuned threshold)** loot should broadcast Level-wide, or the feed
+becomes spam. This mirrors the loot-reel rule (Rare+ get fanfare; commons stay
+quiet) — reuse the same rarity gate so "what's noteworthy" is defined once.
+
+**Review (2026-06-27)**
+
+Pros:
+- The expensive infrastructure (per-Level event fan-out via `InstanceDO`) already
+  exists — the system-event feed is high-ROI presentation on top of it.
+- First genuine social presence layer; "BRANNY LOOTED A {Very Rare Item}" turns
+  solo grinding into a shared, watchable world and feeds friendly rivalry.
+- Naturally absorbs the **rare-spawn Level-wide announcement** (already specced) —
+  one feed surface, many event sources.
+- Reuses the loot-reel rarity gate so noteworthy-vs-noise is defined once.
+
+Cons / risks:
+- **Placement conflict** with the already-crowded bottom-right (hover bar + Skill
+  Tracker); the loot reel was moved left precisely to avoid this corner.
+- Chat routing (sim command/event vs transport side-channel) is an unresolved
+  architecture decision with real trade-offs.
+- Chat invites moderation/abuse problems (spam, slurs, impersonation) that the
+  system feed alone doesn't — needs rate limits, length caps, filtering, and
+  server-owned content given the spoofable trust model (ADR-0016).
+- Pure social value, not a core-loop gap — shouldn't displace loop work (onboarding,
+  loot reel, equipment).
+
+Notes:
+- **Suggested sequencing:** build the **system-event feed first** (pure presentation
+  over existing events, ship the rare-loot/rare-spawn shoutouts), then add **player
+  chat** on top once routing + moderation are decided. The feed earns its keep even
+  before chat exists.
+- This **reinforces** the **Timed rare spawns** idea (shared announcement surface)
+  and the **loot reel** rarity-gate language (shared "what's noteworthy" rule).
+- If chat routes through the sim (Option A), it likely warrants a short ADR
+  (chat command/event in the protocol) + `CONTEXT.md` vocab.
 
 ---
 

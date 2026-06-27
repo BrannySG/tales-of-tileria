@@ -18,7 +18,7 @@ export const pickupAxeQuest: QuestDefinition = {
 export const chopTreesQuest: QuestDefinition = {
   id: 'chop_trees',
   name: 'Timber!',
-  objectiveLabel: 'Chop Trees',
+  objectiveLabel: 'Chop 3 Trees',
   objective: { kind: 'depleteEntity', tag: 'tree', count: 3 },
   prerequisiteQuestIds: ['pickup_axe'],
   rewards: { gold: 50, xp: 40 },

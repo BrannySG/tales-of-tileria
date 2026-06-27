@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { DEFAULT_SIZES } from './config.ts';
 import { generateSprite, type GenerateOptions } from './core/generate.ts';
 import { listPresets } from './presets/index.ts';
+import { DEFAULT_STYLE, STYLE_IDS } from './styles/index.ts';
 import type { GenerateResult } from './types.ts';
 
 function loadEnv(): void {
@@ -19,9 +20,10 @@ Usage:
   spritegen generate --preset <id> --subject "<text>" --id <sprite_id> [options]
 
 Options:
-  --preset <id>        Style preset (${listPresets().join(', ')})
+  --preset <id>        Element preset (${listPresets().join(', ')})
   --subject <text>     What to draw, e.g. "a steel longsword"
   --id <sprite_id>     snake_case id, e.g. sword_steel
+  --style <id>         Style Pack / visual identity (${STYLE_IDS.join(', ')}; default ${DEFAULT_STYLE})
   --sizes <list>       Comma-separated target sizes (default per preset; items ${DEFAULT_SIZES.join(',')}, entity 256)
   --n <count>          Candidates per attempt (default 1)
   --max-attempts <n>   Retry attempts if none pass QA (default 3)
@@ -45,10 +47,14 @@ function printHuman(result: GenerateResult): void {
     if (result.rejects.length) console.error(`Rejected candidates in:\n  ${result.rejects.join('\n  ')}`);
     return;
   }
-  console.log(`OK: ${result.id} (${result.preset}) — "${result.subject}"`);
+  console.log(`OK: ${result.id} (${result.preset} / ${result.style}) — "${result.subject}"`);
   console.log(`QA score: ${result.chosen?.verdict.score.toFixed(2)}`);
   console.log('Outputs:');
   for (const [label, p] of Object.entries(result.outputs)) console.log(`  ${label}: ${p}`);
+  if (result.sliceMeta) {
+    console.log('Slice metadata (9-slice):');
+    console.log(`  slice ${result.sliceMeta.slice}px, border ${result.sliceMeta.border}px, repeat ${result.sliceMeta.repeat}`);
+  }
   console.log('\nWiring (add to the game):');
   console.log(`  manifest.ts import : ${result.wiring.import}`);
   console.log(`  manifest.ts entry  : ${result.wiring.manifestKey.trim()}`);
@@ -67,6 +73,7 @@ async function main(): Promise<void> {
       preset: { type: 'string' },
       subject: { type: 'string' },
       id: { type: 'string' },
+      style: { type: 'string' },
       sizes: { type: 'string' },
       n: { type: 'string' },
       'max-attempts': { type: 'string' },
@@ -98,6 +105,7 @@ async function main(): Promise<void> {
     preset: values.preset,
     subject: values.subject,
     id: values.id,
+    style: values.style,
     sizes: values.sizes?.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n)),
     n: values.n ? Number(values.n) : undefined,
     maxAttempts: values['max-attempts'] ? Number(values['max-attempts']) : undefined,

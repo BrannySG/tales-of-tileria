@@ -14,7 +14,7 @@
  *
  *  Bump rules live in .cursor/rules/versioning.mdc — increment on every change.
  */
-export const GAME_VERSION = '0.2.2';
+export const GAME_VERSION = '0.2.5';
 
 /** Channel prefix shown before the version (e.g. "Dev", "Beta", "Release"). */
 export const VERSION_CHANNEL = 'Dev';

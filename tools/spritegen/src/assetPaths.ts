@@ -8,7 +8,7 @@ export function assetSubfolder(fileName: string): string {
   if (fileName.startsWith('T_Item_')) return 'Items';
   if (fileName.startsWith('T_Cursor_')) return 'Cursors';
   if (fileName.startsWith('T_FX_') || fileName.startsWith('SPR_FX_')) return 'FX';
-  if (fileName.startsWith('Coin ')) return 'UI';
+  if (fileName.startsWith('T_UI_') || fileName.startsWith('Coin ')) return 'UI';
   if (fileName.endsWith('.woff') || fileName.endsWith('.woff2')) return 'Fonts';
   return '';
 }

@@ -1,18 +1,6 @@
-import { assetAbsPath } from '../assetPaths.ts';
+import { subjectProcessor } from '../core/processors/subject.ts';
+import { subjectQa } from '../core/qa/subject.ts';
 import type { Preset } from '../types.ts';
-import { STYLE_CORE } from './styleCore.ts';
-
-/**
- * Reference sprites that anchor the world-entity look. A representative mix of
- * organic and structured world objects so the model locks onto the rendering
- * style rather than any one subject.
- */
-const REFERENCE_FILES = [
-  'T_Entity_Tree01.png',
-  'T_Entity_Rock.png',
-  'T_Entity_MagicStone.png',
-  'T_Entity_Shrine.png',
-];
 
 export const entityPreset: Preset = {
   id: 'entity',
@@ -20,10 +8,11 @@ export const entityPreset: Preset = {
   textureIdPrefix: 'entity_',
   wiringKind: 'entity',
   defaultSizes: [256],
-  referencePaths: REFERENCE_FILES.map((f) => assetAbsPath(f)),
-  buildPrompt(subject: string): string {
+  process: subjectProcessor,
+  qa: subjectQa,
+  buildPrompt(subject: string, styleCore: string): string {
     return [
-      STYLE_CORE,
+      styleCore,
       '',
       'COMPOSITION FOR THIS SPRITE (world entity):',
       '- The attached images are existing world entities from this game. Match their',

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { assetAbsPath } from '../assetPaths.ts';
+import { assetAbsPath, assetRelPath } from '../assetPaths.ts';
 import {
   ASSETS_DIR,
   DEFAULT_MODEL,
@@ -14,13 +14,12 @@ import {
   REJECTS_DIR,
 } from '../config.ts';
 import { getPreset } from '../presets/index.ts';
-import type { CandidateLog, GenerateResult, QaVerdict } from '../types.ts';
+import { DEFAULT_STYLE, getStylePack } from '../styles/index.ts';
+import type { CandidateLog, GenerateResult, ProcessedSprite, SliceMeta } from '../types.ts';
 import { toPascalCase } from './naming.ts';
 import { generateCandidates } from './openai.ts';
-import { postprocess, type ProcessedSprite } from './postprocess.ts';
-import { meanColorOf, programmaticQa } from './qa/programmatic.ts';
+import { meanColorOf } from './qa/programmatic.ts';
 import { mergeVerdicts } from './qa/verdict.ts';
-import { visionQa } from './qa/vision.ts';
 import { imglyRemover, type BackgroundRemover } from './removeBackground.ts';
 import { applyWiring, buildWiring } from './wire.ts';
 
@@ -28,6 +27,8 @@ export interface GenerateOptions {
   preset: string;
   subject: string;
   id: string;
+  /** Style Pack id (visual identity). Defaults to `tileria`. */
+  style?: string;
   sizes?: number[];
   n?: number;
   visionQa?: boolean;
@@ -42,10 +43,6 @@ export interface GenerateOptions {
   tags?: string[];
 }
 
-const MIN_FILL = 0.03;
-const MAX_FILL = 0.85;
-const VISION_THRESHOLD = 0.6;
-
 interface Candidate {
   log: CandidateLog;
   processed: ProcessedSprite;
@@ -56,13 +53,16 @@ export async function generateSprite(
   remover: BackgroundRemover = imglyRemover,
 ): Promise<GenerateResult> {
   const preset = getPreset(options.preset);
+  const pack = getStylePack(options.style ?? DEFAULT_STYLE);
+  const referencePaths = pack.references[preset.id] ?? pack.defaultReferences ?? [];
+
   const sizes = (options.sizes ?? preset.defaultSizes ?? DEFAULT_SIZES)
     .slice()
     .sort((a, b) => a - b);
   const primarySize = sizes[sizes.length - 1]!;
   const n = options.n ?? 1;
   const maxAttempts = options.maxAttempts ?? 3;
-  const prompt = preset.buildPrompt(options.subject);
+  const prompt = preset.buildPrompt(options.subject, pack.styleCore);
 
   const baseName = `${preset.assetPrefix}${toPascalCase(options.id)}`;
   const wiring = buildWiring(preset, options.id, {
@@ -77,7 +77,7 @@ export async function generateSprite(
     mkdir(REJECTS_DIR, { recursive: true }),
   ]);
 
-  const referenceMean = await meanColorOf(preset.referencePaths);
+  const referenceMean = referencePaths.length ? await meanColorOf(referencePaths) : undefined;
 
   const allCandidates: CandidateLog[] = [];
   let chosen: Candidate | undefined;
@@ -86,7 +86,7 @@ export async function generateSprite(
   for (let attempt = 1; attempt <= maxAttempts && !chosen; attempt++) {
     const buffers = await generateCandidates({
       prompt,
-      referencePaths: preset.referencePaths,
+      referencePaths,
       n,
       size: GENERATION_SIZE,
       model: options.model ?? DEFAULT_MODEL,
@@ -95,31 +95,22 @@ export async function generateSprite(
 
     const attemptCandidates: Candidate[] = [];
     for (let ci = 0; ci < buffers.length; ci++) {
-      const rgba = await remover.remove(buffers[ci]!);
-      const processed = await postprocess(rgba, {
+      const processed = await preset.process(buffers[ci]!, {
+        remover,
         masterSize: MASTER_SIZE,
         targetSizes: sizes,
         marginPct: FRAME_MARGIN,
       });
 
-      const verdicts: QaVerdict[] = [
-        await programmaticQa(processed.master, {
-          expectedSize: MASTER_SIZE,
-          minFill: MIN_FILL,
-          maxFill: MAX_FILL,
-          referenceMean,
-        }),
-      ];
-      if (options.visionQa) {
-        verdicts.push(
-          await visionQa(processed.sizes.get(primarySize) ?? processed.master, {
-            model: options.visionModel ?? DEFAULT_VISION_MODEL,
-            subject: options.subject,
-            referencePaths: preset.referencePaths,
-            threshold: VISION_THRESHOLD,
-          }),
-        );
-      }
+      const verdicts = await preset.qa(processed, {
+        expectedSize: MASTER_SIZE,
+        primarySize,
+        referenceMean,
+        referencePaths,
+        subject: options.subject,
+        visionQa: Boolean(options.visionQa),
+        visionModel: options.visionModel ?? DEFAULT_VISION_MODEL,
+      });
 
       const verdict = mergeVerdicts(verdicts);
       const log: CandidateLog = { attempt, candidate: ci, verdict };
@@ -151,6 +142,7 @@ export async function generateSprite(
   }
 
   const outputs: Record<string, string> = {};
+  let sliceMeta: SliceMeta | undefined;
   if (chosen) {
     const masterPath = path.join(MASTERS_DIR, `${baseName}_master.png`);
     await writeFile(masterPath, chosen.processed.master);
@@ -162,6 +154,22 @@ export async function generateSprite(
       await mkdir(path.dirname(outPath), { recursive: true });
       await writeFile(outPath, buf);
       outputs[String(size)] = outPath;
+    }
+
+    // Frame presets emit contract-driven 9-slice metadata as a sidecar, so the
+    // client <Frame> spec is generated rather than hand-measured.
+    if (preset.geometry) {
+      sliceMeta = {
+        src: assetRelPath(`${baseName}.png`),
+        mode: 'border-image',
+        slice: Math.round(preset.geometry.borderFraction * primarySize),
+        border: preset.geometry.recommendedBorderPx,
+        repeat: preset.geometry.repeat,
+      };
+      const metaPath = assetAbsPath(`${baseName}.frame.json`);
+      await mkdir(path.dirname(metaPath), { recursive: true });
+      await writeFile(metaPath, `${JSON.stringify(sliceMeta, null, 2)}\n`);
+      outputs.sliceMeta = metaPath;
     }
   }
 
@@ -175,9 +183,11 @@ export async function generateSprite(
     ok: Boolean(chosen),
     id: options.id,
     preset: preset.id,
+    style: pack.id,
     subject: options.subject,
     textureId: wiring.textureId,
     outputs,
+    sliceMeta,
     chosen: chosen?.log,
     rejects,
     wiring,

@@ -5416,3 +5416,192 @@ button.bag-slot:hover {
     max-height: 180px;
   }
 }
+
+/* =========================================================================
+   UI FRAME LAB (research spike, dev-only #/ui-lab)
+   Textured 9-slice frame primitives + a non-functional inventory mockup,
+   rendered with a Synty mask skin vs a GenAI border-image skin side by side.
+   Scoped under .ui-lab so nothing here leaks into the real HUD.
+   ========================================================================= */
+.ui-lab {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: radial-gradient(120% 120% at 50% 0%, #5e8b3a 0%, #4a7330 45%, #38591f 100%);
+  overflow: auto;
+}
+
+.ui-lab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+}
+
+.ui-lab-bar h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.ui-lab-bar p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ui-lab-sizes {
+  display: flex;
+  gap: 6px;
+}
+
+.ui-lab-sizes button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  cursor: var(--app-cursor-glow, pointer);
+  font-family: inherit;
+}
+
+.ui-lab-sizes button.is-active {
+  background: var(--accent);
+  color: #2a1f06;
+  border-color: var(--accent);
+}
+
+.ui-lab-stage {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 56px;
+  padding: 48px 24px;
+}
+
+.ui-lab-cell {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.ui-lab-cell figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.ui-lab-cell figcaption strong {
+  font-size: 15px;
+}
+
+.ui-lab-cell figcaption span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* --- Frame primitive --- */
+.lab-frame {
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.5));
+}
+
+.lab-frame-body.is-bevel {
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, 0.65),
+    inset 0 -2px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- Inventory mockup --- */
+.lab-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.lab-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--tab-slot);
+  border: 1px solid var(--tab-border);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.lab-tab.is-active {
+  border-color: var(--tab-accent);
+  box-shadow:
+    0 0 0 1px var(--tab-accent),
+    0 0 10px color-mix(in srgb, var(--tab-accent) 60%, transparent);
+}
+
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.lab-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 9px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 3px 5px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.lab-slot-icon {
+  width: 76%;
+  height: 76%;
+  object-fit: contain;
+  image-rendering: auto;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+}
+
+.lab-slot-qty {
+  position: absolute;
+  right: 5px;
+  bottom: 2px;
+  font-size: 14px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.lab-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid;
+}
+
+.lab-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.lab-foot-icon {
+  width: 22px;
+  height: 22px;
+}

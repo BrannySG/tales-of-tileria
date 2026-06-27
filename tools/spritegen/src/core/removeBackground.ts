@@ -1,9 +1,7 @@
 import { removeBackground as imglyRemoveBackground } from '@imgly/background-removal-node';
+import type { BackgroundRemover } from '../types.ts';
 
-/** A swappable matting strategy: opaque PNG in, transparent RGBA PNG out. */
-export interface BackgroundRemover {
-  remove(input: Buffer): Promise<Buffer>;
-}
+export type { BackgroundRemover };
 
 /**
  * Default remover: the @imgly ONNX matting model. Runs in-process in Node (no

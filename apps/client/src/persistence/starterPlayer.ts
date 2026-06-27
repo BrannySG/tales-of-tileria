@@ -1,4 +1,4 @@
-import { createPlayer, emptySkills, type Player } from '@tot/shared';
+import { createPlayer, emptySkills, objectiveGoal, requireQuestDefinition, type Player } from '@tot/shared';
 
 /**
  * Canonical starter snapshot used whenever the game needs a fresh playable
@@ -12,6 +12,16 @@ export function buildStarterPlayer(id: string, displayName: string): Player {
   // player buys + equips a Pickaxe from the Black Market Equipment stall.
   player.ownedTools = ['axe_rusty'];
   player.equippedBySlot = { axe: 'axe_rusty' };
+  // Re-grant the simple starter objective for fresh/wiped players: chop 3 trees.
+  const starterQuest = requireQuestDefinition('chop_trees');
+  player.quests = [
+    {
+      questId: starterQuest.id,
+      status: 'active',
+      progress: 0,
+      goal: objectiveGoal(starterQuest.objective),
+    },
+  ];
   player.craftingUnlocked = true;
   player.skills = emptySkills();
   return player;

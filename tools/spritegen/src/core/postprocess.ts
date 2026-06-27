@@ -1,4 +1,7 @@
 import sharp from 'sharp';
+import type { ProcessedSprite } from '../types.ts';
+
+export type { ProcessedSprite };
 
 export interface PostprocessOptions {
   /** Side length of the kept hi-res transparent master. */
@@ -7,13 +10,6 @@ export interface PostprocessOptions {
   targetSizes: number[];
   /** Transparent margin around the subject, as a fraction of the canvas. */
   marginPct: number;
-}
-
-export interface ProcessedSprite {
-  /** Transparent, framed, square master at `masterSize`. */
-  master: Buffer;
-  /** size -> transparent PNG, downscaled from the master. */
-  sizes: Map<number, Buffer>;
 }
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 } as const;

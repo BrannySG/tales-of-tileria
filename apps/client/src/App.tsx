@@ -7,6 +7,7 @@ import { GameMode } from './modes/GameMode';
 import { EntityEditorMode } from './modes/EntityEditorMode';
 import { TitleMode } from './modes/TitleMode';
 import { OnboardingMode } from './modes/OnboardingMode';
+import { UiLabMode } from './modes/UiLabMode';
 import { consumeLiveResetNotice } from './persistence/liveReset';
 import { OnboardingDevControl } from './ui/OnboardingDevControl';
 import { LiveResetNotice } from './ui/LiveResetNotice';
@@ -15,7 +16,7 @@ import { ASSET_URL } from './assets/manifest';
 import { useHud } from './state/store';
 import { VERSION_LABEL } from './version';
 
-type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding';
+type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding' | 'ui-lab';
 
 /**
  * Dev tools (Editor/Zoo/Entities) and the standalone onboarding route exist only
@@ -23,8 +24,10 @@ type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding';
  * the game entry for first-time players. Gating at build time means the public
  * build literally cannot reach them (nav hidden and hashes rejected).
  */
-const DEV_MODES = ['zoo', 'editor', 'entities', 'onboarding'] as const;
-const NAV_MODES: Mode[] = import.meta.env.DEV ? ['game', 'zoo', 'editor', 'entities'] : [];
+const DEV_MODES = ['zoo', 'editor', 'entities', 'onboarding', 'ui-lab'] as const;
+const NAV_MODES: Mode[] = import.meta.env.DEV
+  ? ['game', 'zoo', 'editor', 'entities', 'ui-lab']
+  : [];
 const ALLOWED_MODES: readonly Mode[] = import.meta.env.DEV
   ? ['title', 'game', ...DEV_MODES]
   : ['title', 'game'];
@@ -34,6 +37,7 @@ const MODE_LABEL: Record<string, string> = {
   zoo: 'Zoo',
   editor: 'Editor',
   entities: 'Entities',
+  'ui-lab': 'UI Lab',
 };
 
 function isMode(value: string): value is Mode {
@@ -147,6 +151,7 @@ export function App() {
       {import.meta.env.DEV && mode === 'zoo' && <ZooMode />}
       {import.meta.env.DEV && mode === 'editor' && <EditorMode />}
       {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}
+      {import.meta.env.DEV && mode === 'ui-lab' && <UiLabMode />}
       {/* Always-present build badge; lives at the app shell so it survives every
           mode and is never clipped by the letterboxed world frame. */}
       {hudVisible && (

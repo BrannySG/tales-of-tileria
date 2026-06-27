@@ -1,18 +1,6 @@
-import { assetAbsPath } from '../assetPaths.ts';
+import { subjectProcessor } from '../core/processors/subject.ts';
+import { subjectQa } from '../core/qa/subject.ts';
 import type { Preset } from '../types.ts';
-import { STYLE_CORE } from './styleCore.ts';
-
-/**
- * Existing cursor skins used as orientation and silhouette anchors. Cursor art
- * is not rotated at runtime, so the generated sprite must bake in the pointer
- * angle and tip placement.
- */
-const REFERENCE_FILES = [
-  'T_Cursor_Cracked.png',
-  'T_Cursor_Wooden01.png',
-  'T_Cursor_Stone01.png',
-  'T_Cursor_Council.png',
-];
 
 export const cursorPreset: Preset = {
   id: 'cursor',
@@ -20,10 +8,11 @@ export const cursorPreset: Preset = {
   textureIdPrefix: 'cursor_',
   wiringKind: 'item',
   defaultSizes: [256],
-  referencePaths: REFERENCE_FILES.map((f) => assetAbsPath(f)),
-  buildPrompt(subject: string): string {
+  process: subjectProcessor,
+  qa: subjectQa,
+  buildPrompt(subject: string, styleCore: string): string {
     return [
-      STYLE_CORE,
+      styleCore,
       '',
       'COMPOSITION FOR THIS SPRITE (cursor skin):',
       '- The attached images are existing cursor skins from this game. Match their',

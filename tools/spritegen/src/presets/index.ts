@@ -2,12 +2,14 @@ import type { Preset } from '../types.ts';
 import { cursorPreset } from './cursor.ts';
 import { entityPreset } from './entity.ts';
 import { itemIconPreset } from './item-icon.ts';
+import { uiFramePreset } from './ui-frame.ts';
 
-/** Registry of available style presets. `fx` lands here later. */
+/** Registry of available element-type presets (theme-agnostic). `fx` lands here later. */
 const PRESETS: Record<string, Preset> = {
   [itemIconPreset.id]: itemIconPreset,
   [entityPreset.id]: entityPreset,
   [cursorPreset.id]: cursorPreset,
+  [uiFramePreset.id]: uiFramePreset,
 };
 
 export function getPreset(id: string): Preset {

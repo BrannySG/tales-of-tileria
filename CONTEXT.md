@@ -306,13 +306,22 @@ language in the design docs, this file wins and the docs should be reconciled.
   in the Bag and loot bursts. Every Icon is a Sprite, but not every Sprite is an
   Icon (entity and FX Sprites are not Icons).
 - **Sprite Pipeline** — A local-only development tool that generates game-ready
-  Sprites on demand (item Icons and world Entities): it prompts an image model
-  against curated reference Sprites for visual consistency, removes the
-  background, frames and downscales the result to the target sizes, and QA-checks
-  it. A shared style core keeps every preset's output on one look. Callable by
-  hand or by an AI agent (typically via a background subagent), which reads its
-  structured verdict to accept or retry, and can scaffold the new Item/Entity
-  wiring. Not shipped to players.
+  Sprites on demand (item Icons, world Entities, cursor skins, and UI frames): it
+  prompts an image model against curated reference Sprites for visual consistency,
+  post-processes the result (matte + trim for subjects, background flood-key for
+  frames), downscales/optimizes to the target sizes, and QA-checks it. The engine
+  is **theme-agnostic**: a *Preset* defines the element TYPE (composition prompt,
+  processing strategy, QA strategy) while a swappable **Style Pack** supplies the
+  look (style core text + palette + per-preset reference Sprites), so the same
+  pipeline can be pointed at a different art style or reused in another project
+  (`--style`). Callable by hand or by an AI agent (typically via a background
+  subagent), which reads its structured verdict to accept or retry, and can
+  scaffold the new Item/Entity wiring (or, for a UI frame, emit a `<Frame>` 9-slice
+  spec from contract-driven slice metadata). Not shipped to players. (See ADR-0031.)
+- **Style Pack** — The named visual identity the Sprite Pipeline generates in: the
+  shared style-core prompt text, the palette, and the reference Sprites keyed per
+  Preset. Decoupled from the engine so the look can be swapped (`tileria` is the
+  default) without touching Preset or processing logic. (See ADR-0031.)
 
 ## Equipment & Gating
 

@@ -32,6 +32,28 @@ function entitySkeleton(
 }
 
 /**
+ * Builds a ready-to-paste `<Frame>` spec for a generated UI frame. The slice
+ * inset is derived from the preset's geometry contract (border fraction x the
+ * primary output size), so it matches the emitted slice-metadata sidecar.
+ */
+function frameSpecSnippet(preset: Preset, camel: string, textureId: string): string {
+  const primarySize = preset.defaultSizes?.at(-1) ?? 512;
+  const slice = preset.geometry ? Math.round(preset.geometry.borderFraction * primarySize) : 0;
+  const border = preset.geometry?.recommendedBorderPx ?? slice;
+  const repeat = preset.geometry?.repeat ?? 'stretch';
+  return [
+    `// FrameSpec — uses the manifest entry above (TEXTURE_MANIFEST.${textureId}):`,
+    `const ${camel}Frame = {`,
+    `  src: ${camel}, // imported asset URL`,
+    `  mode: 'border-image' as const,`,
+    `  slice: ${slice},`,
+    `  border: ${border},`,
+    `  repeat: '${repeat}' as const,`,
+    `};`,
+  ].join('\n');
+}
+
+/**
  * Builds the exact lines needed to register a sprite in the game. The asset is
  * referenced by its primary (unsuffixed) filename, e.g. `T_Item_SwordSteel.png`.
  * The content snippet depends on the preset: an Item gets a `worldTextureId`
@@ -44,13 +66,18 @@ export function buildWiring(preset: Preset, id: string, meta: EntityMeta = {}): 
   const textureId = `${preset.textureIdPrefix}${snake}`;
   const fileName = `${preset.assetPrefix}${pascal}.png`;
 
-  const isEntity = preset.wiringKind === 'entity';
-  const contentSnippet = isEntity
-    ? entitySkeleton(camel, snake, textureId, meta)
-    : `worldTextureId: '${textureId}',`;
-  const contentTarget = isEntity
-    ? 'entities.ts (refine gameplay fields, then it appears in both editors)'
-    : 'items.ts (add to the matching ItemDefinition)';
+  let contentSnippet: string;
+  let contentTarget: string;
+  if (preset.wiringKind === 'entity') {
+    contentSnippet = entitySkeleton(camel, snake, textureId, meta);
+    contentTarget = 'entities.ts (refine gameplay fields, then it appears in both editors)';
+  } else if (preset.wiringKind === 'ui') {
+    contentSnippet = frameSpecSnippet(preset, camel, textureId);
+    contentTarget = 'a <Frame> spec (use with the Frame primitive; not auto-applied)';
+  } else {
+    contentSnippet = `worldTextureId: '${textureId}',`;
+    contentTarget = 'items.ts (add to the matching ItemDefinition)';
+  }
 
   return {
     textureId,
