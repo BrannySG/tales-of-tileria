@@ -8,7 +8,7 @@ export const SKILL_LABEL: Record<SkillDisplayId, string> = {
   combat: 'Combat',
   crafting: 'Crafting',
   fishing: 'Fishing',
-  clicker: 'Clicker',
+  clicker: 'Clicks',
 };
 
 export const SKILL_ICON_TEXTURE: Partial<Record<SkillDisplayId, string>> = {

@@ -23,10 +23,12 @@ export function CollectionsTab({
   onOpenLevel?: (levelId: string) => void;
 }) {
   const t = skin.tokens;
+  const liveLevels = levels.filter((level) => !level.comingSoon);
+  const comingSoonLevels = levels.filter((level) => level.comingSoon);
 
   return (
     <div className="lab-region-list">
-      {levels.map((level) => {
+      {liveLevels.map((level) => {
         const pct = level.total > 0 ? Math.round((level.completed / level.total) * 100) : 0;
         return (
           <button
@@ -51,7 +53,9 @@ export function CollectionsTab({
                 <span className="lab-region-pct" style={{ color: t.accent }}>
                   {pct}%
                 </span>
-                {showDot && <NotificationDot inline title="New collection progress" />}
+                {showDot && level.available && (
+                  <NotificationDot inline title="New collection progress" />
+                )}
               </div>
               <div className="lab-region-bar" aria-hidden>
                 <span className="lab-region-bar-fill" style={{ width: `${pct}%` }} />
@@ -63,6 +67,40 @@ export function CollectionsTab({
           </button>
         );
       })}
+      {comingSoonLevels.length > 0 && (
+        <div className="lab-region-divider" style={{ color: t.textMuted }}>
+          Coming Soon
+        </div>
+      )}
+      {comingSoonLevels.map((level) => (
+        <button
+          key={level.id}
+          type="button"
+          className="lab-region-row is-coming-soon"
+          disabled
+          title={`${level.name} — Coming soon`}
+        >
+          <span
+            className="lab-region-icon"
+            style={{ background: t.slotBg, borderColor: t.slotBorder } as CSSProperties}
+          >
+            <img src={ASSET_URL[level.iconTextureId ?? 'entity_beacon']} alt="" />
+          </span>
+          <div className="lab-region-info">
+            <div className="lab-region-top">
+              <span className="lab-region-name" style={{ color: t.text }}>
+                {level.name}
+              </span>
+              <span className="lab-region-pct" style={{ color: t.textMuted }}>
+                Soon
+              </span>
+            </div>
+            <span className="lab-region-sub" style={{ color: t.textMuted }}>
+              {level.subtitle ?? 'Future collections unlock here.'}
+            </span>
+          </div>
+        </button>
+      ))}
     </div>
   );
 }

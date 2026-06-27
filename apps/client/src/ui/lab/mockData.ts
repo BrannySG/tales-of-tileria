@@ -26,7 +26,7 @@ export const MOCK_SKILLS: PanelSkillVM[] = [
   { id: 'mining', label: 'Mining', level: 54, progress: 0.62, points: 2 },
   { id: 'combat', label: 'Combat', level: 12, progress: 0.3, points: 0 },
   { id: 'crafting', label: 'Crafting', level: 8, progress: 0.18, points: 0 },
-  { id: 'clicker', label: 'Clicker', level: 54, progress: 0.62, points: 0 },
+  { id: 'clicker', label: 'Clicks', level: 54, progress: 0.62, points: 0 },
 ];
 
 export const MOCK_SKILL_TOTAL = MOCK_SKILLS.reduce((sum, s) => sum + s.level, 0);
@@ -68,6 +68,16 @@ export const MOCK_EQUIPMENT_SLOTS: PanelEquipSlotVM[] = [
  */
 export const MOCK_LEVELS: PanelLevelVM[] = [
   { id: 'the_clearing', name: 'The Clearing', completed: 7, total: 41, available: true },
+  {
+    id: 'deepwood_01_teaser',
+    name: 'The Deepwood',
+    completed: 0,
+    total: 0,
+    available: false,
+    comingSoon: true,
+    subtitle: 'Coming soon',
+    iconTextureId: 'entity_ancient_tree',
+  },
 ];
 
 // --- Notification model ----------------------------------------------------

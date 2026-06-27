@@ -23,7 +23,7 @@ export interface SkillTreeModalProps {
 
 /** Display label for a tree id (the Clicker meta-track plus the Skills). */
 function treeLabel(treeId: TreeId): string {
-  return treeId === CLICKER_TREE_ID ? 'Clicker' : skillLabel(treeId);
+  return skillLabel(treeId);
 }
 
 /**

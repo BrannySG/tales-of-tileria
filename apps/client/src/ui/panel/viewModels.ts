@@ -5,6 +5,9 @@
  * feeds the same shapes from mock data.
  */
 import {
+  CLICKER_LEVELS_PER_TOTAL,
+  CLICKER_TREE_ID,
+  clickerLevel,
   RARITIES,
   getItemDefinition,
   getToolDefinition,
@@ -166,7 +169,7 @@ export function buildSkillVMs(
   skillTrees: Player['skillTrees'],
 ): { skills: PanelSkillVM[]; total: number } {
   const player = { skills, skillTrees } as Player;
-  const vms = listSkillTrees().map((tree) => {
+  const vms: PanelSkillVM[] = listSkillTrees().map((tree) => {
     const treeId = tree.skillId as TreeId;
     const state = skills[treeId as SkillId] ?? { xp: 0, level: 1 };
     const bounds = levelXpBounds(state.xp);
@@ -181,6 +184,13 @@ export function buildSkillVMs(
     };
   });
   const total = Object.values(skills).reduce((sum, s) => sum + s.level, 0);
+  vms.push({
+    id: CLICKER_TREE_ID,
+    label: skillLabel(CLICKER_TREE_ID),
+    level: clickerLevel(player),
+    progress: (total % CLICKER_LEVELS_PER_TOTAL) / CLICKER_LEVELS_PER_TOTAL,
+    points: skillTreePoints(player, CLICKER_TREE_ID).available,
+  });
   return { skills: vms, total };
 }
 

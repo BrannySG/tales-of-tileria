@@ -10,6 +10,7 @@ import { SkillsTab } from '../lab/tabs/SkillsTab';
 import { CollectionsTab } from '../lab/tabs/CollectionsTab';
 import { SettingsTab } from '../lab/tabs/SettingsTab';
 import { PIPELINE_SKIN } from '../lab/skins';
+import woodGrain from '@assets/UI/T_UI_WoodGrain.png';
 import { skillsTabDot, type DotState, type PanelTabId } from './panelTypes';
 import {
   buildBagDot,
@@ -20,10 +21,16 @@ import {
   buildSkillVMs,
 } from './viewModels';
 import { useBagUnseen } from './bagUnseen';
+import { VERSION_LABEL } from '../../version';
+import { COMING_SOON_COLLECTION_ZONES } from './collectionZoneTeasers';
 
 const PANEL_OPEN_KEY = 'tot.panelOpen';
-/** Slots shown in the Bag/Equipment grids (filled + padded empties). */
-const PANEL_SLOT_COUNT = 16;
+/** Bag grid slots (filled + padded empties); overflows scroll within the body. */
+const BAG_SLOT_COUNT = 28;
+/** Equipment's equip-from grid is small — owned tools plus a few empties. */
+const EQUIP_INV_SLOT_COUNT = 8;
+/** Shared panel width used by the dock and dependent HUD offsets. */
+const GAME_PANEL_WIDTH = 352;
 
 function loadPanelOpen(): boolean {
   if (typeof localStorage === 'undefined') return true;
@@ -110,11 +117,38 @@ export function GamePanel({
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
 
+  // Publish the panel's (unscaled) layout height so sibling HUD elements — the
+  // Loot Reel — can dock to the panel's TOP edge as it grows/shrinks (open vs
+  // collapsed). The loot reel applies `--hud-scale` itself, so we expose the raw
+  // layout height and let CSS multiply by the scale.
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    document.documentElement.style.setProperty('--game-panel-width', `${GAME_PANEL_WIDTH}px`);
+    const publish = (h: number) =>
+      document.documentElement.style.setProperty('--panel-layout-h', `${Math.round(h)}px`);
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+      publish(h);
+    });
+    // ResizeObserver fires once on observe with the element's current size.
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--panel-layout-h');
+      document.documentElement.style.removeProperty('--game-panel-width');
+    };
+  }, []);
+
   const bagSlots = buildBagSlots(inventory, armedItemId, seen);
   const toolSlots = buildOwnedToolSlots(ownedToolIds, equippedBySlot);
   const equipSlots = buildEquipSlots(equippedBySlot);
   const { skills: skillVMs, total: skillTotal } = buildSkillVMs(skills, skillTrees);
   const levelVM = buildLevelCollectionVM(locationName, collections);
+  const collectionLevels = [levelVM, ...COMING_SOON_COLLECTION_ZONES];
 
   // Seed the unseen-items baseline once, so a returning player's whole inventory
   // isn't flagged new on first load.
@@ -203,7 +237,7 @@ export function GamePanel({
             skin={skin}
             equipSlots={equipSlots}
             slots={toolSlots}
-            slotCount={PANEL_SLOT_COUNT}
+            slotCount={EQUIP_INV_SLOT_COUNT}
             onUnequipSlot={onUnequipSlot}
             onEquipTool={onEquipTool}
           />
@@ -221,7 +255,7 @@ export function GamePanel({
         return (
           <CollectionsTab
             skin={skin}
-            levels={[levelVM]}
+            levels={collectionLevels}
             showDot={newCollectibles}
             onOpenLevel={() => onOpenCollections()}
           />
@@ -231,13 +265,17 @@ export function GamePanel({
       case 'bag':
       default:
         return (
-          <BagTab skin={skin} slots={bagSlots} slotCount={PANEL_SLOT_COUNT} onSelect={onArmItem} />
+          <BagTab skin={skin} slots={bagSlots} slotCount={BAG_SLOT_COUNT} onSelect={onArmItem} />
         );
     }
   })();
 
   return (
-    <div className={`game-panel${open ? ' is-open' : ''}`} style={{ width: 340 }}>
+    <div
+      ref={rootRef}
+      className={`game-panel${open ? ' is-open' : ''}`}
+      style={{ width: GAME_PANEL_WIDTH }}
+    >
       <TabStrip
         skin={skin}
         material="wood"
@@ -248,7 +286,7 @@ export function GamePanel({
       {open && (
         <Frame
           spec={skin.frame}
-          style={{ width: 340, position: 'relative', zIndex: 1 } as CSSProperties}
+          style={{ width: GAME_PANEL_WIDTH, position: 'relative', zIndex: 1 } as CSSProperties}
           contentStyle={{ display: 'flex', flexDirection: 'column', gap: 12 }}
         >
           <div className="lab-tab-body">{body}</div>
@@ -256,11 +294,14 @@ export function GamePanel({
       )}
       <div
         className="game-panel-footer"
-        style={{ background: skin.tokens.slotBg, borderColor: skin.tokens.rail }}
+        style={{ ['--panel-grain' as string]: `url(${woodGrain})` } as CSSProperties}
       >
         <span className="lab-foot" style={{ color: skin.tokens.text }}>
           <img className="lab-foot-icon" src={ASSET_URL.coin_gold_hud} alt="" aria-hidden />
           {gold.toLocaleString()}
+        </span>
+        <span className="game-panel-version" aria-hidden>
+          {VERSION_LABEL}
         </span>
       </div>
     </div>

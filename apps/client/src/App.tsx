@@ -14,7 +14,6 @@ import { LiveResetNotice } from './ui/LiveResetNotice';
 import { hasOnboarded } from './onboarding';
 import { ASSET_URL } from './assets/manifest';
 import { useHud } from './state/store';
-import { VERSION_LABEL } from './version';
 
 type Mode = 'title' | 'game' | 'zoo' | 'editor' | 'entities' | 'onboarding' | 'ui-lab';
 
@@ -54,7 +53,6 @@ export function App() {
   const [mode, setMode] = useState<Mode>(readMode);
   const [showLiveResetNotice, setShowLiveResetNotice] = useState(false);
   const cursorSkinId = useHud((s) => s.cursorSkinId);
-  const hudVisible = useHud((s) => s.hudVisible);
   const [appCursor, setAppCursor] = useState(`url(${cursorUrl}) 2 2, auto`);
   // A glowing variant of the equipped skin, shown on hover of interactable HUD
   // controls (the DOM half of the glow-only affordance; see ux-housekeeping.md).
@@ -152,13 +150,6 @@ export function App() {
       {import.meta.env.DEV && mode === 'editor' && <EditorMode />}
       {import.meta.env.DEV && mode === 'entities' && <EntityEditorMode />}
       {import.meta.env.DEV && mode === 'ui-lab' && <UiLabMode />}
-      {/* Always-present build badge; lives at the app shell so it survives every
-          mode and is never clipped by the letterboxed world frame. */}
-      {hudVisible && (
-        <span className="version-badge" aria-hidden>
-          {VERSION_LABEL}
-        </span>
-      )}
       {showLiveResetNotice && <LiveResetNotice onClose={() => setShowLiveResetNotice(false)} />}
     </div>
   );

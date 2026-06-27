@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { ASSET_URL } from '../../../assets/manifest';
 import { NotificationDot } from '../NotificationDot';
 import type { PanelSkin } from '../skins';
@@ -24,9 +24,15 @@ export function BagTab({
   const t = skin.tokens;
   const empties = Math.max(0, slotCount - slots.length);
   const slotStyle = { background: t.slotBg, borderColor: t.slotBorder } as CSSProperties;
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const hoveredSlot = useMemo(
+    () => (hoveredKey ? slots.find((slot) => slot.key === hoveredKey) : undefined),
+    [hoveredKey, slots],
+  );
+  const hoveredTooltip = useMemo(() => parseSlotTooltip(hoveredSlot?.title), [hoveredSlot]);
 
   return (
-    <div className="lab-grid">
+    <div className="lab-grid lab-grid-with-tooltip">
       {slots.map((slot) => (
         <button
           key={slot.key}
@@ -36,6 +42,10 @@ export function BagTab({
           onClick={() => onSelect?.(slot.key)}
           disabled={!onSelect}
           title={slot.title}
+          onMouseEnter={() => setHoveredKey(slot.key)}
+          onMouseLeave={() => setHoveredKey((current) => (current === slot.key ? null : current))}
+          onFocus={() => setHoveredKey(slot.key)}
+          onBlur={() => setHoveredKey((current) => (current === slot.key ? null : current))}
         >
           {slot.textureId && ASSET_URL[slot.textureId] && (
             <img src={ASSET_URL[slot.textureId]} alt="" className="lab-slot-icon" />
@@ -51,6 +61,40 @@ export function BagTab({
       {Array.from({ length: empties }, (_, i) => (
         <span key={`empty-${i}`} className="lab-slot" style={slotStyle} />
       ))}
+      {hoveredTooltip && (
+        <div className="bag-tooltip bag-tooltip--slot" role="tooltip" aria-hidden>
+          <div className="bag-tooltip-head">
+            <span className="bag-tooltip-name" style={{ color: t.text }}>
+              {hoveredTooltip.name}
+            </span>
+          </div>
+          {hoveredTooltip.meta && <div className="bag-tooltip-meta">{hoveredTooltip.meta}</div>}
+          {hoveredTooltip.description && (
+            <p className="bag-tooltip-desc">{hoveredTooltip.description}</p>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function parseSlotTooltip(title: string | undefined): {
+  name: string;
+  meta?: string;
+  description?: string;
+} | null {
+  if (!title) return null;
+  const lines = title
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return null;
+  const [rawName, meta, ...description] = lines;
+  const name = rawName ?? '';
+  if (!name) return null;
+  return {
+    name,
+    meta,
+    description: description.length > 0 ? description.join(' ') : undefined,
+  };
 }

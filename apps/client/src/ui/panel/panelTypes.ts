@@ -68,6 +68,10 @@ export interface PanelLevelVM {
   total: number;
   /** Unlocked + reachable today. */
   available: boolean;
+  /** Presentation-only teaser row for future content. */
+  comingSoon?: boolean;
+  /** Optional subtitle override for teaser copy. */
+  subtitle?: string;
   /** Asset manifest texture id for the row icon. */
   iconTextureId?: string;
 }
