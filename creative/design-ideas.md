@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-27 *(added chat + system event feed idea — bottom-right social/hype feed; reinforces rare-spawn announcements)*
+> Last reviewed: 2026-06-27 *(added torch-puzzle boss-fight minigame — instanced Simon-says Level; gated by an unbuilt generic puzzle/sequence system + loot/instancing decisions)*
 
 ---
 
@@ -31,7 +31,8 @@ a great grind of course.
 - Stack limits + wood refinement: **DECISION FIRST -> MEDIUM (unchanged)**
 - Artifacts: **HIGH (unchanged, clarified layering with skill equipment)**
 - Timed rare spawns: **MEDIUM (HIGH once Artifacts ship; now shares feed surface)**
-- Chat + system event feed: **MEDIUM (new — DECISION FIRST on routing + placement)**
+- Torch-puzzle boss-fight minigame: **MEDIUM (new — LONG-TERM-gated by a generic puzzle/sequence system + DECISION FIRST on the two stages, instancing, and loot throttle)**
+- Chat + system event feed: **MEDIUM (DECISION FIRST on routing + placement)**
 - Region travel via repaired portals: **MEDIUM (unchanged)**
 - Jim's Gym: **LOW (unchanged)**
 - Monetization survey: **LOW (unchanged)**
@@ -607,6 +608,141 @@ Notes:
   the best multiplayer showcase for chase drops.
 - The **Level-wide announcement** UI is now the same surface as the **chat + system
   event feed** below — build the feed first and rare spawns just emit into it.
+
+---
+
+## Torch puzzle boss-fight minigame (instanced Simon-says Level)
+
+> **Priority: MEDIUM — strong content pillar, but LONG-TERM-gated by an unbuilt
+> authoritative puzzle/sequence system + several DECISION FIRST calls.**
+> Impact: A self-contained, repeatable 3–5 min "activity" with a chase loot table —
+> a deliberate RuneScape-flavoured grind destination distinct from open-world gathering.
+
+A small dedicated **Level** that plays as a **boss-fight-style minigame**: a
+**two-stage Simon-says** built around **fire**. The player ignites and extinguishes
+a ring of **torches** in the sequence the puzzle dictates; completing it correctly
+**opens a cave / reveals a chest**, then the player can **leave and re-run it** for
+loot. This is the "go somewhere, do a focused thing, get treasure, repeat" beat the
+game doesn't have yet.
+
+### The setup
+
+- ~**5 torches** arranged in a ring, with a **pool of water in the middle**.
+- Player must arrive carrying a **bucket** and a **torch** (lighter) in their
+  inventory (entry requirement — a soft gate that gives the items purpose).
+
+### The two verbs (data-driven item-on-entity)
+
+The whole loop is built from **`itemInteractions` (ADR-0018) "use item on entity"**
+pairs — no bespoke verbs:
+
+1. **Fill bucket:** use **empty bucket → pool of water** ⇒ bucket becomes *filled
+   bucket* (a stateful item swap).
+2. **Extinguish:** use **filled bucket → lit torch** ⇒ torch goes out (bucket empties).
+3. **Ignite a torch (carry the flame):** use your **torch (lighter) → an already-lit
+   flame** ⇒ your torch is now lit, which lets you **light another torch**.
+
+So fire has to be *carried* from a lit source, and water has to be *fetched* from the
+pool — the friction of fetching/relighting is what makes the Simon-says tactile
+rather than a click-the-glowing-thing test.
+
+### The Simon-says (two stages)
+
+The puzzle dictates a target pattern of lit/unlit torches; the player reproduces it
+by igniting/extinguishing. **"Two levels to it"** is the hook — exactly what the two
+stages are needs pinning down (see DECISION FIRST). Likely shape: stage 1 = a short
+pattern; stage 2 = a longer / inverted / timed pattern that builds on it.
+
+### Reward beat
+
+- A correct completion **opens a cave** (diegetic reveal) exposing a **chest**.
+- Chest rolls a **bespoke, generous loot table** — *always* something nice so the
+  activity is worth grinding, with a rare chase tail on top (great future home for an
+  **Artifact** drop — see Artifacts).
+- Player loots, **freely leaves, and can return to run it again**.
+
+### Boundaries / seam
+
+- **Reuse, don't invent verbs:** all three interactions are `itemInteractions`
+  content (ADR-0018) + stateful-item swaps (empty↔filled bucket, unlit↔lit torch).
+- **The puzzle *state* is authoritative** — which torches are lit, whether the
+  pattern matches, whether the cave is open. That can't be client-only VFX. But a
+  per-torch-puzzle hand-rolled state machine in the sim would **violate invariant #4
+  (no one-off logic in the sim)**. This wants a **generic, reusable "sequence /
+  pattern objective" feature** (think: a content-defined puzzle that watches
+  entity-state events and emits a completion event), so a *second* puzzle is pure
+  content. Designing that generic system is the real cost of this idea.
+- **It's a Level** → reuses existing **Travel** (Beacon/signpost, ADR-0023/0026) to
+  reach and leave it.
+- The **cave-open / chest-reveal** is the same diegetic "world reacts and opens"
+  language as **Shop unlock via hatch / breakable gate** and the onboarding gate
+  models — reuse that thinking.
+
+### DECISION FIRST gates
+
+- **What are the "two levels"?** Two escalating patterns? A lit-stage then an
+  inverted-extinguish stage? A speed/timer second stage? This defines the whole
+  difficulty curve and must be specced before content.
+- **Instanced or shared?** A "smaller Level" implies a **per-player instance** (your
+  puzzle, your chest). Confirm: instanced solo (clean, no contested loot) vs shared
+  (who owns the chest? grief risk on a shared puzzle). This drives the InstanceDO /
+  server shape.
+- **Fail / reset rules.** Wrong torch = soft reset of the stage? Hard restart? A
+  fail penalty, or infinitely retryable until solved? Affects the 3–5 min target.
+- **Loot economy tuning.** "Always gives nice treasure" + freely repeatable is a
+  potential faucet/exploit. Rate-limit (cooldown, daily-ish cap, or per-run cost) and
+  tune the table against existing sources (sell/Collections, ADR-0027) so it's a
+  *destination*, not the optimal infinite farm.
+- **Relationship to "Boss fights (Council members)".** The loop snapshot already
+  parks *combat* boss fights with no system. This is a **puzzle-boss** variant — is
+  it the first "boss" content, or a separate "minigame activity" pillar? Name it so
+  the two don't get conflated.
+
+**Review (2026-06-27)**
+
+Pros:
+- Gives the game its first **self-contained activity with a clear win condition** —
+  a focused 3–5 min loop with a defined payoff, very different from open-ended
+  gathering. Strong retention/grind hook ("one more run").
+- **Tactile and diegetic:** fetch water, carry fire, watch the cave open. The
+  fetch/relight friction makes it feel like a real puzzle, not a QTE.
+- **Mostly reuses shipped systems** at the content layer: `itemInteractions`
+  (ADR-0018), stateful items, Travel (ADR-0023/0026), loot tables, and the
+  diegetic-open language from the hatch-gate idea.
+- A **perfect Artifact / chase-drop home** — pairs directly with the Artifacts and
+  rare-drop direction, and a repeatable instanced chest is cleaner to balance than a
+  contested world spawn.
+- Nails the stated **RuneScape feel** (minigame destination you grind for reward),
+  which is on-vision.
+
+Cons / risks:
+- **The authoritative puzzle state is the hard part.** Done naively it's exactly the
+  one-off sim logic invariant #4 forbids; doing it *right* means designing a generic
+  content-driven "sequence objective" system first — that's a real sprint, not a
+  content add. This is what holds the rating below HIGH.
+- **Economy faucet risk:** freely repeatable + always-good loot needs a throttle and
+  careful tuning or it becomes the only thing worth doing.
+- **Instancing decision is load-bearing** for the server (InstanceDO) and for
+  whether loot is contested — must be settled before build.
+- "Two levels to it" is underspecified; the fun lives entirely in that difficulty
+  curve, which isn't designed yet.
+- Authoring a bespoke Level (art for torches/pool/cave/chest, layout, Beacon wiring)
+  is non-trivial production even once the system exists.
+
+Notes:
+- **Sequence the work:** (1) spec the generic *puzzle/sequence objective* system
+  (the gating dependency), (2) author the three `itemInteractions` + stateful items
+  (bucket fill/empty, torch light), (3) build the Level + cave/chest reveal +
+  Travel, (4) tune the loot table and a repeat throttle.
+- **Reinforces:** Artifacts (chase-drop sink), Shop-unlock-via-hatch (shared
+  diegetic "world opens" beat), and the parked Council boss-fights line (this is the
+  puzzle-boss cousin).
+- If the generic puzzle system gets specced, it likely warrants its own **ADR** +
+  `CONTEXT.md` vocab (e.g. *Puzzle*, *Sequence Objective*, *Minigame Level*), since
+  it adds the first sim-authoritative multi-step objective beyond Quests.
+- **Escalate to HIGH** once the generic sequence-objective system is designed and the
+  instancing + loot-throttle decisions are made — at that point it's a high-impact
+  content pillar on mostly-existing rails.
 
 ---
 

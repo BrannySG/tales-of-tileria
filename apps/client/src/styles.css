@@ -4459,23 +4459,24 @@ button.bag-slot:hover {
 /* ---- Loot Reel (left edge, hero + aging trail; creative/design-ideas.md) ---- */
 .loot-reel {
   position: absolute;
-  /* Pulled inward from the flush-left edge (~20% toward centre) so the reel sits
-     in a more comfortable reading zone rather than hugging the screen edge. */
-  left: calc(env(safe-area-inset-left) + 18px * var(--hud-scale) + 10vw);
-  /* Center-left: vertically centred on the left edge, passive (never a hit target). */
-  top: 50%;
-  transform: translateY(-50%) scale(var(--hud-scale));
-  transform-origin: left center;
+  /* Bottom-right: the reel rises just to the LEFT of the docked panel, so loot
+     and inventory read as one cluster (see the new UI layout). Passive. */
+  left: auto;
+  right: calc(env(safe-area-inset-right) + 360px * var(--hud-scale) + 18px);
+  top: auto;
+  bottom: calc(env(safe-area-inset-bottom) + 76px);
+  transform: scale(var(--hud-scale));
+  transform-origin: bottom right;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 9px;
   pointer-events: none;
   z-index: 14;
 }
 
 .loot-reel-item {
-  transform-origin: left center;
+  transform-origin: right center;
   transition: transform 200ms ease, opacity 200ms ease, filter 200ms ease;
   will-change: transform, opacity;
 }
@@ -4569,10 +4570,13 @@ button.bag-slot:hover {
 /* ---- Hover Preview Bar (bottom-right, sticky last-seen entity; ADR-0028) ---- */
 .hover-preview {
   position: absolute;
-  right: calc(env(safe-area-inset-right) + 10px);
-  bottom: calc(env(safe-area-inset-bottom) + 230px);
-  transform: scale(var(--hud-scale));
-  transform-origin: bottom right;
+  /* Bottom-centre, where the old Bag used to sit: clears the bottom-right for the
+     docked panel while keeping the hover inspect prominent during gathering. */
+  left: 50%;
+  right: auto;
+  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  transform: translateX(-50%) scale(var(--hud-scale));
+  transform-origin: bottom center;
   width: 268px;
   max-width: calc(100vw - 32px);
   display: flex;
@@ -4591,11 +4595,11 @@ button.bag-slot:hover {
 @keyframes hover-preview-in {
   from {
     opacity: 0;
-    transform: scale(var(--hud-scale)) translateY(8px);
+    transform: translateX(-50%) scale(var(--hud-scale)) translateY(8px);
   }
   to {
     opacity: 1;
-    transform: scale(var(--hud-scale)) translateY(0);
+    transform: translateX(-50%) scale(var(--hud-scale)) translateY(0);
   }
 }
 
@@ -5455,6 +5459,12 @@ button.bag-slot:hover {
   color: rgba(255, 255, 255, 0.7);
 }
 
+.ui-lab-controls {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
 .ui-lab-sizes {
   display: flex;
   gap: 6px;
@@ -5482,8 +5492,9 @@ button.bag-slot:hover {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
-  gap: 56px;
-  padding: 48px 24px;
+  gap: 28px;
+  padding: 40px 20px;
+  overflow-x: auto;
 }
 
 .ui-lab-cell {
@@ -5520,6 +5531,207 @@ button.bag-slot:hover {
   box-shadow:
     inset 0 3px 6px rgba(0, 0, 0, 0.65),
     inset 0 -2px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* --- Detached tab bar: a separate element sitting on top of the panel, --- */
+/* --- overlapping its top edge just enough to read as linked, not embedded. --- */
+.lab-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.lab-tabstrip {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  /* Inset from the frame corners + overlap the frame's top edge so the bar
+     reads as seated on the panel (linked), not floating above it. */
+  padding: 0 16px;
+  margin-bottom: -9px;
+}
+
+.lab-tabbtn {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 48px;
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px 12px;
+  font: inherit;
+  color: var(--tab-ink);
+  background: var(--tab-face);
+  border: 1px solid var(--tab-edge);
+  border-bottom: none;
+  border-radius: 12px 12px 4px 4px;
+  cursor: var(--app-cursor-glow, pointer);
+  /* Raised plate: top sheen + drop shadow so the bar floats above the panel. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 4px 7px rgba(0, 0, 0, 0.5);
+  transition:
+    min-height 100ms ease,
+    color 100ms ease;
+}
+
+.lab-tabbtn:focus-visible {
+  outline: 2px solid var(--tab-accent);
+  outline-offset: 2px;
+  z-index: 4;
+}
+
+.lab-tab-ico {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
+}
+
+/* Inactive icons sit back a touch so the active tab reads as selected. */
+.lab-tabbtn:not(.is-active) .lab-tab-ico {
+  opacity: 0.82;
+}
+
+.lab-tab-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Inactive tabs are icon-only; their label is a hover/focus tooltip above. */
+.lab-tabbtn:not(.is-active) .lab-tab-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.88);
+  color: #f3e7d2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 90ms ease;
+}
+
+/* Active tab: grows UP (bottom stays anchored on the panel so it stays linked), */
+/* lights to parchment with a gold rim, reveals its label. */
+.lab-tabbtn.is-active {
+  min-height: 66px;
+  z-index: 3;
+  color: #3a2c18;
+  background: var(--tab-face-active);
+  border-color: var(--tab-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 0 0 1px var(--tab-accent),
+    0 0 14px color-mix(in srgb, var(--tab-accent) 50%, transparent),
+    0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.lab-tabbtn.is-active .lab-tab-ico {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+/* --- Material: Iron (brushed steel plates, echoing the frame's iron corners) --- */
+.mat-iron .lab-tabbtn:not(.is-active) {
+  background: linear-gradient(180deg, #59626b 0%, #2f353c 100%);
+  border-color: rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.4),
+    0 4px 7px rgba(0, 0, 0, 0.5);
+}
+
+/* Two rivet studs near the top corners to read as bolted metal. */
+.mat-iron .lab-tabbtn:not(.is-active)::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 7px;
+  right: 7px;
+  height: 4px;
+  background:
+    radial-gradient(circle at left center, rgba(255, 255, 255, 0.55) 0 1.4px, rgba(0, 0, 0, 0.5) 1.6px 2.6px, transparent 2.8px),
+    radial-gradient(circle at right center, rgba(255, 255, 255, 0.55) 0 1.4px, rgba(0, 0, 0, 0.5) 1.6px 2.6px, transparent 2.8px);
+  pointer-events: none;
+}
+
+/* --- Material: Wood (carved faces tuned to the frame body so the bar reads as --- */
+/* --- the same timber, lit when active rather than a clashing parchment chip). --- */
+/* A single grayscale grain tile is blended over each face with `soft-light`, so  */
+/* the gradient tints it (one texture, dark inactive + golden active).            */
+.mat-wood {
+  /* Active = lit golden timber (stays in the frame's wood family). */
+  --tab-face-active: linear-gradient(180deg, #e0bd78 0%, #a9763e 100%);
+}
+
+.mat-wood .lab-tabbtn:not(.is-active) {
+  background-image: var(--tab-grain), linear-gradient(180deg, #8a5c31 0%, #553318 100%);
+  background-size: cover, auto;
+  background-blend-mode: soft-light, normal;
+  border-color: rgba(40, 22, 8, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 178, 0.3),
+    inset 0 -5px 8px rgba(0, 0, 0, 0.38),
+    0 4px 7px rgba(0, 0, 0, 0.5);
+}
+
+.mat-wood .lab-tabbtn.is-active {
+  background-image: var(--tab-grain), var(--tab-face-active);
+  background-size: cover, auto;
+  background-blend-mode: soft-light, normal;
+}
+
+/* --- Density: touch grows targets; PC tightens + reveals labels on hover --- */
+.ui-lab.is-touch .lab-tabbtn {
+  min-height: 58px;
+}
+
+.ui-lab.is-touch .lab-tabbtn.is-active {
+  min-height: 74px;
+}
+
+.ui-lab.is-touch .lab-tab-ico {
+  width: 30px;
+  height: 30px;
+}
+
+.ui-lab.is-pc .lab-tabbtn {
+  min-height: 48px;
+}
+
+.ui-lab.is-pc .lab-tabbtn.is-active {
+  min-height: 62px;
+}
+
+.ui-lab.is-pc .lab-tabbtn:not(.is-active):hover .lab-tab-ico {
+  opacity: 0.92;
+}
+
+.ui-lab.is-pc .lab-tabbtn:not(.is-active):hover .lab-tab-label,
+.lab-tabbtn:not(.is-active):focus-visible .lab-tab-label {
+  opacity: 1;
+}
+
+/* Production parity: real fine-pointer devices get the hover affordances too. */
+@media (hover: hover) and (pointer: fine) {
+  .lab-tabbtn:not(.is-active):hover .lab-tab-ico {
+    opacity: 0.92;
+  }
+  .lab-tabbtn:not(.is-active):hover .lab-tab-label {
+    opacity: 1;
+  }
 }
 
 /* --- Inventory mockup --- */
@@ -5604,4 +5816,580 @@ button.bag-slot:hover {
 .lab-foot-icon {
   width: 22px;
   height: 22px;
+}
+
+/* --- Docked game panel (live, bottom-right) ----------------------------- */
+.game-panel {
+  position: absolute;
+  right: calc(env(safe-area-inset-right) + 12px);
+  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  transform: scale(var(--hud-scale));
+  transform-origin: bottom right;
+  display: flex;
+  flex-direction: column;
+  z-index: 16;
+  pointer-events: auto;
+}
+
+/* Always-on footer (gold) — visible even when the body is collapsed. */
+.game-panel-footer {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid;
+  border-radius: 12px;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Inventory/tool slots become buttons in the live panel — reset button chrome. */
+button.lab-slot {
+  font: inherit;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+button.lab-slot:disabled {
+  cursor: default;
+}
+
+/* Armed (Bag) / equipped (Equipment) highlight. */
+.lab-slot.is-active {
+  outline: 2px solid var(--accent, #ffb02e);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 8px rgba(255, 176, 46, 0.45),
+    inset 0 3px 5px rgba(0, 0, 0, 0.6);
+}
+
+/* Wired settings sliders inside the panel. */
+.lab-settings-range {
+  flex: 1 1 auto;
+  accent-color: var(--slider-accent, #ffb02e);
+  cursor: pointer;
+}
+
+.lab-settings-row.is-disabled {
+  opacity: 0.5;
+}
+
+/* --- Tab body host: stable min height so switching sections doesn't jump --- */
+.lab-tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 372px;
+}
+
+/* --- Notification dot (reusable primitive) --- */
+.lab-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e8473f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow:
+    0 0 0 2px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.lab-dot.is-inline {
+  position: static;
+  top: auto;
+  right: auto;
+  margin-left: 2px;
+}
+
+/* --- Shared section label inside a tab body --- */
+.lab-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* --- Equipment tab --- */
+.lab-equip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lab-equip-slot {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 9px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font: inherit;
+  cursor: var(--app-cursor-glow, pointer);
+  box-shadow:
+    inset 0 3px 5px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  transition:
+    box-shadow 100ms ease,
+    transform 100ms ease;
+}
+
+.lab-equip-slot.is-selected {
+  box-shadow:
+    0 0 0 2px var(--accent, #ffcf5a),
+    0 0 12px color-mix(in srgb, var(--accent, #ffcf5a) 55%, transparent);
+}
+
+.lab-equip-slot.is-locked {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lab-equip-slot .lab-slot-icon {
+  width: 58%;
+  height: 58%;
+}
+
+.lab-equip-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.lab-equip-lock {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* --- Skills tab --- */
+.lab-skill-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lab-skill-total {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lab-view-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.lab-view-toggle button {
+  width: 30px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  cursor: var(--app-cursor-glow, pointer);
+}
+
+.lab-view-toggle button.is-active {
+  background: var(--toggle-accent, #ffcf5a);
+  border-color: var(--toggle-accent, #ffcf5a);
+  color: #2a1f06;
+}
+
+.lab-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.lab-skill-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  text-align: left;
+  cursor: var(--app-cursor-glow, pointer);
+  transition: background 100ms ease;
+}
+
+.lab-skill-row:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.lab-skill-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-skill-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lab-skill-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.lab-skill-level {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.lab-skill-bar {
+  margin-top: 5px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.lab-skill-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7ed957 0%, #4caf3f 100%);
+}
+
+.lab-skill-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lab-skill-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 9px;
+  border: 1px solid;
+  font: inherit;
+  cursor: var(--app-cursor-glow, pointer);
+  box-shadow:
+    inset 0 3px 5px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.lab-skill-cell-level {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+/* --- Mock skill tree (drill-in) --- */
+.lab-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lab-tree-back {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text, #f3e7d2);
+  font: inherit;
+  font-weight: 700;
+  cursor: var(--app-cursor-glow, pointer);
+}
+
+.lab-tree-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lab-tree-name {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.lab-tree-points {
+  font-size: 12px;
+}
+
+.lab-tree-graph {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  align-items: center;
+  padding: 22px 0;
+}
+
+.lab-tree-row {
+  display: flex;
+  gap: 34px;
+  justify-content: center;
+}
+
+.lab-tree-node {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.lab-tree-node.allocated {
+  border-color: var(--node-accent, #ffcf5a);
+  background: var(--node-accent, #ffcf5a);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--node-accent, #ffcf5a) 55%, transparent);
+}
+
+.lab-tree-node.available {
+  border-color: var(--node-accent, #ffcf5a);
+  background: color-mix(in srgb, var(--node-accent, #ffcf5a) 22%, transparent);
+}
+
+.lab-tree-note {
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* --- Collections tab (region list) --- */
+.lab-region-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-region-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  font: inherit;
+  text-align: left;
+  cursor: var(--app-cursor-glow, pointer);
+  transition: background 100ms ease;
+}
+
+.lab-region-row:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.lab-region-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lab-region-icon {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border-radius: 9px;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
+}
+
+.lab-region-icon img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+}
+
+.lab-region-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.lab-region-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.lab-region-name {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.lab-region-pct {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lab-region-bar {
+  margin: 6px 0 3px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.lab-region-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #7ed957 0%, #4caf3f 100%);
+}
+
+.lab-region-sub {
+  font-size: 11px;
+}
+
+/* --- Settings tab (static mirror of SettingsMenu) --- */
+.lab-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lab-settings-section {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.lab-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.lab-settings-row > span:first-child {
+  flex: 0 0 110px;
+  font-weight: 700;
+}
+
+.lab-settings-val {
+  font-size: 12px;
+  min-width: 34px;
+  text-align: right;
+}
+
+.lab-settings-reset {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.lab-settings-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.lab-settings-toggle.on {
+  background: #4caf3f;
+}
+
+.lab-settings-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f3e7d2;
+  transition: left 120ms ease;
+}
+
+.lab-settings-toggle.on .lab-settings-knob {
+  left: 20px;
+}
+
+.lab-settings-slider {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.lab-settings-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--slider-accent, #ffcf5a);
+}
+
+.lab-settings-slider-knob {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f3e7d2;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.lab-settings-danger {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #a3332b;
+  background: rgba(180, 60, 50, 0.25);
+  color: #ffb4ad;
+  font: inherit;
+  font-weight: 700;
+  cursor: var(--app-cursor-glow, pointer);
+}
+
+.lab-settings-danger:hover {
+  background: rgba(180, 60, 50, 0.4);
 }

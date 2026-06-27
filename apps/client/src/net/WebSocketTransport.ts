@@ -19,6 +19,13 @@ export interface WebSocketTransportOptions {
   name: string;
   /** Carried Player snapshot seeded into the server on join (see ADR-0016). */
   player: Player;
+  /**
+   * Live player snapshot supplier used to re-seed the server on *reconnect*
+   * (see ADR-0032). The initial `player` is frozen at construction; if a socket
+   * drops and re-joins, seeding from this avoids the server (re)loading stale
+   * state and pulling progress backward. Omit to always re-seed from `player`.
+   */
+  getLivePlayer?: () => Player;
   /** Optional instance hint for a future party/invite (reserved). */
   instanceHint?: string;
 }
@@ -38,6 +45,8 @@ export interface WebSocketTransportOptions {
 export class WebSocketTransport implements SimTransport {
   private ws?: WebSocket;
   private readonly handlers = new Set<SimEventHandler>();
+  /** Subscribers notified when a fresh snapshot arrives via `resync` (ADR-0032). */
+  private readonly resyncHandlers = new Set<(snapshot: ZoneSnapshot) => void>();
   private snapshot?: ZoneSnapshot;
   private presence: PresenceInfo[] = [];
   private ready = false;
@@ -70,6 +79,23 @@ export class WebSocketTransport implements SimTransport {
     return this.presence;
   }
 
+  /**
+   * Asks the server for a fresh authoritative snapshot (see ADR-0032). The reply
+   * arrives as a `resync` message and is delivered to {@link onResync}
+   * subscribers. A no-op if the socket isn't open (the next welcome covers it).
+   */
+  requestResync(): void {
+    this.sendMessage({ type: 'resync', playerId: this.opts.playerId });
+  }
+
+  /** Subscribes to fresh snapshots delivered by `resync` (see ADR-0032). */
+  onResync(handler: (snapshot: ZoneSnapshot) => void): () => void {
+    this.resyncHandlers.add(handler);
+    return () => {
+      this.resyncHandlers.delete(handler);
+    };
+  }
+
   private open(): void {
     const url = `${this.opts.serverUrl}/play?level=${encodeURIComponent(this.opts.levelId)}${
       this.opts.instanceHint ? `&hint=${encodeURIComponent(this.opts.instanceHint)}` : ''
@@ -77,11 +103,16 @@ export class WebSocketTransport implements SimTransport {
     const ws = new WebSocket(url);
     this.ws = ws;
     ws.addEventListener('open', () => {
+      // First join uses the carried snapshot; a reconnect (we've already had a
+      // `welcome`) re-seeds from live state so the server can't restore a stale
+      // player over this session's progress (see ADR-0032).
+      const player =
+        this.ready && this.opts.getLivePlayer ? this.opts.getLivePlayer() : this.opts.player;
       this.sendMessage({
         type: 'join',
         playerId: this.opts.playerId,
         name: this.opts.name,
-        player: this.opts.player,
+        player,
       });
     });
     ws.addEventListener('message', (e) => this.onMessage(e));
@@ -107,6 +138,14 @@ export class WebSocketTransport implements SimTransport {
           this.ready = true;
           this.readyResolve?.();
         }
+        break;
+      }
+      case 'resync': {
+        // Mid-session authoritative snapshot (ADR-0032): refresh the stored
+        // snapshot and notify reconcilers (the renderer rebuilds against it).
+        this.snapshot = msg.snapshot;
+        this.presence = msg.presence;
+        for (const handler of this.resyncHandlers) handler(msg.snapshot);
         break;
       }
       case 'event':
@@ -169,6 +208,7 @@ export class WebSocketTransport implements SimTransport {
   close(): void {
     this.closedByUs = true;
     this.handlers.clear();
+    this.resyncHandlers.clear();
     try {
       this.ws?.close();
     } catch {

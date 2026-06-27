@@ -36,6 +36,14 @@ export interface PanelSkin {
     rail: string;
     text: string;
     textMuted: string;
+    /** Folder-tab face (raised wooden furniture). Optional; derived if absent. */
+    tabFace?: string;
+    /** Active folder-tab face. Optional; derived if absent. */
+    tabFaceActive?: string;
+    /** Folder-tab outer edge / shadow colour. Optional. */
+    tabEdge?: string;
+    /** Colour of the active tab's seam into the body. Optional. */
+    tabSeam?: string;
   };
 }
 
@@ -112,7 +120,12 @@ export const PIPELINE_SKIN: PanelSkin = {
     accent: '#ffcf5a',
     rail: 'rgba(0,0,0,0.28)',
     text: '#f3e7d2',
-    textMuted: '#bda985',
+    textMuted: '#cbb48a',
+    // Detached tab bar: dark faces so the colour icons pop and the bar reads as a
+    // separate element; the active tab lights to warm parchment with a gold rim.
+    tabFace: 'linear-gradient(180deg, #4a3d2f 0%, #2a2018 100%)',
+    tabFaceActive: 'linear-gradient(180deg, #efe2c6 0%, #d6bf94 100%)',
+    tabEdge: 'rgba(0,0,0,0.55)',
   },
 };
 

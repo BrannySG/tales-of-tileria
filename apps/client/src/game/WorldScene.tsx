@@ -17,7 +17,6 @@ import { useStageScale } from './useStageScale';
 import { useHud } from '../state/store';
 import { Hud, type HudVariant } from '../ui/Hud';
 import { CraftingMenu } from '../ui/CraftingMenu';
-import { SettingsMenu } from '../ui/SettingsMenu';
 import { wipeProgressionSave } from '../persistence/playerSave';
 import { CollectionBookModal } from '../ui/CollectionBookModal';
 import { SkillTreeModal } from '../ui/SkillTreeModal';
@@ -89,7 +88,6 @@ export function WorldScene({
   onReady,
 }: WorldSceneProps) {
   const [craftingOpen, setCraftingOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // Two distinct fullscreen surfaces now: the Collection Book and the Skill Tree.
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [skillTreeOpen, setSkillTreeOpen] = useState(false);
@@ -259,7 +257,11 @@ export function WorldScene({
               onCombatChange={onCombatChange}
               onPassiveDamageChange={onPassiveDamageChange}
               onToggleSound={onToggleSound}
-              onOpenSettings={() => setSettingsOpen(true)}
+              onMusicVolumeChange={onMusicVolumeChange}
+              onSfxVolumeChange={onSfxVolumeChange}
+              onUiScaleChange={onUiScaleChange}
+              onToggleScreenshotMode={onToggleScreenshotMode}
+              onForceWipe={onForceWipe}
               onOpenCollections={openCollections}
               onOpenSkillTree={openSkillTree}
               onEquipCursor={onEquipCursor}
@@ -268,17 +270,6 @@ export function WorldScene({
               onTestLootBurst={onTestLootBurst}
             />
             {craftingOpen && <CraftingMenu onCraft={onCraft} onClose={() => setCraftingOpen(false)} />}
-            {settingsOpen && (
-              <SettingsMenu
-                onMusicVolumeChange={onMusicVolumeChange}
-                onSfxVolumeChange={onSfxVolumeChange}
-                onUiScaleChange={onUiScaleChange}
-                onToggleScreenshotMode={onToggleScreenshotMode}
-                onToggleSound={onToggleSound}
-                onForceWipe={onForceWipe}
-                onClose={() => setSettingsOpen(false)}
-              />
-            )}
             {collectionsOpen && (
               <CollectionBookModal
                 onRegister={onRegisterCollection}

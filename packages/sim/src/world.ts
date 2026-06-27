@@ -12,6 +12,7 @@ import {
   deriveStats,
   emptyDivinePowers,
   emptySkills,
+  evaluateEntityBlock,
   findItemInteraction,
   findRefineRecipeForEntity,
   findVendorStockEntry,
@@ -39,7 +40,7 @@ import {
   xpToReach,
   type AddressedEvent,
   type AwardedItem,
-  type BlockReason,
+  type BlockInfo,
   type CollectionEntryProgress,
   type CombatConfig,
   type CursorState,
@@ -75,15 +76,6 @@ const SANDBOX_SKILL_LEVEL = 10;
 /** Passive damage granted to the sandbox player so the Content Zoo stays lively. */
 const SANDBOX_PASSIVE_DAMAGE = 1;
 const MAX_NAME_LENGTH = 16;
-
-/** Structured reason an interaction was blocked (see ADR-0008). */
-interface BlockInfo {
-  reason: BlockReason;
-  requiredToolType?: ToolType;
-  requiredTier?: number;
-  requiredSkillId?: SkillId;
-  requiredSkillLevel?: number;
-}
 
 /**
  * One player's slice of a Level instance (see ADR-0014 §3). Everything here is
@@ -685,45 +677,9 @@ export class World {
    */
   private blockedReason(entity: EntityInstance, session: PlayerSession): BlockInfo | undefined {
     const def = requireEntityDefinition(entity.definitionId);
-    const req = def.requirements;
-    if (!req) return undefined;
-    const player = session.player;
-
-    // Equipment gate (see ADR-0030): you need a Tool of the required type, AND it
-    // must be EQUIPPED in its slot. Owning but not equipping is `notEquipped`.
-    if (req.toolType) {
-      const ownsType = player.ownedTools.some(
-        (id) => requireToolDefinition(id).toolType === req.toolType,
-      );
-      if (!ownsType) {
-        return { reason: 'missingTool', requiredToolType: req.toolType };
-      }
-      if (!player.equippedBySlot?.[req.toolType]) {
-        return { reason: 'notEquipped', requiredToolType: req.toolType };
-      }
-    }
-
-    // Tier gating: the player must have unlocked this Entity's Tier in the tree
-    // for its skill (their `maxTierUnlocked`). Tier 1 is always available.
-    const tier = req.tier ?? 1;
-    const skillId = req.skill?.skillId;
-    if (tier > 1 && skillId) {
-      const maxTier = deriveStats(player, skillId, this.combat).maxTierUnlocked;
-      if (tier > maxTier) {
-        return { reason: 'tierLocked', requiredSkillId: skillId, requiredTier: tier };
-      }
-    }
-
-    // The entity's own (generic) skill-level requirement.
-    if (req.skill && this.skillLevel(session, req.skill.skillId) < req.skill.level) {
-      return {
-        reason: 'skillLevel',
-        requiredSkillId: req.skill.skillId,
-        requiredSkillLevel: req.skill.level,
-      };
-    }
-
-    return undefined;
+    // The gating rule lives in shared (`evaluateEntityBlock`) so the client can
+    // run the same check to gate optimistic feedback (see ADR-0030/0032).
+    return evaluateEntityBlock(session.player, def);
   }
 
   private collectPickup(instanceId: string, session: PlayerSession): SimEvent[] {

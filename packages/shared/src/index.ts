@@ -35,3 +35,4 @@ export * from './content/registry';
 export * from './content/economy';
 export * from './content/vendorStock';
 export * from './content/stats';
+export * from './content/requirements';

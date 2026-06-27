@@ -74,6 +74,7 @@ agent **must** do the following before finishing:
 - Loot drop carousel / **loot reel** — not built; design **locked** from mockup (left-edge vertical reel, hero+aging trail, coalescing `×N`, Rare+ fanfare, runs in both modes) and it introduces the cross-cutting **Item Card** visual language (shared component for how an Item looks across reel / hover rail / "new item" toast now, Bag / Vendor / Collection deferred) — see `creative/design-ideas.md` + `creative/ux-housekeeping.md`
 - Boot screen "Wake up" cinematic — not built
 - Boss fights (Council members) — no combat system for them yet
+- Torch-puzzle boss-fight minigame (instanced Simon-says Level) — needs a generic authoritative puzzle/sequence-objective system first — see `creative/design-ideas.md`
 - Rebirth / Eternal Skills / Reawaken tree — not designed yet
 - Jim's Gym vendor — deferred; selling first lands at the Black Market (see ADR-0027); pairs with hatch-gated Shop access idea
 - Shop unlock via hatch / breakable gate — see `creative/design-ideas.md`

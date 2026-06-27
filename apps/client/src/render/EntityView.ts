@@ -288,6 +288,37 @@ export class EntityView {
       },
       { ease: Easings.outBack },
     );
+    // Re-arm interaction: an entity that hydrated as `respawning` from the join
+    // snapshot was built non-interactive, so without this it would render on
+    // respawn but stay untappable for the rest of the session (see ADR-0032).
+    this.setInteractive(!this.isNpc && !this.isBuildable);
+    this.redrawHp();
+    this.updateUiVisibility();
+  }
+
+  /**
+   * Reconciles this view against an authoritative snapshot (see ADR-0032)
+   * WITHOUT playing hit juice — used after a backgrounded tab regains focus, so
+   * catch-up never looks like a flurry of fresh hits. Restores art + interaction
+   * on a respawn we missed, collapses an entity the server reaped while we were
+   * away, or just refreshes the HP bar when availability is unchanged.
+   */
+  reconcile(hp: number, maxHp: number, state: EntityRuntimeState): void {
+    const wasAvailable = this.state === 'available';
+    const nowAvailable = state === 'available';
+    this.hp = hp;
+    this.maxHp = maxHp;
+    if (nowAvailable && !wasAvailable) {
+      this.onRespawned(hp, maxHp);
+      return;
+    }
+    if (!nowAvailable && wasAvailable) {
+      // A breakable collapses to its remnant; a resource fades out to respawn.
+      if (state === 'depleted' && this.brokenTexture) this.onBreak();
+      else this.onDepleted(state);
+      return;
+    }
+    this.state = state;
     this.redrawHp();
     this.updateUiVisibility();
   }

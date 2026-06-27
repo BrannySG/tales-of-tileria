@@ -9,7 +9,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-25 *(added a HIGH housekeeping task to temporarily remove Mr Smith crafting affordances while equipment is being redesigned; item-card language + hover-rail/cursor decisions remain locked; save-state regression remains top severity; current build v0.1.47)*
+> Last reviewed: 2026-06-27 *(Trust & Stability Sprint shipped — the three top-severity HIGH bugs are fixed and archived below: save-state rollback on tab-out/reconnect, backgrounded-tab multiplayer desync, and the gated-tap "false success" feedback (all under ADR-0032, build v0.2.11). Re-review of the remaining backlog: **Temporarily remove Mr Smith crafting path** is now the highest-priority HIGH (onboarding clarity, reversible content pass); the **Item Card visual language / hover loot-rail / cursor-affordance glow** cluster stays HIGH and should be tackled together as the next presentation sprint; **burst-flood smoothing** remains parked (reconcile made it cosmetic). No new bugs reported this pass.)*
 
 ---
 
@@ -58,81 +58,6 @@ Notes:
 - This **reinforces** the new onboarding quest-spine idea in `design-ideas.md`:
   one clear objective chain beats multiple half-supported directions.
 - Treat as housekeeping-first: hide/de-scope now, redesign later.
-
----
-
-### Save-state regression — collection book resets + level rollback on tab-out/re-focus
-
-> **Priority: HIGH — data loss; breaks progression trust**
-> Impact: Any player who tabs away for 5+ minutes loses collection registrations and
-> can see their level drop on return. Directly undermines the "stop auto-wiping"
-> fix shipped in v0.1.42.
-
-#### Observed symptoms (reported 2026-06-25)
-
-1. **Collection Book progress resets** after 5–10 minutes away from the tab —
-   entries that were registered appear unregistered on return.
-2. **Overall level rolls back** on re-focus — the player's level is lower than it
-   was before tabbing away, as if an older snapshot was loaded over the current one.
-
-#### Likely root causes to investigate
-
-- **Tab-out triggers a page unload / visibility-change event that doesn't flush the
-  save before the document is paused** — the in-flight state is lost; on return the
-  older persisted snapshot is the only thing to restore from.
-- **Save interval is too long or not triggered by tab-blur** — if the game only
-  saves on a periodic tick and the tab goes to background, that tick may stop firing
-  (browsers throttle timers on hidden tabs); data between the last save and tab-out
-  is silently discarded.
-- **Multiplayer reload issue** — if the server-side DO snapshot and the local save
-  diverge, the client may reload from the DO's last flush rather than the client's
-  latest state, producing a visible rollback.
-- **`loadPlayerSave()` being called on re-focus** — if reconnection triggers a fresh
-  load from the last persisted snapshot (rather than the live sim state), and the
-  snapshot lags behind, the result looks like a rollback.
-
-#### **DECISION FIRST — before investigating**
-
-Which path do we take?
-
-- **A — Flush on `visibilitychange` / `pagehide`:** add an explicit save call when
-  the tab goes hidden or the page is about to unload. Cheap and covers most cases.
-- **B — More frequent background saves:** reduce the save interval so the maximum
-  rollback is bounded to a few seconds regardless of tab state.
-- **C — Don't reload from snapshot on reconnect:** if the sim is still live (local
-  transport), skip `loadPlayerSave()` on re-focus; only reload after a true
-  disconnect/restart.
-- **D — All three** as belt-and-suspenders (probably correct).
-
-The answer determines whether this is a pure client-side fix (A/B) or touches
-the reconnect handshake (C).
-
-**Review**
-
-Pros:
-- Fixing this restores full player trust in progression; any data-loss bug this
-  visible will drive players away.
-- Option A is very low-risk and likely 90% of the fix.
-- Option C ensures re-focus doesn't regress a still-live session.
-
-Cons / risks:
-- Flushing on `pagehide` is best-effort in some browsers (mobile kills the tab
-  before the handler completes); `localStorage` writes are sync so they are
-  usually fine, but async DO writes are not guaranteed.
-- Overlapping save + load on reconnect could cause a race; needs careful ordering.
-- If the real root cause is multiplayer DO divergence, A+B won't fully fix it —
-  need to trace whether the level rollback happens in local-only play too.
-
-Notes:
-- Reproduce in **local-only mode first** (no `dev:server`) to isolate client vs
-  server root cause. If the collection book resets in local mode, the bug is
-  purely in the client persistence path. If it only happens in multiplayer, the DO
-  snapshot/reconnect path is suspect.
-- Check `visibilitychange` and `pagehide` handler coverage in the client transport
-  layer — if nothing hooks those events, option A is the first fix.
-- Related shipped entry: **Stop auto-wiping progression on join** (v0.1.42) —
-  that fix assumes `loadPlayerSave()` is safe on join; this bug suggests the saved
-  data may be stale when loaded.
 
 ---
 
@@ -360,6 +285,21 @@ Notes:
 These were full write-ups; the authoritative record now lives in the ADR / patch
 notes. Kept as one-liners so the active backlog above stays the live list.
 
+- **Save-state rollback on tab-out / reconnect** — flush the debounced save on
+  `visibilitychange`/`pagehide` (sync localStorage write survives a throttled
+  hidden tab), and re-seed the server from the live HUD snapshot on WS reconnect
+  (not the frozen join snapshot) so it can't restore stale state. Shipped v0.2.11
+  — see **ADR-0032**.
+- **Backgrounded-tab multiplayer desync** — on visibility regain the client
+  requests a read-only `resync` snapshot and `SceneRenderer.reconcile()` heals the
+  scene against authoritative truth: removes orphaned healthbars/reaped entities,
+  adds ones that appeared, and re-syncs HP + interactivity (plus `onRespawned` now
+  re-arms interaction). Burst-flood smoothing left parked (reconcile makes it
+  cosmetic). Shipped v0.2.11 — see **ADR-0032**.
+- **Gated-tap "false success" feedback** — the block rule is now one shared pure
+  helper (`evaluateEntityBlock`) used by BOTH sim and a client predictive gate, so
+  a tap that can't land plays the error cue instead of success chips/SFX;
+  `entity.blocked` stays the de-duped backstop. Shipped v0.2.11 — see **ADR-0032**.
 - **Collection Book registration juice + icon-first detail** — rarity-tiered slot
   slam/flash, Rare+ panel shake; client-side diff of `collection.registered`, no
   sim change. Shipped v0.1.44.

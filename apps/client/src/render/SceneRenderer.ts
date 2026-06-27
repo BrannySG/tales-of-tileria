@@ -12,15 +12,18 @@ import {
 import {
   canArmedItemInteract,
   cursorSkinTextureId,
+  evaluateEntityBlock,
   findRefineRecipeForEntity,
   getItemDefinition,
   getRecipeDefinition,
   getSkillTreeNode,
   getToolDefinition,
   requireEntityDefinition,
+  type BlockInfo,
   type DamageSource,
   type EntityDefinition,
   type EntityInstance,
+  type EntityKind,
   type LevelDefinition,
   type PresenceInfo,
   type Rarity,
@@ -29,6 +32,7 @@ import {
   type SkillId,
   type ToolId,
   type ToolType,
+  type ZoneSnapshot,
 } from '@tot/shared';
 import { PLAYER_ZOOM, PREVIEW_IDLE_HIDE_MS, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
 import { EntityView } from './EntityView';
@@ -73,8 +77,29 @@ const TOOL_LABEL: Record<ToolType, string> = {
 };
 
 const RARITY_ORDER: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+
+/**
+ * Entity kinds whose HP / availability is reconciled from a resync snapshot
+ * (see ADR-0032). These are the damageable, respawning entities the desync
+ * symptoms affect; non-combat kinds (NPCs, props, shrines, stations, vendors)
+ * keep their event/director-driven lifecycle and are only reconciled for
+ * presence (added if new, removed if the server reaped them).
+ */
+const RECONCILE_KINDS: ReadonlySet<EntityKind> = new Set<EntityKind>([
+  'resource',
+  'enemy',
+  'questObject',
+]);
 /** Camera zoom (multiple of 1:1) while following the idle cursor (see CONTEXT.md: Idle Mode). */
 const IDLE_FOLLOW_ZOOM = 1.7;
+
+/**
+ * Window (ms) during which an authoritative `entity.blocked` is treated as the
+ * echo of a block we already showed optimistically on the local tap, so the
+ * error cue isn't played twice (see ADR-0032). Generously covers round-trip
+ * latency; a genuine later block past this window plays normally.
+ */
+const BLOCK_CUE_DEDUPE_MS = 1500;
 
 const LOOT_DROP_SOUND: Record<Rarity, SoundName> = {
   common: 'lootDropCommon',
@@ -199,6 +224,12 @@ export class SceneRenderer {
   private fallingLeaves!: FallingLeavesSystem;
   /** Instances whose next entity.damaged number should be skipped (a Smite owns it). */
   private readonly smiteSuppressNumberFor = new Set<string>();
+  /**
+   * performance.now() of the last blocked cue we played OPTIMISTICALLY on a local
+   * tap, keyed by instance. The authoritative `entity.blocked` echo within
+   * BLOCK_CUE_DEDUPE_MS is then suppressed so the error isn't doubled (ADR-0032).
+   */
+  private readonly optimisticBlockAt = new Map<string, number>();
 
   private cinematic!: CinematicController;
   private prompts!: WorldPromptManager;
@@ -819,10 +850,23 @@ export class SceneRenderer {
       if (isPickup) {
         this.opts.transport.send({ type: 'pickup.collect', instanceId });
       } else {
-        // Optimistic presentation (networked): play the swing spark + sound now;
-        // the server's authoritative entity.damaged adds the real number/HP and is
-        // de-duped so it isn't played twice (see handleEvent).
-        if (this.networked) this.spawnHitFx(instanceId, 0, 'active', false, true);
+        // Optimistic presentation (networked): the success spark/SFX would
+        // normally play now for snappiness, then the server's authoritative
+        // entity.damaged is de-duped so it isn't played twice (see handleEvent).
+        // But a tap that can't land (missing/unequipped tool, locked Tier, etc.)
+        // must NOT play success juice — that falsely signals a hit (see ADR-0032).
+        // Predict the block locally with the SAME shared rule the sim uses and
+        // play the error cue instead; the authoritative entity.blocked echo is
+        // de-duped. Local play has no optimism, so it just relies on the event.
+        if (this.networked) {
+          const block = this.predictBlock(instanceId);
+          if (block) {
+            this.playBlockedCue(instanceId, block);
+            this.optimisticBlockAt.set(instanceId, performance.now());
+          } else {
+            this.spawnHitFx(instanceId, 0, 'active', false, true);
+          }
+        }
         this.opts.transport.send({ type: 'entity.tap', instanceId });
       }
     });
@@ -1119,12 +1163,14 @@ export class SceneRenderer {
         break;
       }
       case 'entity.blocked': {
-        const view = this.views.get(event.instanceId);
-        view?.wiggle();
-        this.opts.sound?.play('denied');
-        const x = view ? view.container.x : VIRTUAL_WIDTH / 2;
-        const y = view ? view.container.y + view.hitOffsetY : VIRTUAL_HEIGHT / 2;
-        this.floatText(x, y, this.blockedMessage(event), { color: 0xffd24a });
+        // If we already showed this block optimistically on the local tap (within
+        // the dedupe window), swallow the authoritative echo (see ADR-0032).
+        const optimisticAt = this.optimisticBlockAt.get(event.instanceId);
+        if (optimisticAt !== undefined && performance.now() - optimisticAt < BLOCK_CUE_DEDUPE_MS) {
+          this.optimisticBlockAt.delete(event.instanceId);
+          break;
+        }
+        this.playBlockedCue(event.instanceId, event);
         break;
       }
       case 'equipment.changed': {
@@ -1379,6 +1425,53 @@ export class SceneRenderer {
     }
   }
 
+  /**
+   * Reconciles the live scene against a fresh authoritative snapshot (ADR-0032).
+   * After a backgrounded tab regains focus, the browser flushes a buffered burst
+   * of events that can strand presentation — orphaned healthbars over entities
+   * the server has reaped, or entities the client still believes are alive. This
+   * heals that by treating the snapshot as truth:
+   *  - add views for entities that appeared while we were away,
+   *  - sync HP / availability / interactivity of damageable entities (no juice),
+   *  - drop views the server no longer has.
+   * Non-combat entities keep their event/director-driven lifecycle untouched.
+   */
+  reconcile(snapshot: ZoneSnapshot): void {
+    const seen = new Set<string>();
+    for (const inst of snapshot.entities) {
+      seen.add(inst.instanceId);
+      const view = this.views.get(inst.instanceId);
+      if (!view) {
+        // Appeared (spawned/respawned) while we were hidden: build it in its
+        // authoritative state so it's immediately correct + interactive.
+        this.addEntityView(inst);
+        continue;
+      }
+      const def = this.defs.get(inst.instanceId);
+      if (def && RECONCILE_KINDS.has(def.kind)) {
+        view.reconcile(inst.hp, inst.maxHp, inst.state);
+        if ((def.tags ?? []).includes('tree')) {
+          this.fallingLeaves.setSourceActive(inst.instanceId, inst.state === 'available');
+        }
+      }
+    }
+    // Tear down views the server has reaped — the source of orphaned healthbars.
+    for (const [id, view] of this.views) {
+      if (seen.has(id)) continue;
+      this.defs.delete(id);
+      this.views.delete(id);
+      this.optimisticBlockAt.delete(id);
+      this.fallingLeaves.setSourceActive(id, false);
+      if (this.hoveredInstanceId === id) this.hoveredInstanceId = undefined;
+      if (this.currentTargetId === id) this.currentTargetId = undefined;
+      if (this.previewInstanceId === id) {
+        this.previewInstanceId = undefined;
+        useHud.getState().clearHoverPreview();
+      }
+      view.destroy();
+    }
+  }
+
   /** Floats a collected pickup up and out, then removes its view. */
   private collectPickupView(instanceId: string): void {
     const view = this.views.get(instanceId);
@@ -1479,8 +1572,39 @@ export class SceneRenderer {
     this.opts.sound?.play('lightning');
   }
 
+  /**
+   * Predicts whether the local player's tap on `instanceId` would be blocked,
+   * using the SAME shared rule the sim enforces (`evaluateEntityBlock`) fed from
+   * the HUD's projection of authoritative player state (see ADR-0030/0032). Lets
+   * networked play gate optimistic success juice without waiting for the server.
+   */
+  private predictBlock(instanceId: string): BlockInfo | undefined {
+    const def = this.defs.get(instanceId);
+    if (!def) return undefined;
+    const hud = useHud.getState();
+    return evaluateEntityBlock(
+      {
+        ownedTools: hud.ownedToolIds,
+        equippedBySlot: hud.equippedBySlot,
+        skills: hud.skills,
+        skillTrees: hud.skillTrees,
+      },
+      def,
+    );
+  }
+
+  /** Plays the blocked-interaction cue: a wiggle, the denied SFX, and the reason. */
+  private playBlockedCue(instanceId: string, info: BlockInfo): void {
+    const view = this.views.get(instanceId);
+    view?.wiggle();
+    this.opts.sound?.play('denied');
+    const x = view ? view.container.x : VIRTUAL_WIDTH / 2;
+    const y = view ? view.container.y + view.hitOffsetY : VIRTUAL_HEIGHT / 2;
+    this.floatText(x, y, this.blockedMessage(info), { color: 0xffd24a });
+  }
+
   /** Builds a player-facing message for a blocked interaction (see ADR-0008). */
-  private blockedMessage(event: Extract<SimEvent, { type: 'entity.blocked' }>): string {
+  private blockedMessage(event: BlockInfo): string {
     const toolLabel = event.requiredToolType ? TOOL_LABEL[event.requiredToolType] : 'tool';
     switch (event.reason) {
       case 'missingTool':

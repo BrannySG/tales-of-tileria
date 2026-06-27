@@ -127,6 +127,18 @@ export class InstanceDO {
       // Any skill progressing can change a ranked board (per-skill or the total),
       // so this player's leaderboard row is stale.
       if (this.hasSkillChange(addressed)) this.submitScores(conn);
+      return;
+    }
+
+    if (msg.type === 'resync') {
+      // Read-only: hand back the current authoritative snapshot so a refocused
+      // client can reconcile its scene (see ADR-0032). No world mutation.
+      if (!conn.playerId) return;
+      this.send(conn.socket, {
+        type: 'resync',
+        snapshot: world.getSnapshot(conn.playerId),
+        presence: world.getPresence().filter((p) => p.playerId !== conn.playerId),
+      });
     }
   }
 

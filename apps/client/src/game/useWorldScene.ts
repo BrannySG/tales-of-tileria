@@ -141,6 +141,7 @@ export function useWorldScene(
     let saveUnsub: (() => void) | undefined;
     let saveTimer: number | undefined;
     let flushSave: (() => void) | undefined;
+    let removeLifecycleSave: (() => void) | undefined;
 
     const networked = options.networked ?? !!level.multiplayer;
 
@@ -163,6 +164,10 @@ export function useWorldScene(
         playerId,
         name: options.playerName,
         player: carriedPlayer(playerId, options.playerName, options),
+        // On reconnect, re-seed the server from the live HUD projection rather
+        // than the stale snapshot frozen at construction, so authoritative
+        // events can't drag progress backward (see ADR-0032).
+        getLivePlayer: () => snapshotPlayerForSave(wsTransport!),
       });
       transport = wsTransport;
     } else {
@@ -231,6 +236,30 @@ export function useWorldScene(
           }, SAVE_DEBOUNCE_MS);
         });
       }
+      // Tab visibility wiring (see ADR-0032). Two jobs on a hidden->visible swing:
+      //   - On HIDE: flush the save synchronously. Browsers throttle the debounce
+      //     timer in background tabs, so a pending write can be lost; localStorage
+      //     writes are sync, so this reliably captures the latest progress.
+      //   - On REGAIN: ask the server for a fresh snapshot and reconcile the
+      //     scene against it. A backgrounded tab buffers a burst of events that
+      //     flush at once on refocus, which can strand presentation (orphaned
+      //     healthbars, entities the client thinks are alive that the server
+      //     reaped). Reconciling against authoritative truth heals that.
+      const offResync = wsTransport && renderer
+        ? wsTransport.onResync((snap) => renderer!.reconcile(snap))
+        : undefined;
+      const onVisibility = () => {
+        if (document.visibilityState === 'hidden') flushSave?.();
+        else wsTransport?.requestResync();
+      };
+      const onPageHide = () => flushSave?.();
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('pagehide', onPageHide);
+      removeLifecycleSave = () => {
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.removeEventListener('pagehide', onPageHide);
+        offResync?.();
+      };
       // Default world ambience; `music: null` keeps the session silent (the void).
       if (options.music !== null) {
         sound.unlock();
@@ -248,6 +277,7 @@ export function useWorldScene(
     return () => {
       cancelled = true;
       // Flush a final save before tearing down so end-of-session progress lands.
+      removeLifecycleSave?.();
       saveUnsub?.();
       flushSave?.();
       if (saveTimer !== undefined) window.clearTimeout(saveTimer);

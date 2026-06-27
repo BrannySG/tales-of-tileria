@@ -46,6 +46,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0029](0029-generic-refining-system-and-tiered-raw-wood.md) | A generic, data-driven Refining system (Sawmill first) + tiered raw wood | Accepted — separate from 0010 crafting; extends 0018 affordance, 0022 tree hooks, 0027 economy |
 | [0030](0030-unified-equipment-equip-gates-access.md) | Unified Equipment (Tool/Artifact subtypes); equipping gates access AND grants Stats; auto-equip gutted; Vendor Buy path | Accepted — reframes 0022's "Artifacts supersede Gear", supersedes 0008's equip path, fills 0027's deferred Buy seam |
 | [0031](0031-theme-agnostic-sprite-pipeline-style-packs.md) | Theme-agnostic Sprite Pipeline: swappable Style Packs + pluggable per-Preset processing/QA strategies; a `ui-frame` Preset with contract-driven 9-slice metadata | Accepted — refactors the spritegen tool (no sim/runtime impact) |
+| [0032](0032-snapshot-reconciliation-and-resync.md) | Presentation reconciles against authoritative snapshots; client requests a `resync` on visibility regain; shared block rule gates optimistic feedback | Accepted — builds on 0016, reuses 0022/0030 gating as a shared rule, hardens 0006's client-as-source persistence |
 
 ## Supersession map
 
@@ -112,6 +113,17 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
   per-Preset `process`/`qa` strategies, and adds a `ui-frame` Preset whose
   prompt-enforced geometry contract drives emitted CSS 9-slice metadata. Subject
   Sprite output (item Icons / Entities / cursors) is unchanged.
+
+- **0032** builds on **0016**'s authoritative runtime by adding a read-only
+  `resync` request/response so presentation can re-anchor to a fresh snapshot on
+  visibility regain (`SceneRenderer.reconcile`), keeping the **0007**/**0006**
+  projection boundary (reconcile changes no sim state). It extracts the
+  **0022**/**0030** access-gating logic (`blockedReason`) into one shared pure rule
+  (`evaluateEntityBlock`) used by BOTH the sim and a new client predictive gate, so
+  optimistic hit FX never fires on a tap the sim would block. It also hardens
+  **0006**'s client-as-source-of-truth persistence (deferred server persistence,
+  **0016**) against tab-out save loss and reconnect rollback, without changing the
+  authority model.
 
 ## Adding an ADR
 

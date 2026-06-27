@@ -28,6 +28,27 @@ export const MAX_REFINE_SPEED_PCT = 0.8;
  * Sim-authoritative: the World calls this for gameplay and ships the result in
  * the snapshot / `player.statsChanged`; the client only renders it.
  */
+/**
+ * The highest Entity Tier this player has unlocked in `skillId`'s Skill Tree
+ * (see CONTEXT.md: Tier; ADR-0022). Tier 1 is always available; higher Tiers
+ * come from allocated `tierUnlock` nodes. A pure read of the player's tree, kept
+ * as the single source for Tier gating so {@link deriveStats} and the
+ * entity-block check (see `requirements.ts`) never drift apart.
+ */
+export function maxTierUnlocked(player: Pick<Player, 'skillTrees'>, skillId: SkillId): number {
+  const tree = getSkillTree(skillId);
+  if (!tree) return 1;
+  const allocated = player.skillTrees?.[skillId]?.allocated ?? {};
+  let max = 1;
+  for (const node of tree.nodes) {
+    if (node.effect.kind !== 'tierUnlock') continue;
+    // Tier unlocks are single-rank; Rank does not stack the Tier.
+    const rank = node.id === tree.rootNodeId ? 1 : (allocated[node.id] ?? 0);
+    if (rank > 0) max = Math.max(max, node.effect.tier);
+  }
+  return max;
+}
+
 export function deriveStats(player: Player, skillId: SkillId, combat: CombatConfig): SkillStats {
   const stats: SkillStats = {
     tapDamage: combat.activeDamage,
@@ -37,7 +58,7 @@ export function deriveStats(player: Player, skillId: SkillId, combat: CombatConf
     hoverRate: combat.passiveTickSeconds,
     critChance: 0,
     critDamage: BASE_CRIT_DAMAGE,
-    maxTierUnlocked: 1,
+    maxTierUnlocked: maxTierUnlocked(player, skillId),
   };
 
   const tree = getSkillTree(skillId);
@@ -49,10 +70,7 @@ export function deriveStats(player: Player, skillId: SkillId, combat: CombatConf
       const rank = isRoot ? 1 : (allocated[node.id] ?? 0);
       if (rank <= 0) continue;
       const effect = node.effect;
-      if (effect.kind === 'tierUnlock') {
-        // Tier unlocks are single-rank; Rank does not stack the Tier.
-        stats.maxTierUnlocked = Math.max(stats.maxTierUnlocked, effect.tier);
-      } else if (effect.kind === 'stat') {
+      if (effect.kind === 'stat') {
         const amount = effect.amount * rank;
         switch (effect.stat) {
           case 'tapDamage':

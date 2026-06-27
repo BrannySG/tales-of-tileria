@@ -1,6 +1,6 @@
 import type { SkillId } from '@tot/shared';
 
-export type SkillDisplayId = SkillId | 'fishing';
+export type SkillDisplayId = SkillId | 'fishing' | 'clicker';
 
 export const SKILL_LABEL: Record<SkillDisplayId, string> = {
   woodcutting: 'Woodcutting',
@@ -8,6 +8,7 @@ export const SKILL_LABEL: Record<SkillDisplayId, string> = {
   combat: 'Combat',
   crafting: 'Crafting',
   fishing: 'Fishing',
+  clicker: 'Clicker',
 };
 
 export const SKILL_ICON_TEXTURE: Partial<Record<SkillDisplayId, string>> = {
@@ -15,6 +16,7 @@ export const SKILL_ICON_TEXTURE: Partial<Record<SkillDisplayId, string>> = {
   mining: 'item_skill_mining',
   combat: 'item_skill_combat',
   crafting: 'item_skill_crafting',
+  clicker: 'cursor_handdrawn',
 };
 
 export function skillLabel(skillId: string): string {

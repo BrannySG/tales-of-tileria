@@ -81,12 +81,20 @@ export function Frame({
   className,
   style,
   contentStyle,
+  topChrome,
   children,
 }: {
   spec: FrameSpec;
   className?: string;
   style?: CSSProperties;
   contentStyle?: CSSProperties;
+  /**
+   * Optional chrome mounted across the top border zone (e.g. a folder-tab strip).
+   * Rendered in normal flow above the children but lifted up by the border width,
+   * so it paints ON the frame's top edge and reads as frame furniture. Subsequent
+   * children (grid, footer) flow naturally beneath it.
+   */
+  topChrome?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -108,6 +116,20 @@ export function Frame({
         className="lab-frame-content"
         style={{ position: 'relative', padding: spec.border, ...contentStyle }}
       >
+        {topChrome && (
+          <div
+            className="lab-frame-chrome"
+            style={{
+              // Lift the strip up onto the top wooden rail, but stop a few px shy
+              // of the outer edge so the frame's top ornament still reads above the
+              // tabs (mounted ON the border, not replacing it).
+              marginTop: -Math.max(spec.border - 12, 0),
+              ['--lab-border' as string]: `${spec.border}px`,
+            }}
+          >
+            {topChrome}
+          </div>
+        )}
         {children}
       </div>
     </div>

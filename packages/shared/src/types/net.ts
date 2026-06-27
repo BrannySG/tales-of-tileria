@@ -35,7 +35,17 @@ export type ClientMessage =
       name: string;
       player: Player;
     }
-  | { type: 'command'; command: SimCommand };
+  | { type: 'command'; command: SimCommand }
+  | {
+      /**
+       * Request a fresh authoritative snapshot mid-session (see ADR-0032). The
+       * client sends this when a backgrounded tab regains focus, so it can
+       * reconcile presentation against current truth rather than replaying a
+       * buffered burst of events. Carries no world state — read-only.
+       */
+      type: 'resync';
+      playerId: PlayerId;
+    };
 
 /** Messages the server sends to the client. */
 export type ServerMessage =
@@ -47,6 +57,16 @@ export type ServerMessage =
        */
       type: 'welcome';
       playerId: PlayerId;
+      snapshot: ZoneSnapshot;
+      presence: PresenceInfo[];
+    }
+  | {
+      /**
+       * Reply to a `resync` request (see ADR-0032): the current authoritative
+       * snapshot for this player plus live presence, so the client can reconcile
+       * its scene. Distinct from `welcome` so it never re-runs join-time setup.
+       */
+      type: 'resync';
       snapshot: ZoneSnapshot;
       presence: PresenceInfo[];
     }
