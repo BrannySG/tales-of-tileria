@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { cursorSkinTextureId, type CombatConfig, type Rarity, type SkillId, type ToolId, type ToolType, type TreeId } from '@tot/shared';
 import { useHud } from '../state/store';
 import { ASSET_URL } from '../assets/manifest';
+import woodOrnate from '@assets/UI/T_UI_WoodOrnate.png';
+import woodGrain from '@assets/UI/T_UI_WoodGrain.png';
 import { GamePanel } from './panel/GamePanel';
 import { QuestTracker } from './QuestTracker';
 import { DevPanel } from './DevPanel';
@@ -86,6 +88,23 @@ export interface ProfileViewModel {
   hasNew: boolean;
 }
 
+/**
+ * Carved-wood material tokens for the profile badges. The grain tile is the same
+ * grayscale texture the panel tab faces use; blending it `soft-light` over a base
+ * gradient makes the badges read as the same painted wood as the rest of the HUD.
+ */
+const PLAQUE_WOOD = 'linear-gradient(180deg, #6a4d2e 0%, #4a3420 55%, #382615 100%)';
+const PILL_WOOD = 'linear-gradient(180deg, #2c2015 0%, #170f08 100%)';
+const REGION_PARCHMENT = 'linear-gradient(180deg, #efe2c6 0%, #d6bf94 100%)';
+
+function grainStyle(gradient: string, tilePx = 90): CSSProperties {
+  return {
+    backgroundImage: `url("${woodGrain}"), ${gradient}`,
+    backgroundBlendMode: 'soft-light',
+    backgroundSize: `${tilePx}px auto, cover`,
+  };
+}
+
 function PinIcon() {
   return (
     <svg
@@ -105,11 +124,13 @@ function PinIcon() {
 }
 
 /**
- * Top-left profile identity block: a hero circular avatar (the player's equipped
- * Cursor skin) with an overhanging name plaque, a compact LV pill, and a location
- * row (Region + Level). Clicking the avatar opens the Profile (see CONTEXT.md:
- * Profile). Presentation-only — fed a {@link ProfileViewModel}. A red New
- * indicator marks unacknowledged unlocks/achievements.
+ * Top-left profile identity block: a square wood-framed avatar (the player's
+ * equipped Cursor skin, in a `T_UI_WoodOrnate` 9-slice box) with an overhanging
+ * carved-wood name plaque, a compact LV pill, and a location row (Region + Level).
+ * Every badge is tinted with the shared wood-grain tile so it blends with the
+ * panel material. Clicking the avatar opens the Profile (see CONTEXT.md: Profile).
+ * Presentation-only — fed a {@link ProfileViewModel}. A red New indicator marks
+ * unacknowledged unlocks/achievements.
  */
 export function ProfileCard({ vm, onOpen }: { vm: ProfileViewModel; onOpen: () => void }) {
   const name = vm.name.trim();
@@ -123,16 +144,25 @@ export function ProfileCard({ vm, onOpen }: { vm: ProfileViewModel; onOpen: () =
           aria-label="Profile"
           title="Profile"
           onClick={onOpen}
+          style={{ borderImageSource: `url("${woodOrnate}")` }}
         >
           <img src={ASSET_URL[cursorSkinTextureId(vm.cursorSkinId)]} alt="" aria-hidden />
           {vm.hasNew && <span className="new-dot avatar" aria-label="New" />}
         </button>
-        <span className="hud-profile-nameplate">{name}</span>
+        <span className="hud-profile-nameplate" style={grainStyle(PLAQUE_WOOD)}>
+          {name}
+        </span>
       </div>
-      <span className="hud-profile-level">LV {vm.totalLevel}</span>
+      <span className="hud-profile-level" style={grainStyle(PILL_WOOD)}>
+        LV {vm.totalLevel}
+      </span>
       <div className="hud-profile-location">
         <PinIcon />
-        {vm.regionName && <span className="hud-profile-region">{vm.regionName}</span>}
+        {vm.regionName && (
+          <span className="hud-profile-region" style={grainStyle(REGION_PARCHMENT, 70)}>
+            {vm.regionName}
+          </span>
+        )}
         <span className="hud-profile-level-name">{vm.levelName}</span>
       </div>
     </div>

@@ -401,38 +401,36 @@ button {
 .hud-profile-avatar {
   pointer-events: auto;
   position: relative;
-  width: 86px;
-  height: 86px;
+  width: 92px;
+  height: 92px;
   padding: 0;
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  border: 3px solid #d8b25c;
-  background: radial-gradient(circle at 50% 32%, #6c513a 0%, #2c2016 78%);
-  box-shadow:
-    0 0 0 3px rgba(22, 14, 9, 0.92),
-    inset 0 2px 6px rgba(0, 0, 0, 0.5),
-    0 4px 11px rgba(0, 0, 0, 0.55);
+  /* Recessed interior shown inside the wood frame; the carved-wood border is a
+     9-slice of T_UI_WoodOrnate (source set inline, since the URL is hashed). */
+  background: radial-gradient(120% 120% at 50% 0%, #3a3128 0%, #2a231c 55%, #1f1812 100%);
+  border-style: solid;
+  border-width: 15px;
+  border-image-slice: 77;
+  border-image-width: 15px;
+  border-image-repeat: stretch;
+  filter: drop-shadow(0 4px 9px rgba(0, 0, 0, 0.55));
   cursor: pointer;
   overflow: visible;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
 
 .hud-profile-avatar:hover {
-  border-color: #f3d488;
-  box-shadow:
-    0 0 0 3px rgba(22, 14, 9, 0.92),
-    inset 0 2px 6px rgba(0, 0, 0, 0.5),
-    0 0 14px rgba(255, 210, 74, 0.45);
   transform: scale(1.04);
+  filter: brightness(1.08) drop-shadow(0 0 11px rgba(255, 210, 74, 0.45));
 }
 
 .hud-profile-avatar img {
-  width: 50px;
-  height: 50px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
   image-rendering: pixelated;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
 }
 
 .hud-profile-nameplate {
@@ -446,7 +444,7 @@ button {
   padding: 4px 14px;
   border-radius: 8px;
   border: 2px solid #b98a3f;
-  background: linear-gradient(180deg, #5b4229 0%, #392716 100%);
+  /* Wood grain tint set inline via grainStyle(); see ProfileCard. */
   color: #f4e7cd;
   font-size: 18px;
   font-weight: 800;
@@ -468,7 +466,7 @@ button {
   padding: 2px 13px;
   border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.55);
-  background: linear-gradient(180deg, #2a1f15 0%, #170f08 100%);
+  /* Wood grain tint set inline via grainStyle(); see ProfileCard. */
   color: #f0c463;
   font-size: 13px;
   font-weight: 800;
@@ -498,7 +496,7 @@ button {
   padding: 1px 9px;
   border-radius: 999px;
   border: 1px solid rgba(79, 50, 23, 0.7);
-  background: linear-gradient(180deg, #efe2c6 0%, #d6bf94 100%);
+  /* Parchment grain tint set inline via grainStyle(); see ProfileCard. */
   color: #2f2214;
   font-size: 12px;
   font-weight: 800;
@@ -5653,6 +5651,7 @@ button.bag-slot:hover {
     inset 0 0 60px rgba(0, 0, 0, 0.35),
     0 10px 22px rgba(0, 0, 0, 0.5);
 }
+
 
 /* --- Frame primitive --- */
 .lab-frame {

@@ -102,7 +102,7 @@ export function UiLabMode() {
           </div>
           <figcaption>
             <strong>Profile identity block</strong>
-            <span>frameless badges · hero avatar · Region + Level</span>
+            <span>wood avatar box · grain badges · Region + Level</span>
           </figcaption>
         </figure>
         <figure className="ui-lab-cell">
