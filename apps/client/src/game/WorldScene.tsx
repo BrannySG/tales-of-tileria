@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   getEntityDefinition,
+  getRegion,
   type CombatConfig,
   type LevelDefinition,
   type Player,
@@ -248,6 +249,7 @@ export function WorldScene({
             <Hud
               variant={variant}
               locationName={locationName}
+              regionName={level.regionId ? getRegion(level.regionId)?.displayName : undefined}
               idleableSkills={idleableSkills}
               onLock={onLock}
               onUnlock={onUnlock}

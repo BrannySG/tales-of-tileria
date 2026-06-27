@@ -3,6 +3,7 @@
   "level": {
     "id": "bigworld_01",
     "displayName": "The Clearing",
+    "regionId": "tileria",
     "backgroundTextureId": "bg_area01",
     "width": 5760,
     "height": 3240,

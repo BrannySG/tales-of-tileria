@@ -18,6 +18,8 @@ import { REFINE_RECIPES } from './refineRecipes';
 import { TOOL_DEFINITIONS } from './tools';
 import { COLLECTION_DEFINITIONS, COLLECTION_ENTRY_DEFINITIONS } from './collections';
 import { CURSOR_SKINS, DEFAULT_CURSOR_SKIN_ID, type CursorSkin } from './cursorSkins';
+import { REGION_DEFINITIONS } from './regions';
+import type { RegionDefinition } from '../types/region';
 import { ACHIEVEMENT_DEFINITIONS, type Achievement } from './achievements';
 import { ALL_TREE_DEFINITIONS, SKILL_TREE_DEFINITIONS } from './skillTrees';
 import type { SkillTreeDefinition, SkillTreeNode } from '../types/skillTree';
@@ -31,6 +33,7 @@ const toolById = new Map<ToolId, ToolDefinition>(TOOL_DEFINITIONS.map((t) => [t.
 const recipeById = new Map<string, RecipeDefinition>(RECIPE_DEFINITIONS.map((r) => [r.id, r]));
 const refineRecipeById = new Map<string, RefineRecipe>(REFINE_RECIPES.map((r) => [r.id, r]));
 const cursorSkinById = new Map<string, CursorSkin>(CURSOR_SKINS.map((s) => [s.id, s]));
+const regionById = new Map<string, RegionDefinition>(REGION_DEFINITIONS.map((r) => [r.id, r]));
 const achievementById = new Map<string, Achievement>(ACHIEVEMENT_DEFINITIONS.map((a) => [a.id, a]));
 const collectionById = new Map<string, CollectionDefinition>(
   COLLECTION_DEFINITIONS.map((c) => [c.id, c]),
@@ -238,6 +241,15 @@ export function getCursorSkin(id: string): CursorSkin | undefined {
 
 export function listCursorSkins(): readonly CursorSkin[] {
   return CURSOR_SKINS;
+}
+
+/** A Region by id (see CONTEXT.md: Region), or undefined when none matches. */
+export function getRegion(id: string): RegionDefinition | undefined {
+  return regionById.get(id);
+}
+
+export function listRegions(): readonly RegionDefinition[] {
+  return REGION_DEFINITIONS;
 }
 
 /** Resolve a skin id to its texture id, falling back to the Default skin. */

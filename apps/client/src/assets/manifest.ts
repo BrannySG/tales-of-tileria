@@ -85,6 +85,7 @@ import coinGold from '@assets/UI/Coin 2 Gold Outline 256.png';
 import coinGoldHud from '@assets/UI/Coin 2 Gold Outline 64.png';
 import type { ToolType } from '@tot/shared';
 import woodPanelV2 from '@assets/UI/T_UI_WoodPanelV2.png';
+import playerProfileFrame from '@assets/UI/T_UI_PlayerProfileFrame.png';
 
 /** Maps abstract textureIds (used in content definitions) to bundled URLs. */
 export const TEXTURE_MANIFEST: Record<string, string> = {
@@ -174,6 +175,7 @@ export const TEXTURE_MANIFEST: Record<string, string> = {
   coin_gold: coinGold,
   coin_gold_hud: coinGoldHud,
   ui_wood_panel_v2: woodPanelV2,
+  ui_player_profile_frame: playerProfileFrame,
 };
 
 /** Tool icon texture id per tool type (for the hotbar / cursor ring). */

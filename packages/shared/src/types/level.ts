@@ -74,6 +74,13 @@ export interface MultiplayerConfig {
 export interface LevelDefinition {
   id: string;
   displayName: string;
+  /**
+   * The Region this Level belongs to (see CONTEXT.md: Region) — a named grouping
+   * of Levels by cosmology (`tileria`, `the_inbetween`). Presentation/content
+   * only: the client resolves it to a display name for the profile location row.
+   * Omit for Levels with no Region (the tag is then hidden).
+   */
+  regionId?: string;
   /** Abstract texture id for the background; client maps to a URL. */
   backgroundTextureId: string;
   /** Authoring bounds in world units (matches the virtual resolution). */

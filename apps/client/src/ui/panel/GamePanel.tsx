@@ -286,7 +286,7 @@ export function GamePanel({
       {open && (
         <Frame
           spec={skin.frame}
-          style={{ width: GAME_PANEL_WIDTH, position: 'relative', zIndex: 1 } as CSSProperties}
+          style={{ width: GAME_PANEL_WIDTH, position: 'relative' } as CSSProperties}
           contentStyle={{ display: 'flex', flexDirection: 'column', gap: 12 }}
         >
           <div className="lab-tab-body">{body}</div>

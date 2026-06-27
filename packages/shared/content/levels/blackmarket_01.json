@@ -3,6 +3,7 @@
   "level": {
     "id": "blackmarket_01",
     "displayName": "The Black Market",
+    "regionId": "the_inbetween",
     "backgroundTextureId": "bg_blackmarket",
     "width": 1920,
     "height": 1080,

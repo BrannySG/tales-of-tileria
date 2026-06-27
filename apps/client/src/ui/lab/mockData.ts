@@ -14,9 +14,24 @@ import {
   type PanelSlotVM,
   type PanelTabId,
 } from '../panel/panelTypes';
+// `import type` is erased at build time, so this introduces no runtime import
+// cycle with Hud (which pulls in the panel components).
+import type { ProfileViewModel } from '../Hud';
 
 /** The five previewed sections (canonical IA; Collections replaced Travel). */
 export type LabTabId = PanelTabId;
+
+// --- Profile (identity block) ----------------------------------------------
+
+/** Mock profile VM for the frameless badge identity block (see CONTEXT.md: Region). */
+export const MOCK_PROFILE: ProfileViewModel = {
+  name: 'Branny',
+  totalLevel: 54,
+  regionName: 'Tileria',
+  levelName: 'The Clearing',
+  cursorSkinId: 'cracked',
+  hasNew: true,
+};
 
 // --- Skills ----------------------------------------------------------------
 

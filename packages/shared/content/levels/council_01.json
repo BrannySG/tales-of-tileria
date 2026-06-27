@@ -3,6 +3,7 @@
   "level": {
     "id": "council_01",
     "displayName": "The Council of Clickers",
+    "regionId": "the_inbetween",
     "backgroundTextureId": "bg_high_council",
     "width": 1920,
     "height": 1080,

@@ -47,6 +47,7 @@ For vocabulary see [`CONTEXT.md`](../../CONTEXT.md); for working conventions see
 | [0030](0030-unified-equipment-equip-gates-access.md) | Unified Equipment (Tool/Artifact subtypes); equipping gates access AND grants Stats; auto-equip gutted; Vendor Buy path | Accepted — reframes 0022's "Artifacts supersede Gear", supersedes 0008's equip path, fills 0027's deferred Buy seam |
 | [0031](0031-theme-agnostic-sprite-pipeline-style-packs.md) | Theme-agnostic Sprite Pipeline: swappable Style Packs + pluggable per-Preset processing/QA strategies; a `ui-frame` Preset with contract-driven 9-slice metadata | Accepted — refactors the spritegen tool (no sim/runtime impact) |
 | [0032](0032-snapshot-reconciliation-and-resync.md) | Presentation reconciles against authoritative snapshots; client requests a `resync` on visibility regain; shared block rule gates optimistic feedback | Accepted — builds on 0016, reuses 0022/0030 gating as a shared rule, hardens 0006's client-as-source persistence |
+| [0033](0033-regions-group-levels-by-cosmology.md) | Regions: a content-only grouping of Levels split by cosmology (Tileria / The Inbetween), surfaced in the profile location row | Accepted — presentation/content only; extends the Level content model |
 
 ## Supersession map
 

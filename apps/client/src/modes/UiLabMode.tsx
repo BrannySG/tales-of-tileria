@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { LabPanel } from '../ui/lab/LabPanel';
-import { DEFAULT_NOTIFICATIONS, type LabNotifications } from '../ui/lab/mockData';
+import { DEFAULT_NOTIFICATIONS, MOCK_PROFILE, type LabNotifications } from '../ui/lab/mockData';
 import { PIPELINE_SKIN } from '../ui/lab/skins';
+import { ProfileCard } from '../ui/Hud';
 
 /**
  * UI LAB (research spike, dev-only #/ui-lab) — an interactive previewer for the
@@ -28,6 +29,14 @@ export function UiLabMode() {
   const [width, setWidth] = useState<number>(400);
   const [density, setDensity] = useState<Density>('pc');
   const [notifications, setNotifications] = useState<LabNotifications>(DEFAULT_NOTIFICATIONS);
+  const [profileNew, setProfileNew] = useState(true);
+  const [profileRegion, setProfileRegion] = useState(true);
+
+  const profileVM = {
+    ...MOCK_PROFILE,
+    hasNew: profileNew,
+    regionName: profileRegion ? MOCK_PROFILE.regionName : undefined,
+  };
 
   const toggle = (key: keyof Omit<LabNotifications, 'skillLevelUps'>) =>
     setNotifications((n) => ({ ...n, [key]: !n[key] }));
@@ -72,10 +81,30 @@ export function UiLabMode() {
               Skill ↑
             </button>
           </div>
+          <div className="ui-lab-sizes" role="group" aria-label="Profile">
+            <button className={profileNew ? 'is-active' : ''} onClick={() => setProfileNew((v) => !v)}>
+              New dot
+            </button>
+            <button
+              className={profileRegion ? 'is-active' : ''}
+              onClick={() => setProfileRegion((v) => !v)}
+            >
+              Region
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="ui-lab-stage">
+        <figure className="ui-lab-cell">
+          <div className="ui-lab-profile-stage">
+            <ProfileCard vm={profileVM} onOpen={() => {}} />
+          </div>
+          <figcaption>
+            <strong>Profile identity block</strong>
+            <span>frameless badges · hero avatar · Region + Level</span>
+          </figcaption>
+        </figure>
         <figure className="ui-lab-cell">
           <LabPanel skin={PIPELINE_SKIN} width={width} notifications={notifications} />
           <figcaption>

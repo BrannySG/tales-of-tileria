@@ -3,6 +3,7 @@
   "level": {
     "id": "deepwood_01",
     "displayName": "The Deepwood",
+    "regionId": "tileria",
     "backgroundTextureId": "bg_area01",
     "width": 3840,
     "height": 2160,

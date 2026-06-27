@@ -49,6 +49,8 @@ export interface HudCallbacks {
 export interface HudProps extends HudCallbacks {
   variant?: HudVariant;
   locationName?: string;
+  /** The Region this Level belongs to (see CONTEXT.md: Region); omitted = no tag. */
+  regionName?: string;
   /** The gatherable Skills present in this Level (drives the Idle Mode bar). */
   idleableSkills?: SkillId[];
 }
@@ -65,53 +67,103 @@ function TrophyIcon() {
 }
 
 /**
- * Top-left profile card: the player's equipped Cursor skin as a circular avatar,
- * their name, a summed-across-all-skills total level, and gold. Clicking the
- * avatar opens the Profile (see CONTEXT.md: Profile). A red New indicator marks
- * unacknowledged unlocks/achievements.
+ * The presentation-only view-model for the profile identity block. Derived in
+ * one place ({@link useProfileViewModel}); the live HUD feeds real store data and
+ * the UI Lab feeds mock data into the same dumb {@link ProfileCard}.
  */
-function ProfileCard({ onOpen }: { onOpen: () => void }) {
+export interface ProfileViewModel {
+  /** The player's Divine name. Empty hides the whole card. */
+  name: string;
+  /** Total Level — the sum of every Skill level. */
+  totalLevel: number;
+  /** The Region this Level belongs to (see CONTEXT.md: Region); omit to hide it. */
+  regionName?: string;
+  /** The current Level's display name (e.g. "The Clearing"). */
+  levelName: string;
+  /** Equipped Cursor skin id (resolved to its avatar texture). */
+  cursorSkinId: string;
+  /** Whether there is an unacknowledged unlock/achievement (red New dot). */
+  hasNew: boolean;
+}
+
+function PinIcon() {
+  return (
+    <svg
+      className="hud-profile-pin"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      aria-hidden
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M12 2a7 7 0 0 0-7 7c0 4.6 5.6 11.1 6.3 11.9a1 1 0 0 0 1.5 0C13.4 20.1 19 13.6 19 9a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Top-left profile identity block: a hero circular avatar (the player's equipped
+ * Cursor skin) with an overhanging name plaque, a compact LV pill, and a location
+ * row (Region + Level). Clicking the avatar opens the Profile (see CONTEXT.md:
+ * Profile). Presentation-only — fed a {@link ProfileViewModel}. A red New
+ * indicator marks unacknowledged unlocks/achievements.
+ */
+export function ProfileCard({ vm, onOpen }: { vm: ProfileViewModel; onOpen: () => void }) {
+  const name = vm.name.trim();
+  if (!name) return null;
+
+  return (
+    <div className="hud-profile">
+      <div className="hud-profile-identity">
+        <button
+          className="hud-profile-avatar"
+          aria-label="Profile"
+          title="Profile"
+          onClick={onOpen}
+        >
+          <img src={ASSET_URL[cursorSkinTextureId(vm.cursorSkinId)]} alt="" aria-hidden />
+          {vm.hasNew && <span className="new-dot avatar" aria-label="New" />}
+        </button>
+        <span className="hud-profile-nameplate">{name}</span>
+      </div>
+      <span className="hud-profile-level">LV {vm.totalLevel}</span>
+      <div className="hud-profile-location">
+        <PinIcon />
+        {vm.regionName && <span className="hud-profile-region">{vm.regionName}</span>}
+        <span className="hud-profile-level-name">{vm.levelName}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Derive the {@link ProfileViewModel} from authoritative HUD store state. */
+function useProfileViewModel(regionName: string | undefined, levelName: string): ProfileViewModel {
   const displayName = useHud((s) => s.displayName);
-  const gold = useHud((s) => s.inventory.gold ?? 0);
   const skills = useHud((s) => s.skills);
   const cursorSkinId = useHud((s) => s.cursorSkinId);
   const unlockedCursorSkins = useHud((s) => s.unlockedCursorSkins);
   const seenCursorSkins = useHud((s) => s.seenCursorSkins);
   const seenAchievements = useHud((s) => s.seenAchievements);
   const totalLevel = Object.values(skills).reduce((sum, s) => sum + s.level, 0);
-  const name = displayName.trim();
-  if (!name) return null;
   const hasNew =
     newCursorSkinIds(unlockedCursorSkins, seenCursorSkins).length > 0 ||
     newAchievementIds(skills, seenAchievements).length > 0;
-
-  return (
-    <div className="hud-profile">
-      <button className="hud-profile-avatar" aria-label="Profile" title="Profile" onClick={onOpen}>
-        <img src={ASSET_URL[cursorSkinTextureId(cursorSkinId)]} alt="" aria-hidden />
-        {hasNew && <span className="new-dot avatar" aria-label="New" />}
-      </button>
-      <div className="hud-profile-details">
-        <span className="hud-profile-name">{name}</span>
-        <span className="hud-profile-level">Total Level {totalLevel}</span>
-        <div className="hud-profile-gold">
-          <img src={ASSET_URL.coin_gold_hud} alt="" aria-hidden />
-          <span>{gold.toLocaleString()}</span>
-        </div>
-      </div>
-    </div>
-  );
+  return { name: displayName.trim(), totalLevel, regionName, levelName, cursorSkinId, hasNew };
 }
 
 export function Hud(props: HudProps) {
   const variant = props.variant ?? 'game';
   const locationName = props.locationName ?? 'The Grass Plains';
+  const profileVM = useProfileViewModel(props.regionName, locationName);
   const [profileOpen, setProfileOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
   return (
     <div className="hud">
-      <ProfileCard onOpen={() => setProfileOpen(true)} />
+      <ProfileCard vm={profileVM} onOpen={() => setProfileOpen(true)} />
       {profileOpen && (
         <ProfileModal onEquip={props.onEquipCursor} onClose={() => setProfileOpen(false)} />
       )}
@@ -125,10 +177,6 @@ export function Hud(props: HudProps) {
       >
         <TrophyIcon />
       </button>
-      <div className="hud-location">
-        <small>Tileria</small>
-        <span className="hud-location-name">{locationName}</span>
-      </div>
       <GamePanel
         onEquip={props.onEquip}
         onUnequip={props.onUnequip}

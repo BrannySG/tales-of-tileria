@@ -97,7 +97,16 @@ language in the design docs, this file wins and the docs should be reconciled.
 
 - **Level** — An authored place a player can be in (e.g. "The Clearing"). This is
   the canonical term for a place. Created and saved by the Level Editor as a
-  LevelDefinition. Retires the design-doc synonyms "Area" and "Zone".
+  LevelDefinition. Retires the design-doc synonyms "Area" and "Zone". A Level may
+  belong to a **Region** (a named grouping of Levels) via its `regionId`.
+- **Region** — A named grouping of Levels along the game's cosmology. Two exist
+  today: **Tileria** (the mortal realm — The Clearing, the Deepwood) and **The
+  Inbetween** (the Clicker/celestial spaces where Cursor-beings dwell — the
+  Council of Clickers, the Black Market). A Region is presentation/content only: a
+  Level declares its `regionId` and the client resolves the display name for the
+  profile location row. It is not a sim or Level-instance concept. Distinct from
+  the retired place-synonyms "Area"/"Zone" (which named a *single* place) — a
+  Region names a *set* of Levels.
 - **Level instance** — A runtime, possibly-multiplayer copy of a Level, holding
   live state (entity HP, claims, respawn timers). Many instances can exist for
   one Level. A Player's personal state (Divine name, Owned tools, Skills,

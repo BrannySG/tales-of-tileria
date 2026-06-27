@@ -377,104 +377,152 @@ button {
   cursor: var(--app-cursor-glow, var(--app-cursor)) !important;
 }
 
-/* ---- Profile card (top-left) ---- */
+/* ---- Profile identity block (top-left, frameless badges) ---- */
 .hud-profile {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 34px * var(--hud-scale));
-  left: calc(env(safe-area-inset-left) + 40px * var(--hud-scale));
+  top: calc(env(safe-area-inset-top) + 30px * var(--hud-scale));
+  left: calc(env(safe-area-inset-left) + 34px * var(--hud-scale));
   transform: scale(var(--hud-scale));
   transform-origin: top left;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 8px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 16px;
-  backdrop-filter: blur(4px);
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.5));
+  gap: 7px;
+  /* Only the avatar is interactive; the badges never block world clicks. */
+  pointer-events: none;
+}
+
+.hud-profile-identity {
+  position: relative;
+  display: flex;
+  justify-content: center;
 }
 
 .hud-profile-avatar {
-  flex: none;
-  width: 52px;
-  height: 52px;
+  pointer-events: auto;
+  position: relative;
+  width: 86px;
+  height: 86px;
   padding: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 2px solid var(--panel-border);
-  background:
-    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.35));
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+  border: 3px solid #d8b25c;
+  background: radial-gradient(circle at 50% 32%, #6c513a 0%, #2c2016 78%);
+  box-shadow:
+    0 0 0 3px rgba(22, 14, 9, 0.92),
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 4px 11px rgba(0, 0, 0, 0.55);
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
   transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .hud-profile-avatar:hover {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 210, 74, 0.4);
-  transform: scale(1.06);
+  border-color: #f3d488;
+  box-shadow:
+    0 0 0 3px rgba(22, 14, 9, 0.92),
+    inset 0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(255, 210, 74, 0.45);
+  transform: scale(1.04);
 }
 
 .hud-profile-avatar img {
-  width: 32px;
-  height: 32px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
 }
 
-.hud-profile-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.1;
-}
-
-.hud-profile-name {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  color: var(--text);
-  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
-}
-
-.hud-profile-level {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-.hud-profile-gold {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 0;
-}
-
-.hud-profile-gold img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-
-.hud-profile-gold span {
+.hud-profile-nameplate {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -58%);
+  z-index: 2;
+  max-width: 180px;
+  padding: 4px 14px;
+  border-radius: 8px;
+  border: 2px solid #b98a3f;
+  background: linear-gradient(180deg, #5b4229 0%, #392716 100%);
+  color: #f4e7cd;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 0.5px;
-  color: #fff;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
-  font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 235, 200, 0.18);
 }
 
-/* ---- Quest tracker (top-left, under currency) ---- */
+.hud-profile-level {
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, #2a1f15 0%, #170f08 100%);
+  color: #f0c463;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 150, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.hud-profile-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+}
+
+.hud-profile-pin {
+  flex: none;
+  color: #e9d6ad;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+
+.hud-profile-region {
+  flex: none;
+  padding: 1px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(79, 50, 23, 0.7);
+  background: linear-gradient(180deg, #efe2c6 0%, #d6bf94 100%);
+  color: #2f2214;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-shadow: 0 1px 0 rgba(255, 245, 226, 0.45);
+  white-space: nowrap;
+}
+
+.hud-profile-level-name {
+  min-width: 0;
+  color: #f3e5ca;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Quest tracker (top-left, under profile) ---- */
 .hud-quests {
   position: absolute;
-  top: calc(env(safe-area-inset-top) + 150px * var(--hud-scale));
+  top: calc(env(safe-area-inset-top) + 170px * var(--hud-scale));
   left: calc(env(safe-area-inset-left) + 40px * var(--hud-scale));
   transform: scale(var(--hud-scale));
   transform-origin: top left;
@@ -787,7 +835,7 @@ button.bag-slot:hover {
 .bag-tooltip--slot {
   left: 0;
   right: 0;
-  z-index: 3;
+  z-index: 24;
   padding: 10px 12px;
   border-radius: 10px;
 }
@@ -4519,22 +4567,22 @@ button.bag-slot:hover {
 /* ---- Loot Reel (left edge, hero + aging trail; creative/design-ideas.md) ---- */
 .loot-reel {
   position: absolute;
-  /* Docked to the LEFT of the panel, with its base pinned to the panel's TOP
-     edge: panel bottom (12px) + the panel's live layout height scaled by the
-     HUD. `--panel-layout-h` is published by GamePanel and tracks open/collapse,
-     so the reel always sits at the top of the HUD cluster, not the screen top.
-     Newest loot is the hero at the bottom (right at the panel top); the aging
-     trail rises above it. Passive. */
+  /* Docked to the LEFT of the panel, with the reel's TOP edge pinned to the
+     panel's TOP edge (computed from panel bottom + live panel height). This
+     keeps the anchor tied to the panel as it opens/collapses while letting the
+     stack flow downward from that seam. `--panel-layout-h` is published by
+     GamePanel. Passive. */
   left: auto;
   right: calc(
     env(safe-area-inset-right) + (var(--game-panel-width, 352px) + 20px) * var(--hud-scale) + 18px
   );
-  top: auto;
-  bottom: calc(
-    env(safe-area-inset-bottom) + 12px + (var(--panel-layout-h, 360px) + 10px) * var(--hud-scale)
+  top: calc(
+    100% -
+      (env(safe-area-inset-bottom) + 12px + (var(--panel-layout-h, 360px) + 10px) * var(--hud-scale))
   );
+  bottom: auto;
   transform: scale(var(--hud-scale));
-  transform-origin: bottom right;
+  transform-origin: top right;
   display: flex;
   flex-direction: column-reverse;
   align-items: flex-end;
@@ -5588,6 +5636,22 @@ button.bag-slot:hover {
 .ui-lab-cell figcaption span {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.65);
+}
+
+/* Profile preview: a world-ish backdrop that hosts the absolutely-positioned
+   .hud-profile so it can be iterated against the mockup outside the game. */
+.ui-lab-profile-stage {
+  --hud-scale: 1;
+  position: relative;
+  width: 360px;
+  height: 320px;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 30% 10%, #6f8a3d 0%, #4f6a2c 55%, #3c521f 100%);
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.35),
+    0 10px 22px rgba(0, 0, 0, 0.5);
 }
 
 /* --- Frame primitive --- */
