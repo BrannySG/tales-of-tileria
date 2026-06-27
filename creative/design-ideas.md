@@ -10,7 +10,7 @@
 > [creative docs protocol](../.cursor/rules/creative-docs.mdc).
 > Re-review every item when this doc is updated.**
 >
-> Last reviewed: 2026-06-26 *(added shader / filter FX layer idea — wind-sway trees, ambient world life)*
+> Last reviewed: 2026-06-27 *(added chat + system event feed idea — bottom-right social/hype feed; reinforces rare-spawn announcements)*
 
 ---
 
@@ -20,17 +20,18 @@ I want this to be my masterpiece. The game that represents everything I enjoy
 about games. Designed in a way that feels social, enjoyable and addicting — with
 a great grind of course.
 
-### Re-review sweep (2026-06-26)
+### Re-review sweep (2026-06-27)
 
 - Lightweight onboarding quest spine: **HIGH (unchanged)**
 - Loot drop carousel (loot reel): **HIGH (unchanged)**
 - Custom scrollbar: **LOW (unchanged)**
-- Shader / filter FX layer (wind-sway, ambient juice): **LOW (new)**
+- Shader / filter FX layer (wind-sway, ambient juice): **LOW (unchanged)**
 - Shop unlock via hatch / breakable gate: **MEDIUM (unchanged)**
-- Vendor equipment progression: **HIGH (new)**
+- Vendor equipment progression: **HIGH / in build (unchanged — ADR-0030)**
 - Stack limits + wood refinement: **DECISION FIRST -> MEDIUM (unchanged)**
 - Artifacts: **HIGH (unchanged, clarified layering with skill equipment)**
-- Timed rare spawns: **MEDIUM (HIGH once Artifacts ship, unchanged)**
+- Timed rare spawns: **MEDIUM (HIGH once Artifacts ship; now shares feed surface)**
+- Chat + system event feed: **MEDIUM (new — DECISION FIRST on routing + placement)**
 - Region travel via repaired portals: **MEDIUM (unchanged)**
 - Jim's Gym: **LOW (unchanged)**
 - Monetization survey: **LOW (unchanged)**

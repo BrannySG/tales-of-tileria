@@ -30,3 +30,6 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+
+# Local-only asset examples (do not push)
+AvailableAssets/Examples/
